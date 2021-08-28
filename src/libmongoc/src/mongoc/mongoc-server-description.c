@@ -528,6 +528,17 @@ _mongoc_server_description_set_error (mongoc_server_description_t *sd,
 }
 
 
+bool
+_streq (const char *l, const char *r)
+{
+   for (; *l && *r; ++l, ++r) {
+      if (*r != *l) {
+         return false;
+      }
+   }
+   return true;
+}
+
 /*
  *-------------------------------------------------------------------------
  *
@@ -580,160 +591,165 @@ mongoc_server_description_handle_hello (mongoc_server_description_t *sd,
 
    BSON_ASSERT (bson_iter_init (&iter, &sd->last_hello_response));
 
+   /** 'goto failure' if the given condition is not met */
+#define REQUIRE(Cond)  \
+   do {                \
+      if (!(Cond)) {   \
+         goto failure; \
+      }                \
+   } while (0)
+
+#define StoreKey(ExpectKey, StoreDest, TypeUpper, TypeLower) \
+   do {                                                      \
+      if (_streq (key, ExpectKey)) {                         \
+         REQUIRE (type == BSON_TYPE_##TypeUpper);            \
+         (StoreDest) = bson_iter_##TypeLower (&iter);        \
+         goto next_key;                                      \
+      }                                                      \
+   } while (0)
+
+/** Store a boolean value for the given key */
+#define StoreBool(Key, Dest) StoreKey (Key, Dest, BOOL, bool)
+/** Store an int32_t value for the given key */
+#define StoreInt32(Key, Dest) StoreKey (Key, Dest, INT32, int32)
+/** Store a string of UTF-8 text for the given key */
+#define StoreText(Key, Dest)                    \
+   do {                                         \
+      if (_streq (key, Key)) {                  \
+         REQUIRE (type == BSON_TYPE_UTF8);      \
+         (Dest) = bson_iter_utf8 (&iter, NULL); \
+         goto next_key;                         \
+      }                                         \
+   } while (0)
+
+/** Store an array for the given key */
+#define StoreArray(Key, Dest)                     \
+   do {                                           \
+      if (_streq (key, Key)) {                    \
+         REQUIRE (BSON_ITER_HOLDS_ARRAY (&iter)); \
+         bson_iter_array (&iter, &len, &bytes);   \
+         bson_destroy (&(Dest));                  \
+         bson_init_static (&(Dest), bytes, len);  \
+         goto next_key;                           \
+      }                                           \
+   } while (0)
+
+next_key:
    while (bson_iter_next (&iter)) {
       num_keys++;
-      if (strcmp ("ok", bson_iter_key (&iter)) == 0) {
-         if (!bson_iter_as_bool (&iter)) {
-            /* it doesn't really matter what error API we use. the code and
-             * domain will be overwritten. */
-            (void) _mongoc_cmd_check_ok (
-               hello_response, MONGOC_ERROR_API_VERSION_2, &sd->error);
-            /* TODO CDRIVER-3696: this is an existing bug. If this is handling
-             * a hello reply that is NOT from a handshake, this should not
-             * be considered an auth error. */
-            /* hello response returned ok: 0. According to auth spec: "If the
-             * hello of the MongoDB Handshake fails with an error, drivers
-             * MUST treat this an authentication error." */
-            sd->error.domain = MONGOC_ERROR_CLIENT;
-            sd->error.code = MONGOC_ERROR_CLIENT_AUTHENTICATE;
-            goto failure;
+      const char *key = bson_iter_key (&iter);
+      bson_type_t type = bson_iter_type (&iter);
+      switch (key[0]) {
+      case 'o':
+         if (_streq (key, "ok")) {
+            if (!bson_iter_as_bool (&iter)) {
+               /* it doesn't really matter what error API we use. the code and
+                * domain will be overwritten. */
+               (void) _mongoc_cmd_check_ok (
+                  hello_response, MONGOC_ERROR_API_VERSION_2, &sd->error);
+               /* TODO CDRIVER-3696: this is an existing bug. If this is
+                * handling a hello reply that is NOT from a handshake, this
+                * should not be considered an auth error. */
+               /* hello response returned ok: 0. According to auth spec: "If the
+                * hello of the MongoDB Handshake fails with an error, drivers
+                * MUST treat this an authentication error." */
+               sd->error.domain = MONGOC_ERROR_CLIENT;
+               sd->error.code = MONGOC_ERROR_CLIENT_AUTHENTICATE;
+               goto failure;
+            }
          }
-      } else if (strcmp ("isWritablePrimary", bson_iter_key (&iter)) == 0 ||
-                 strcmp (HANDSHAKE_RESPONSE_LEGACY_HELLO,
-                         bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_BOOL (&iter))
-            goto failure;
-         is_primary = bson_iter_bool (&iter);
-      } else if (strcmp ("helloOk", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_BOOL (&iter))
-            goto failure;
-         sd->hello_ok = bson_iter_bool (&iter);
-      } else if (strcmp ("me", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_UTF8 (&iter))
-            goto failure;
-         sd->me = bson_iter_utf8 (&iter, NULL);
-      } else if (strcmp ("maxMessageSizeBytes", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_INT32 (&iter))
-            goto failure;
-         sd->max_msg_size = bson_iter_int32 (&iter);
-      } else if (strcmp ("maxBsonObjectSize", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_INT32 (&iter))
-            goto failure;
-         sd->max_bson_obj_size = bson_iter_int32 (&iter);
-      } else if (strcmp ("maxWriteBatchSize", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_INT32 (&iter))
-            goto failure;
-         sd->max_write_batch_size = bson_iter_int32 (&iter);
-      } else if (strcmp ("logicalSessionTimeoutMinutes",
-                         bson_iter_key (&iter)) == 0) {
-         if (BSON_ITER_HOLDS_NUMBER (&iter)) {
-            sd->session_timeout_minutes = bson_iter_as_int64 (&iter);
-         } else if (BSON_ITER_HOLDS_NULL (&iter)) {
-            /* this arises executing standard JSON tests */
-            sd->session_timeout_minutes = MONGOC_NO_SESSIONS;
-         } else {
-            goto failure;
+         break;
+      case 'i':
+         StoreBool ("isWritablePrimary", is_primary);
+         StoreBool ("isMaster", is_primary);
+         StoreBool ("isreplicaset", is_replicaset);
+         break;
+      case 'h':
+         StoreBool ("helloOk", sd->hello_ok);
+         StoreArray ("hosts", sd->hosts);
+         StoreBool ("hidden", is_hidden);
+         break;
+      case 'm':
+         StoreText ("me", sd->me);
+         StoreInt32 ("maxMessageSizeBytes", sd->max_msg_size);
+         StoreInt32 ("maxBsonObjectSize", sd->max_bson_obj_size);
+         StoreInt32 ("maxWriteBatchSize", sd->max_write_batch_size);
+         StoreInt32 ("minWireVersion", sd->min_wire_version);
+         StoreInt32 ("maxWireVersion", sd->max_wire_version);
+         if (_streq (key, "msg")) {
+            REQUIRE (type == BSON_TYPE_UTF8);
+            const char *msg = bson_iter_utf8 (&iter, NULL);
+            if (msg && _streq (msg, "isdbgrid")) {
+               is_shard = true;
+            }
          }
-      } else if (strcmp ("minWireVersion", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_INT32 (&iter))
-            goto failure;
-         sd->min_wire_version = bson_iter_int32 (&iter);
-      } else if (strcmp ("maxWireVersion", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_INT32 (&iter))
-            goto failure;
-         sd->max_wire_version = bson_iter_int32 (&iter);
-      } else if (strcmp ("msg", bson_iter_key (&iter)) == 0) {
-         const char *msg;
-         if (!BSON_ITER_HOLDS_UTF8 (&iter))
-            goto failure;
-         msg = bson_iter_utf8 (&iter, NULL);
-         if (msg && 0 == strcmp (msg, "isdbgrid")) {
-            is_shard = true;
+         break;
+      case 'l':
+         if (_streq (key, "logicalSessionTimeoutMinutes")) {
+            if (BSON_ITER_HOLDS_NUMBER (&iter)) {
+               sd->session_timeout_minutes = bson_iter_as_int64 (&iter);
+            } else if (type == BSON_TYPE_NULL) {
+               sd->session_timeout_minutes = MONGOC_NO_SESSIONS;
+            } else {
+               goto failure;
+            }
          }
-      } else if (strcmp ("setName", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_UTF8 (&iter))
-            goto failure;
-         sd->set_name = bson_iter_utf8 (&iter, NULL);
-      } else if (strcmp ("setVersion", bson_iter_key (&iter)) == 0) {
-         mongoc_server_description_set_set_version (sd,
-                                                    bson_iter_as_int64 (&iter));
-      } else if (strcmp ("electionId", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_OID (&iter))
-            goto failure;
-         mongoc_server_description_set_election_id (sd, bson_iter_oid (&iter));
-      } else if (strcmp ("secondary", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_BOOL (&iter))
-            goto failure;
-         is_secondary = bson_iter_bool (&iter);
-      } else if (strcmp ("hosts", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_ARRAY (&iter))
-            goto failure;
-         bson_iter_array (&iter, &len, &bytes);
-         bson_destroy (&sd->hosts);
-         BSON_ASSERT (bson_init_static (&sd->hosts, bytes, len));
-      } else if (strcmp ("passives", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_ARRAY (&iter))
-            goto failure;
-         bson_iter_array (&iter, &len, &bytes);
-         bson_destroy (&sd->passives);
-         BSON_ASSERT (bson_init_static (&sd->passives, bytes, len));
-      } else if (strcmp ("arbiters", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_ARRAY (&iter))
-            goto failure;
-         bson_iter_array (&iter, &len, &bytes);
-         bson_destroy (&sd->arbiters);
-         BSON_ASSERT (bson_init_static (&sd->arbiters, bytes, len));
-      } else if (strcmp ("primary", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_UTF8 (&iter))
-            goto failure;
-         sd->current_primary = bson_iter_utf8 (&iter, NULL);
-      } else if (strcmp ("arbiterOnly", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_BOOL (&iter))
-            goto failure;
-         is_arbiter = bson_iter_bool (&iter);
-      } else if (strcmp ("isreplicaset", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_BOOL (&iter))
-            goto failure;
-         is_replicaset = bson_iter_bool (&iter);
-      } else if (strcmp ("tags", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_DOCUMENT (&iter))
-            goto failure;
-         bson_iter_document (&iter, &len, &bytes);
-         bson_destroy (&sd->tags);
-         BSON_ASSERT (bson_init_static (&sd->tags, bytes, len));
-      } else if (strcmp ("hidden", bson_iter_key (&iter)) == 0) {
-         is_hidden = bson_iter_bool (&iter);
-      } else if (strcmp ("lastWrite", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_DOCUMENT (&iter) ||
-             !bson_iter_recurse (&iter, &child) ||
-             !bson_iter_find (&child, "lastWriteDate") ||
-             !BSON_ITER_HOLDS_DATE_TIME (&child)) {
-            goto failure;
+         if (_streq (key, "lastWrite")) {
+            REQUIRE (BSON_ITER_HOLDS_DOCUMENT (&iter));
+            REQUIRE (bson_iter_recurse (&iter, &child));
+            REQUIRE (bson_iter_find (&child, "lastWriteDate"));
+            REQUIRE (BSON_ITER_HOLDS_DATE_TIME (&child));
+            sd->last_write_date_ms = bson_iter_date_time (&child);
          }
-
-         sd->last_write_date_ms = bson_iter_date_time (&child);
-      } else if (strcmp ("compression", bson_iter_key (&iter)) == 0) {
-         if (!BSON_ITER_HOLDS_ARRAY (&iter))
-            goto failure;
-         bson_iter_array (&iter, &len, &bytes);
-         bson_destroy (&sd->compressors);
-         BSON_ASSERT (bson_init_static (&sd->compressors, bytes, len));
-      } else if (strcmp ("topologyVersion", bson_iter_key (&iter)) == 0) {
-         bson_t incoming_topology_version;
-
-         if (!BSON_ITER_HOLDS_DOCUMENT (&iter)) {
-            goto failure;
+         break;
+      case 's':
+         StoreText ("setName", sd->set_name);
+         if (_streq (key, "setVersion")) {
+            REQUIRE (BSON_ITER_HOLDS_NUMBER (&iter));
+            mongoc_server_description_set_set_version (
+               sd, bson_iter_as_int64 (&iter));
          }
-
-         bson_iter_document (&iter, &len, &bytes);
-         bson_init_static (&incoming_topology_version, bytes, len);
-         mongoc_server_description_set_topology_version (
-            sd, &incoming_topology_version);
-         bson_destroy (&incoming_topology_version);
-      } else if (strcmp ("serviceId", bson_iter_key (&iter)) == 0) {
-          if (!BSON_ITER_HOLDS_OID (&iter))
-            goto failure;
-         bson_oid_copy_unsafe (bson_iter_oid (&iter), &sd->service_id);
+         StoreBool ("secondary", is_secondary);
+         if (_streq (key, "serviceId")) {
+            REQUIRE (BSON_ITER_HOLDS_OID (&iter));
+            bson_oid_copy_unsafe (bson_iter_oid (&iter), &sd->service_id);
+         }
+         break;
+      case 'e':
+         if (_streq (key, "electionId")) {
+            REQUIRE (BSON_ITER_HOLDS_OID (&iter));
+            mongoc_server_description_set_election_id (sd,
+                                                       bson_iter_oid (&iter));
+         }
+         break;
+      case 'p':
+         StoreArray ("passives", sd->passives);
+         StoreText ("primary", sd->current_primary);
+         break;
+      case 'a':
+         StoreArray ("arbiters", sd->arbiters);
+         StoreBool ("arbiterOnly", is_arbiter);
+         break;
+      case 't':
+         if (_streq (key, "tags")) {
+            REQUIRE (BSON_ITER_HOLDS_DOCUMENT (&iter));
+            bson_iter_document (&iter, &len, &bytes);
+            bson_destroy (&sd->tags);
+            bson_init_static (&sd->tags, bytes, len);
+         }
+         if (_streq (key, "topologyVersion")) {
+            bson_t incoming_topology_version;
+            REQUIRE (BSON_ITER_HOLDS_DOCUMENT (&iter));
+            bson_iter_document (&iter, &len, &bytes);
+            bson_init_static (&incoming_topology_version, bytes, len);
+            mongoc_server_description_set_topology_version (
+               sd, &incoming_topology_version);
+            bson_destroy (&incoming_topology_version);
+         }
+         break;
+      case 'c':
+         StoreArray ("compression", sd->compressors);
+         break;
       }
    }
 
