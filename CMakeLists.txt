@@ -70,6 +70,8 @@ set (CMAKE_MODULE_PATH
 include (InstallRequiredSystemLibraries)
 include (GNUInstallDirs)
 
+include(MongoC-Warnings)
+
 # Enable CCache, if possible
 include (CCache)
 # Link with LLD, if possible
