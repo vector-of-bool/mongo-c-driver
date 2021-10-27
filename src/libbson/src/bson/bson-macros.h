@@ -293,6 +293,11 @@
 #define BSON_GNUC_DEPRECATED
 #endif
 
+#define BSON_CONCAT_IMPL(a, ...) a##__VA_ARGS__
+#define BSON_CONCAT(a, ...) BSON_CONCAT_IMPL (a, __VA_ARGS__)
+#define BSON_CONCAT3(a, b, c) BSON_CONCAT (a, BSON_CONCAT (b, c))
+#define BSON_CONCAT4(a, b, c, d) \
+   BSON_CONCAT (BSON_CONCAT (a, b), BSON_CONCAT (c, d))
 
 #if BSON_GNUC_CHECK_VERSION(4, 5)
 #define BSON_GNUC_DEPRECATED_FOR(f) \
@@ -301,14 +306,39 @@
 #define BSON_GNUC_DEPRECATED_FOR(f) BSON_GNUC_DEPRECATED
 #endif
 
+/**
+ * @brief String-ify the given argument
+ */
+#define BSON_STR(...) #__VA_ARGS__
 
-#define BSON_CONCAT_1(a, b) a##b
-/** Token-paste `a` and `b` */
-#define BSON_CONCAT(a, b) BSON_CONCAT_1 (a, b)
+/**
+ * @brief Mark the attached declared entity as "possibly-unused."
+ *
+ * Does nothing on MSVC.
+ */
+#if defined(__GNUC__) || defined(__clang__)
+#define BSON_MAYBE_UNUSED __attribute__ ((unused))
+#else
+#define BSON_MAYBE_UNUSED /* Nothing for other compilers */
+#endif
 
-/** Token-paste `a`, `b`, and `c` into a single token */
-#define BSON_CONCAT3(a, b, c) BSON_CONCAT (a, BSON_CONCAT (b, c))
-
+/**
+ * @brief Mark a point in the code as unreachable. If the point is reached, the
+ * program will abort with an error message.
+ *
+ * @param What A string to include in the error message if this point is ever
+ * executed.
+ */
+#define BSON_UNREACHABLE(What)                               \
+   do {                                                      \
+      fprintf (stderr,                                       \
+               "%s:%d %s(): Unreachable code reached: %s\n", \
+               __FILE__,                                     \
+               __LINE__,                                     \
+               BSON_FUNC,                                    \
+               What);                                        \
+      abort ();                                              \
+   } while (0)
 
 #if defined(static_assert) || defined(__cplusplus)
 /** Emit a static_assert(Cond, Message) */
@@ -320,9 +350,6 @@
       _static_assert_, __LINE__, __COUNTER__)[(Cond) ? 1 : -1] \
       __attribute__ ((unused))
 #endif
-
-#define BSON_STR_1(Arg) #Arg
-#define BSON_STR(Arg) BSON_STR_1 (Arg)
 
 /* A declaration that declares nothing and does nothing. Forces a semi-colon
  * following its appearance. */

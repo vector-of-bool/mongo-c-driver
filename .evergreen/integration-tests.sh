@@ -117,8 +117,17 @@ case "$OS" in
       if [ -f /opt/python/2.7/bin/python ]; then
          # Python toolchain installation.
          PYTHON=/opt/python/2.7/bin/python
+      elif [ "x$(lsb_release -cs)" = "xtrusty" -a -f /opt/mongodbtoolchain/v2/bin/python ]; then
+         # Python toolchain installation.
+         PYTHON=/opt/mongodbtoolchain/v2/bin/python
       else
          PYTHON=python
+      fi
+
+      PIP=pip
+      if ! $PYTHON -c "import virtualenv" ; then
+         PYTHON=python3
+         PIP=pip3
       fi
 
       $PYTHON -m virtualenv venv
@@ -133,7 +142,7 @@ case "$OS" in
          echo "Disabling pip cache"
          PIP_PARAM="--no-cache-dir"
       fi
-      pip $PIP_PARAM install .
+      $PIP $PIP_PARAM install .
       cd ../..
       mongo-orchestration -f orchestration.config -e default --socket-timeout-ms=60000 --bind=127.0.0.1  --enable-majority-read-concern start > $MONGO_ORCHESTRATION_HOME/out.log 2> $MONGO_ORCHESTRATION_HOME/err.log < /dev/null &
       ;;

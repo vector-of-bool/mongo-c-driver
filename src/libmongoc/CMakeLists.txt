@@ -543,6 +543,7 @@ set (SOURCES ${SOURCES}
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-client-session.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-server-monitor.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-set.c
+   ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-shared.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-socket.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-stream-buffered.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-stream.c
@@ -558,6 +559,7 @@ set (SOURCES ${SOURCES}
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-topology-description.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-topology-description-apm.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-topology-scanner.c
+   ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-ts-pool.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-uri.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-util.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-version-functions.c
@@ -606,6 +608,7 @@ set (HEADERS
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-server-api.h
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-server-description.h
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-client-session.h
+   ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-shared-private.h
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-socket.h
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-stream-tls-libressl.h
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-stream-tls-openssl.h
@@ -615,6 +618,7 @@ set (HEADERS
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-stream-gridfs.h
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-stream-socket.h
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-topology-description.h
+   ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-ts-pool-private.h
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-uri.h
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-version-functions.h
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-write-concern.h
@@ -935,7 +939,6 @@ set (test-libmongoc-sources
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-change-stream.c
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-client-pool.c
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-client-session.c
-   ${PROJECT_SOURCE_DIR}/tests/test-mongoc-client-side-encryption.c
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-client.c
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-cluster.c
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-cmd.c
@@ -987,6 +990,7 @@ set (test-libmongoc-sources
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-server-selection.c
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-server-stream.c
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-set.c
+   ${PROJECT_SOURCE_DIR}/tests/test-mongoc-shared.c
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-socket.c
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-speculative-auth.c
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-stream.c
@@ -998,6 +1002,7 @@ set (test-libmongoc-sources
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-topology-scanner.c
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-topology.c
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-transactions.c
+   ${PROJECT_SOURCE_DIR}/tests/test-mongoc-ts-pool.c
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-uri.c
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-usleep.c
    ${PROJECT_SOURCE_DIR}/tests/test-mongoc-util.c
@@ -1018,6 +1023,7 @@ set (test-libmongoc-sources
 if (MONGOC_ENABLE_SSL)
    set (test-libmongoc-sources ${test-libmongoc-sources}
       ${PROJECT_SOURCE_DIR}/tests/ssl-test.c
+      ${PROJECT_SOURCE_DIR}/tests/test-mongoc-client-side-encryption.c
       ${PROJECT_SOURCE_DIR}/tests/test-mongoc-stream-tls-error.c
       ${PROJECT_SOURCE_DIR}/tests/test-mongoc-stream-tls.c
       ${PROJECT_SOURCE_DIR}/tests/test-mongoc-x509.c
@@ -1036,12 +1042,6 @@ mongoc_add_test (test-mongoc-gssapi FALSE ${PROJECT_SOURCE_DIR}/tests/test-mongo
 mongoc_add_test (test-mongoc-cache FALSE ${PROJECT_SOURCE_DIR}/tests/test-mongoc-cache.c)
 
 if (ENABLE_TESTS)
-   enable_testing ()
-   add_test (NAME test-libmongoc
-      COMMAND test-libmongoc
-      WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/../..
-   )
-
    # "make test" doesn't compile tests, so we create "make check" which compiles
    # and runs tests: https://gitlab.kitware.com/cmake/cmake/issues/8774
    add_custom_target (check COMMAND ${CMAKE_CTEST_COMMAND} -V
