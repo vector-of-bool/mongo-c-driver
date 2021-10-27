@@ -26,6 +26,7 @@ test_mongoc_http (void *unused)
    mongoc_http_response_t res;
    bool r;
    bson_error_t error;
+   BSON_UNUSED (unused);
 
    _mongoc_http_request_init (&req);
    _mongoc_http_response_init (&res);

@@ -1885,6 +1885,7 @@ assert_session_dirty_helper (test_t *test,
                              bson_error_t *error)
 {
    bool ret = false;
+   BSON_UNUSED (test);
 
    if (!op->session) {
       test_set_error (error, "%s", "session unset");
@@ -2135,6 +2136,7 @@ operation_assert_session_transaction_state (test_t *test,
    char *expected = NULL;
    const char *actual;
    mongoc_transaction_state_t state;
+   BSON_UNUSED (test);
 
    bp = bson_parser_new ();
    bson_parser_utf8 (bp, "state", &expected);
@@ -2386,6 +2388,7 @@ with_transaction_cb (mongoc_client_session_t *session,
    bool ret = false;
    bson_iter_t iter;
    txn_ctx_t *tctx = NULL;
+   BSON_UNUSED (session, reply);
 
    tctx = (txn_ctx_t *) ctx;
 
@@ -2473,6 +2476,7 @@ assert_session_pinned (test_t *test,
 {
    bool ret = false;
    bool actual_pinned = false;
+   BSON_UNUSED (test);
 
    if (!op->session) {
       test_set_error (error, "%s", "expected session to be set");
@@ -2521,6 +2525,7 @@ operation_loop (test_t *test,
                 result_t *result,
                 bson_error_t *error)
 {
+   BSON_UNUSED (test, op, result);
    /* TODO: CDRIVER-3867 Comprehensive Atlas Testing */
    test_set_error (error, "Loop operation not implemented");
    return false;
@@ -2532,9 +2537,11 @@ operation_assert_number_connections_checked_out (test_t *test,
                                                  result_t *result,
                                                  bson_error_t *error)
 {
+   BSON_UNUSED (test, op, error);
    /* "This operation only applies to drivers that implement connection pooling
     * and should be skipped for drivers that do not."
     * TODO: (CDRIVER-3525) add this assertion when CMAP is implemented. */
+   BSON_UNUSED (test, op, error);
    result_from_ok (result);
    return true;
 }

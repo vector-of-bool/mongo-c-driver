@@ -64,6 +64,7 @@ main (int argc, char *argv[])
    const char *uri_string = "mongodb://localhost/?appname=bulk3-example";
    mongoc_uri_t *uri;
    bson_error_t error;
+   BSON_UNUSED (argc, argv);
 
    mongoc_init ();
 

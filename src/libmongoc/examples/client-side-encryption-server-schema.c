@@ -101,6 +101,7 @@ main (int argc, char **argv)
    bson_t *create_index_cmd = NULL;
    bson_json_reader_t *reader = NULL;
    bson_t *schema = NULL;
+   BSON_UNUSED (argc, argv);
 
    /* The MongoClient used to access the key vault (keyvault_namespace). */
    mongoc_client_t *keyvault_client = NULL;

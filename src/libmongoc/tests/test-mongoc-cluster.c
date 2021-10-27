@@ -211,6 +211,7 @@ _test_cluster_node_disconnect (bool pooled)
 static void
 test_cluster_node_disconnect_single (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _test_cluster_node_disconnect (false);
 }
 
@@ -218,6 +219,7 @@ test_cluster_node_disconnect_single (void *ctx)
 static void
 test_cluster_node_disconnect_pooled (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _test_cluster_node_disconnect (true);
 }
 
@@ -253,8 +255,8 @@ _test_cluster_command_timeout (bool pooled)
    /* server doesn't respond in time */
    future = future_client_command_simple (
       client, "db", tmp_bson ("{'foo': 1}"), NULL, NULL, &error);
-   request =
-      mock_server_receives_command (server, "db", MONGOC_QUERY_SECONDARY_OK, NULL);
+   request = mock_server_receives_command (
+      server, "db", MONGOC_QUERY_SECONDARY_OK, NULL);
    client_port = request_get_client_port (request);
 
    ASSERT (!future_get_bool (future));
@@ -395,6 +397,7 @@ _test_write_disconnect (void)
 static void
 test_write_command_disconnect (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _test_write_disconnect ();
 }
 
@@ -1231,6 +1234,7 @@ auto_hello_callback (request_t *request, void *data, bson_t *hello_response)
 {
    dollar_query_test_t *test;
    bson_t cluster_time;
+   BSON_UNUSED (request);
 
    test = (dollar_query_test_t *) data;
 
@@ -1243,7 +1247,8 @@ auto_hello_callback (request_t *request, void *data, bson_t *hello_response)
    BSON_APPEND_UTF8 (hello_response, "setName", "rs");
 
    if (test->cluster_time) {
-      BSON_APPEND_DOCUMENT_BEGIN (hello_response, "$clusterTime", &cluster_time);
+      BSON_APPEND_DOCUMENT_BEGIN (
+         hello_response, "$clusterTime", &cluster_time);
       BSON_APPEND_TIMESTAMP (&cluster_time, "clusterTime", 1, 1);
       bson_append_document_end (hello_response, &cluster_time);
    }

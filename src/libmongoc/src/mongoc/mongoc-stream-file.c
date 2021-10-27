@@ -122,6 +122,7 @@ _mongoc_stream_file_readv (mongoc_stream_t *stream, /* IN */
 {
    mongoc_stream_file_t *file = (mongoc_stream_file_t *) stream;
    ssize_t ret = 0;
+   BSON_UNUSED (min_bytes, timeout_msec);
 
 #ifdef _WIN32
    ssize_t nread;
@@ -168,6 +169,7 @@ _mongoc_stream_file_writev (mongoc_stream_t *stream, /* IN */
 {
    mongoc_stream_file_t *file = (mongoc_stream_file_t *) stream;
    ssize_t ret = 0;
+   BSON_UNUSED (timeout_msec);
 
 #ifdef _WIN32
    ssize_t nwrite;
@@ -197,6 +199,7 @@ done:
 static bool
 _mongoc_stream_file_check_closed (mongoc_stream_t *stream) /* IN */
 {
+   BSON_UNUSED (stream);
    return false;
 }
 

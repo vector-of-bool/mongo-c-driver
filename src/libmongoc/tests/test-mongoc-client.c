@@ -132,6 +132,7 @@ test_server_id_option (void *ctx)
    bson_error_t error;
    bson_t *cmd;
    bool r;
+   BSON_UNUSED (ctx);
 
    client = test_framework_new_default_client ();
    cmd = tmp_bson ("{'ping': 1}");
@@ -188,6 +189,7 @@ test_client_cmd_w_write_concern (void *ctx)
    bson_t reply;
    bson_t *opts = NULL;
    bson_error_t error;
+   BSON_UNUSED (ctx);
 
    opts = bson_new ();
    client = test_framework_new_default_client ();
@@ -272,8 +274,8 @@ test_client_cmd_write_concern (void)
          "'writeConcern' : {'w' : 99 }}";
    future = future_client_command_simple (
       client, "test", tmp_bson (cmd), NULL, &reply, &error);
-   request =
-      mock_server_receives_command (server, "test", MONGOC_QUERY_SECONDARY_OK, cmd);
+   request = mock_server_receives_command (
+      server, "test", MONGOC_QUERY_SECONDARY_OK, cmd);
    BSON_ASSERT (request);
 
    mock_server_replies_ok_and_destroys (request);
@@ -285,8 +287,8 @@ test_client_cmd_write_concern (void)
    /* standalone response */
    future = future_client_command_simple (
       client, "test", tmp_bson (cmd), NULL, &reply, &error);
-   request =
-      mock_server_receives_command (server, "test", MONGOC_QUERY_SECONDARY_OK, cmd);
+   request = mock_server_receives_command (
+      server, "test", MONGOC_QUERY_SECONDARY_OK, cmd);
    BSON_ASSERT (request);
 
    mock_server_replies_simple (
@@ -302,8 +304,8 @@ test_client_cmd_write_concern (void)
    /* replicaset response */
    future = future_client_command_simple (
       client, "test", tmp_bson (cmd), NULL, &reply, &error);
-   request =
-      mock_server_receives_command (server, "test", MONGOC_QUERY_SECONDARY_OK, cmd);
+   request = mock_server_receives_command (
+      server, "test", MONGOC_QUERY_SECONDARY_OK, cmd);
    mock_server_replies_simple (
       request,
       "{ 'ok' : 1, 'n': 1, "
@@ -419,6 +421,7 @@ test_mongoc_client_authenticate (void *context)
    bson_error_t error;
    bool r;
    bson_t q;
+   BSON_UNUSED (context);
 
    /*
     * Log in as admin.
@@ -618,12 +621,14 @@ test_mongoc_client_speculative_auth_failure (bool pooled)
 static void
 test_mongoc_client_single_speculative_auth_failure (void *context)
 {
+   BSON_UNUSED (context);
    test_mongoc_client_speculative_auth_failure (false);
 }
 
 static void
 test_mongoc_client_pooled_speculative_auth_failure (void *context)
 {
+   BSON_UNUSED (context);
    test_mongoc_client_speculative_auth_failure (true);
 }
 
@@ -704,6 +709,7 @@ test_mongoc_client_authenticate_cached (bool pooled)
 static void
 test_mongoc_client_authenticate_cached_pooled (void *context)
 {
+   BSON_UNUSED (context);
    test_mongoc_client_authenticate_cached (true);
 }
 
@@ -711,6 +717,7 @@ test_mongoc_client_authenticate_cached_pooled (void *context)
 static void
 test_mongoc_client_authenticate_cached_single (void *context)
 {
+   BSON_UNUSED (context);
    test_mongoc_client_authenticate_cached (false);
 }
 
@@ -730,6 +737,7 @@ test_mongoc_client_authenticate_failure (void *context)
    char *uri_str_no_auth = test_framework_get_uri_str_no_auth (NULL);
    char *bad_uri_str =
       test_framework_add_user_password (uri_str_no_auth, "baduser", "badpass");
+   BSON_UNUSED (context);
 
    capture_logs (true);
 
@@ -789,6 +797,7 @@ test_mongoc_client_authenticate_timeout (void *context)
    bson_error_t error;
    future_t *future;
    request_t *request;
+   BSON_UNUSED (context);
 
    if (!TestSuite_CheckMockServerAllowed ()) {
       return;
@@ -1239,8 +1248,8 @@ test_command_with_opts_read_prefs (void)
    future = future_client_read_command_with_opts (
       client, "admin", cmd, NULL, NULL /* opts */, NULL, &error);
 
-   /* Server Selection Spec: "For mode 'secondary', drivers MUST set the secondaryOk
-    * wire protocol flag and MUST also use $readPreference".
+   /* Server Selection Spec: "For mode 'secondary', drivers MUST set the
+    * secondaryOk wire protocol flag and MUST also use $readPreference".
     */
    request = mock_server_receives_command (
       server,
@@ -1843,6 +1852,7 @@ typedef enum { NO_CONNECT, CONNECT, RECONNECT } connection_option_t;
 static bool
 responder (request_t *request, void *data)
 {
+   BSON_UNUSED (data);
    if (!strcmp (request->command_name, "foo")) {
       mock_server_replies_simple (request, "{'ok': 1}");
       request_destroy (request);
@@ -2115,6 +2125,7 @@ test_recovering (void *ctx)
    mongoc_read_mode_t read_mode;
    mongoc_read_prefs_t *prefs;
    bson_error_t error;
+   BSON_UNUSED (ctx);
 
    if (!TestSuite_CheckMockServerAllowed ()) {
       return;
@@ -2319,6 +2330,7 @@ test_mongoc_client_unix_domain_socket (void *context)
    mongoc_client_t *client;
    bson_error_t error;
    char *uri_str;
+   BSON_UNUSED (context);
 
    uri_str = test_framework_get_unix_domain_socket_uri_str ();
    client = test_framework_client_new (uri_str, NULL);
@@ -2512,7 +2524,8 @@ static void
 test_mongoc_client_ssl_disabled (void)
 {
    capture_logs (true);
-   ASSERT (NULL == test_framework_client_new ("mongodb://host/?ssl=true", NULL));
+   ASSERT (NULL ==
+           test_framework_client_new ("mongodb://host/?ssl=true", NULL));
 }
 #endif
 
@@ -2618,6 +2631,7 @@ test_mongoc_client_descriptions_pooled (void *unused)
    mongoc_server_description_t **sds;
    size_t n, expected_n;
    int64_t start;
+   BSON_UNUSED (unused);
 
    expected_n = test_framework_server_count ();
    n = 0;
@@ -3014,8 +3028,8 @@ _cmd (mock_server_t *server,
 
    future = future_client_command_simple (
       client, "db", tmp_bson ("{'cmd': 1}"), NULL, NULL, error);
-   request =
-      mock_server_receives_command (server, "db", MONGOC_QUERY_SECONDARY_OK, NULL);
+   request = mock_server_receives_command (
+      server, "db", MONGOC_QUERY_SECONDARY_OK, NULL);
    ASSERT (request);
 
    if (server_replies) {
@@ -3427,6 +3441,7 @@ _test_client_sends_handshake (bool pooled)
 static void
 test_client_sends_handshake_single (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _test_client_sends_handshake (false);
 }
 
@@ -3592,12 +3607,14 @@ _test_null_error_pointer (bool pooled)
 static void
 test_null_error_pointer_single (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _test_null_error_pointer (false);
 }
 
 static void
 test_null_error_pointer_pooled (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _test_null_error_pointer (true);
 }
 
@@ -4439,10 +4456,12 @@ test_client_install (TestSuite *suite)
    TestSuite_AddLive (suite,
                       "/Client/get_handshake_hello_response/pooled",
                       test_mongoc_client_get_handshake_hello_response_pooled);
-   TestSuite_AddLive (suite,
-                      "/Client/get_handshake_establishes_connection/single",
-                      test_mongoc_client_get_handshake_establishes_connection_single);
-   TestSuite_AddLive (suite,
-                      "/Client/get_handshake_establishes_connection/pooled",
-                      test_mongoc_client_get_handshake_establishes_connection_pooled);
+   TestSuite_AddLive (
+      suite,
+      "/Client/get_handshake_establishes_connection/single",
+      test_mongoc_client_get_handshake_establishes_connection_single);
+   TestSuite_AddLive (
+      suite,
+      "/Client/get_handshake_establishes_connection/pooled",
+      test_mongoc_client_get_handshake_establishes_connection_pooled);
 }

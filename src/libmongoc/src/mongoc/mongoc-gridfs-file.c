@@ -438,6 +438,7 @@ mongoc_gridfs_file_readv (mongoc_gridfs_file_t *file,
    int32_t r;
    size_t i;
    uint32_t iov_pos;
+   BSON_UNUSED (timeout_msec);
 
    ENTRY;
 
@@ -500,6 +501,7 @@ mongoc_gridfs_file_writev (mongoc_gridfs_file_t *file,
    int32_t r;
    size_t i;
    uint32_t iov_pos;
+   BSON_UNUSED (timeout_msec);
 
    ENTRY;
 

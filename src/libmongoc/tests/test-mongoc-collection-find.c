@@ -564,6 +564,7 @@ _test_int_modifier (const char *mod)
 static void
 test_maxscan (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _test_int_modifier ("maxScan");
 }
 
@@ -826,7 +827,8 @@ test_exhaust (void)
     */
    request = mock_server_receives_request (server);
    mock_server_replies_to_find (request,
-                                MONGOC_QUERY_SECONDARY_OK | MONGOC_QUERY_EXHAUST,
+                                MONGOC_QUERY_SECONDARY_OK |
+                                   MONGOC_QUERY_EXHAUST,
                                 0,
                                 0,
                                 "db.collection",
@@ -926,6 +928,7 @@ test_getmore_invalid_reply (void *ctx)
    request_t *request;
    const bson_t *doc;
    bson_error_t error;
+   BSON_UNUSED (ctx);
 
    if (!TestSuite_CheckMockServerAllowed ()) {
       return;

@@ -142,6 +142,7 @@ _mongoc_write_command_delete_legacy (mongoc_write_command_t *command,
    bson_reader_t *reader;
    const bson_t *bson;
    bool eof;
+   BSON_UNUSED (offset);
 
    ENTRY;
 
@@ -256,6 +257,7 @@ _mongoc_write_command_insert_legacy (mongoc_write_command_t *command,
    const bson_t *bson;
    bool eof;
    int data_offset = 0;
+   BSON_UNUSED (offset);
 
    ENTRY;
 
@@ -394,6 +396,7 @@ _mongoc_write_command_update_legacy (mongoc_write_command_t *command,
    bson_reader_t *reader;
    const bson_t *bson;
    bool eof;
+   BSON_UNUSED (offset);
 
    ENTRY;
 

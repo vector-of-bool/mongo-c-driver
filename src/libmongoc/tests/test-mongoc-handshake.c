@@ -798,6 +798,7 @@ static BSON_THREAD_FUN (handshake_append_worker, data)
    const char *driver_name = "php driver";
    const char *driver_version = "version abc";
    const char *platform = "./configure -nottoomanyflags";
+   BSON_UNUSED (data);
 
    mongoc_handshake_data_append (driver_name, driver_version, platform);
 

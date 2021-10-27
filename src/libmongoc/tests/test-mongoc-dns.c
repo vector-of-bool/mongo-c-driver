@@ -371,6 +371,7 @@ static void
 test_null_error_pointer (void *ctx)
 {
    mongoc_client_t *client;
+   BSON_UNUSED (ctx);
 
    client =
       test_framework_client_new ("mongodb+srv://doesntexist.example.com", NULL);
@@ -505,6 +506,7 @@ test_srv_polling_mocked (void *unused)
    mongoc_host_list_t *hosts;
    mongoc_host_list_t *expected;
    bool ret;
+   BSON_UNUSED (unused);
 
    mongoc_topology_description_init (&td, 0);
    uri = mongoc_uri_new ("mongodb+srv://server.test.com/?tls=true");
@@ -593,6 +595,7 @@ test_small_initial_buffer (void *unused)
     * smaller than SRV response to test. The SRV response is 155 bytes. This can
     * be determined with: dig -t SRV _mongodb._tcp.test1.test.build.10gen.cc */
    size_t small_buffer_size = 30;
+   BSON_UNUSED (unused);
 
    memset (&rr_data, 0, sizeof (rr_data));
    ASSERT_OR_PRINT (
@@ -614,6 +617,7 @@ _mock_resolver (const char *service,
                 size_t initial_buffer_size,
                 bson_error_t *error)
 {
+   BSON_UNUSED (service, rr_type, rr_data, initial_buffer_size, error);
    test_error ("Expected mock resolver to not be called");
    return true;
 }
@@ -719,12 +723,14 @@ _prose_test_9 (bool pooled)
 static void
 prose_test_9_single (void *unused)
 {
+   BSON_UNUSED (unused);
    _prose_test_9 (false);
 }
 
 static void
 prose_test_9_pooled (void *unused)
 {
+   BSON_UNUSED (unused);
    _prose_test_9 (true);
 }
 

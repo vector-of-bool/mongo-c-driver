@@ -73,6 +73,8 @@ special_exists (bson_matcher_t *matcher,
    bson_iter_t iter;
    bool should_exist;
 
+   BSON_UNUSED (matcher, ctx);
+
    bson_iter_init (&iter, assertion);
    BSON_ASSERT (bson_iter_next (&iter));
 
@@ -107,6 +109,8 @@ special_type (bson_matcher_t *matcher,
 {
    bool ret = false;
    bson_iter_t iter;
+
+   BSON_UNUSED (matcher, ctx);
 
    bson_iter_init (&iter, assertion);
    BSON_ASSERT (bson_iter_next (&iter));
@@ -175,6 +179,8 @@ special_unset_or_matches (bson_matcher_t *matcher,
    bson_iter_t iter;
    bson_val_t *expected = NULL;
 
+   BSON_UNUSED (ctx);
+
    bson_iter_init (&iter, assertion);
    BSON_ASSERT (bson_iter_next (&iter));
    expected = bson_val_from_iter (&iter);
@@ -211,6 +217,8 @@ special_matches_hex_bytes (bson_matcher_t *matcher,
    char *expected_bytes_string = NULL;
    char *actual_bytes_string = NULL;
    bson_iter_t iter;
+
+   BSON_UNUSED (matcher, ctx);
 
    bson_iter_init (&iter, assertion);
    BSON_ASSERT (bson_iter_next (&iter));

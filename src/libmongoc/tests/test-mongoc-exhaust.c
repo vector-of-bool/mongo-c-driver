@@ -291,12 +291,14 @@ test_exhaust_cursor (bool pooled)
 static void
 test_exhaust_cursor_single (void *context)
 {
+   BSON_UNUSED (context);
    test_exhaust_cursor (false);
 }
 
 static void
 test_exhaust_cursor_pool (void *context)
 {
+   BSON_UNUSED (context);
    test_exhaust_cursor (true);
 }
 
@@ -312,6 +314,7 @@ test_exhaust_cursor_multi_batch (void *context)
    uint32_t server_id;
    mongoc_cursor_t *cursor;
    const bson_t *cursor_doc;
+   BSON_UNUSED (context);
 
    client = test_framework_new_default_client ();
    collection = get_test_collection (client, "test_exhaust_cursor_multi_batch");
@@ -482,14 +485,14 @@ _mock_test_exhaust (bool pooled,
       collection, MONGOC_QUERY_EXHAUST, 0, 0, 0, tmp_bson ("{}"), NULL, NULL);
 
    future = future_cursor_next (cursor, &doc);
-   request =
-      mock_server_receives_query (server,
-                                  "db.test",
-                                  MONGOC_QUERY_SECONDARY_OK | MONGOC_QUERY_EXHAUST,
-                                  0,
-                                  0,
-                                  "{}",
-                                  NULL);
+   request = mock_server_receives_query (server,
+                                         "db.test",
+                                         MONGOC_QUERY_SECONDARY_OK |
+                                            MONGOC_QUERY_EXHAUST,
+                                         0,
+                                         0,
+                                         "{}",
+                                         NULL);
 
    if (error_when == SECOND_BATCH) {
       /* initial query succeeds, gets a doc and cursor id of 123 */

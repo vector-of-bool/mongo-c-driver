@@ -936,6 +936,7 @@ test_find_with_opts_collation_error (void *ctx)
    const bson_t *doc;
    bson_error_t error;
    mongoc_cursor_t *cursor;
+   BSON_UNUSED (ctx);
 
    client = test_framework_new_default_client ();
    collection = mongoc_client_get_collection (client, "db", "collection");

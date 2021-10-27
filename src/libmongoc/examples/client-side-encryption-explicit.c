@@ -42,6 +42,7 @@ main (int argc, char **argv)
    bson_value_t to_encrypt = {0};
    mongoc_client_encryption_encrypt_opts_t *encrypt_opts = NULL;
    bson_value_t decrypted = {0};
+   BSON_UNUSED (argc, argv);
 
    mongoc_init ();
 

@@ -108,6 +108,7 @@ bson_metrics_visit_utf8 (const bson_iter_t *iter,
 {
    bson_metrics_state_t *s = data;
    s->utf8_size_tally += v_utf8_len;
+   BSON_UNUSED (iter, key, v_utf8);
 
    return false;
 }
@@ -160,6 +161,8 @@ bson_metrics_visit_document (const bson_iter_t *iter,
    bson_metrics_state_t *s = data;
    bson_iter_t child;
 
+   BSON_UNUSED (iter, key);
+
    if (s->depth >= MAX_RECURSION) {
       fprintf (stderr, "Invalid document, max recursion reached.\n");
       return true;
@@ -183,6 +186,8 @@ bson_metrics_visit_array (const bson_iter_t *iter,
    bson_metrics_state_t *s = data;
    bson_iter_t child;
 
+   BSON_UNUSED (iter, key);
+
    if (s->depth >= MAX_RECURSION) {
       fprintf (stderr, "Invalid document, max recursion reached.\n");
       return true;
@@ -203,6 +208,8 @@ bson_metrics (const bson_t *bson, size_t *length, void *data)
    bson_iter_t iter;
    bson_metrics_state_t *s = data;
    ++s->doc_count;
+
+   BSON_UNUSED (length);
 
    if (bson_iter_init (&iter, bson)) {
       bson_iter_visit_all (&iter, &bson_metrics_visitors, data);

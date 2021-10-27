@@ -235,6 +235,7 @@ _mongoc_interrupt_new (uint32_t timeout_ms)
    mongoc_interrupt_t *interrupt;
    mongoc_socket_t *interrupt_socket = NULL;
    bool success = false;
+   BSON_UNUSED (timeout_ms);
 
    ENTRY;
 

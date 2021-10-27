@@ -1047,6 +1047,7 @@ test_long_seek (void *ctx)
    ssize_t written;
    int64_t cursor_id;
    int i;
+   BSON_UNUSED (ctx);
 
    iov.iov_base = buf;
    iov.iov_len = sizeof (buf);
@@ -1172,6 +1173,7 @@ test_missing_chunk (void *ctx)
    const ssize_t buflen = sizeof (buf);
    ssize_t written;
    bool ret;
+   BSON_UNUSED (ctx);
 
    iov.iov_base = buf;
    iov.iov_len = sizeof (buf);
@@ -1496,6 +1498,7 @@ test_find_one_empty (void)
 static bool
 responder (request_t *request, void *data)
 {
+   BSON_UNUSED (data);
    if (!strcasecmp (request->command_name, "createIndexes")) {
       mock_server_replies_ok_and_destroys (request);
       return true;

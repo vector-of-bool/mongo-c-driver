@@ -1076,6 +1076,7 @@ test_cursor_new_from_aggregate_no_initial (void)
 static void
 test_cursor_new_from_find (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _test_cursor_new_from_command ("{'find': 'test_cursor_new_from_find'}",
                                   "test_cursor_new_from_find");
 }
@@ -1084,6 +1085,7 @@ test_cursor_new_from_find (void *ctx)
 static void
 test_cursor_new_from_find_batches (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _test_cursor_new_from_command (
       "{'find': 'test_cursor_new_from_find_batches', 'batchSize': 1}",
       "test_cursor_new_from_find_batches");
@@ -1575,8 +1577,8 @@ mongoc_query_flags_t expected_flag[] = {
    MONGOC_QUERY_SECONDARY_OK,
 };
 
-/* test that mongoc_cursor_set_hint sets secondaryOk for mongos only if read pref
- * is secondaryPreferred. */
+/* test that mongoc_cursor_set_hint sets secondaryOk for mongos only if read
+ * pref is secondaryPreferred. */
 static void
 test_cursor_hint_mongos (void)
 {
@@ -1881,8 +1883,8 @@ _test_cursor_n_return_find_cmd (mongoc_cursor_t *cursor,
    }
 
    future = future_cursor_next (cursor, &doc);
-   request =
-      mock_server_receives_command (server, "db", MONGOC_QUERY_SECONDARY_OK, NULL);
+   request = mock_server_receives_command (
+      server, "db", MONGOC_QUERY_SECONDARY_OK, NULL);
 
    ASSERT (match_bson (request_get_doc (request, 0), &find_cmd, true));
 
@@ -2139,8 +2141,8 @@ test_empty_final_batch (void)
     * one document in first batch
     */
    future = future_cursor_next (cursor, &doc);
-   request =
-      mock_server_receives_command (server, "db", MONGOC_QUERY_SECONDARY_OK, NULL);
+   request = mock_server_receives_command (
+      server, "db", MONGOC_QUERY_SECONDARY_OK, NULL);
 
    mock_server_replies_to_find (
       request, MONGOC_QUERY_SECONDARY_OK, 1234, 0, "db.coll", "{}", true);
@@ -2153,11 +2155,16 @@ test_empty_final_batch (void)
     * empty batch with nonzero cursor id
     */
    future = future_cursor_next (cursor, &doc);
-   request =
-      mock_server_receives_command (server, "db", MONGOC_QUERY_SECONDARY_OK, NULL);
+   request = mock_server_receives_command (
+      server, "db", MONGOC_QUERY_SECONDARY_OK, NULL);
 
-   mock_server_replies_to_find (
-      request, MONGOC_QUERY_SECONDARY_OK, 1234, 0, "db.coll", "" /* empty */, true);
+   mock_server_replies_to_find (request,
+                                MONGOC_QUERY_SECONDARY_OK,
+                                1234,
+                                0,
+                                "db.coll",
+                                "" /* empty */,
+                                true);
 
    ASSERT (!future_get_bool (future));
    ASSERT_OR_PRINT (!mongoc_cursor_error (cursor, &error), error);
@@ -2168,8 +2175,8 @@ test_empty_final_batch (void)
     * final batch, empty with zero cursor id
     */
    future = future_cursor_next (cursor, &doc);
-   request =
-      mock_server_receives_command (server, "db", MONGOC_QUERY_SECONDARY_OK, NULL);
+   request = mock_server_receives_command (
+      server, "db", MONGOC_QUERY_SECONDARY_OK, NULL);
 
    ASSERT_CMPINT64 (
       bson_lookup_int64 (request_get_doc (request, 0), "batchSize"),

@@ -1681,6 +1681,7 @@ find_key (void *current, void *key)
 static void
 key_dtor (void *item, void *ctx)
 {
+   BSON_UNUSED (item, ctx);
    /* mongoc_set_t requires a dtor, there's nothing to destroy */
 }
 

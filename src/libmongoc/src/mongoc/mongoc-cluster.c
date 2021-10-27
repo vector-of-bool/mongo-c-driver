@@ -1959,6 +1959,7 @@ static void
 _mongoc_cluster_node_dtor (void *data_, void *ctx_)
 {
    mongoc_cluster_node_t *node = (mongoc_cluster_node_t *) data_;
+   BSON_UNUSED (ctx_);
 
    _mongoc_cluster_node_destroy (node);
 }
@@ -2106,8 +2107,7 @@ _mongoc_cluster_add_node (mongoc_cluster_t *cluster,
    }
 
    /* take critical fields from a fresh hello */
-   cluster_node =
-      _mongoc_cluster_node_new (stream, host->host_and_port);
+   cluster_node = _mongoc_cluster_node_new (stream, host->host_and_port);
 
    handshake_sd = _mongoc_cluster_run_hello (cluster,
                                              cluster_node,
@@ -2584,6 +2584,7 @@ _mongoc_cluster_create_server_stream (
 {
    mongoc_server_description_t *sd;
    mongoc_server_stream_t *server_stream = NULL;
+   BSON_UNUSED (error);
 
    sd = mongoc_server_description_new_copy (handshake_sd);
    /* can't just use mongoc_topology_server_by_id(), since we must hold the

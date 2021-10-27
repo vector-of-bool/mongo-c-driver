@@ -14,6 +14,7 @@ main (int argc, char **argv)
    mongoc_collection_t *coll;
    const char *uri_string = "mongodb://localhost:27017/?appname=example-update";
    mongoc_uri_t *uri = mongoc_uri_new_with_error (uri_string, &error);
+   BSON_UNUSED (argc, argv);
 
    if (!uri) {
       fprintf (stderr,

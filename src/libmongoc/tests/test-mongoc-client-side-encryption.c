@@ -27,6 +27,7 @@ _before_test (json_test_ctx_t *ctx, const bson_t *test)
    bool ret;
    mongoc_write_concern_t *wc;
    bson_t insert_opts;
+   BSON_UNUSED (test);
 
    /* Insert data into the key vault. */
    client = test_framework_new_default_client ();
@@ -267,6 +268,7 @@ test_bson_size_limits_and_batch_splitting (void *unused)
    const int size_2mib = 2097152;
    const int exceeds_2mib_after_encryption = size_2mib - 2000;
    const int exceeds_16mib_after_encryption = size_16mib - 2000;
+   BSON_UNUSED (unused);
 
    /* Do the test setup. */
 
@@ -625,6 +627,7 @@ test_datakey_and_double_encryption (void *unused)
    bson_t *schema_map;
    bool ret;
    _datakey_and_double_encryption_ctx_t test_ctx = {0};
+   BSON_UNUSED (unused);
 
    /* Test setup */
    /* Create a MongoClient without encryption enabled (referred to as client).
@@ -843,6 +846,7 @@ _test_key_vault (bool with_external_key_vault)
 static void
 test_external_key_vault (void *unused)
 {
+   BSON_UNUSED (unused);
    _test_key_vault (false /* external */);
    _test_key_vault (true /* external */);
 }
@@ -858,6 +862,7 @@ test_views_are_prohibited (void *unused)
 
    mongoc_auto_encryption_opts_t *auto_encryption_opts;
    bson_t *kms_providers;
+   BSON_UNUSED (unused);
 
    client = test_framework_new_default_client ();
 
@@ -1002,6 +1007,7 @@ test_custom_endpoint (void *unused)
    bson_value_t test;
    bson_value_t ciphertext;
    mongoc_client_encryption_encrypt_opts_t *encrypt_opts;
+   BSON_UNUSED (unused);
 
    keyvault_client = test_framework_new_default_client ();
 
@@ -1669,6 +1675,7 @@ _test_corpus (bool local_schema)
 static void
 test_corpus (void *unused)
 {
+   BSON_UNUSED (unused);
    _test_corpus (false /* local schema */);
    _test_corpus (true /* local schema */);
 }
@@ -1780,6 +1787,7 @@ test_invalid_single_and_pool_mismatches (void *unused)
    mongoc_auto_encryption_opts_t *opts = NULL;
    bson_error_t error;
    bool ret;
+   BSON_UNUSED (unused);
 
    _reset (&pool, &single_threaded_client, &multi_threaded_client, &opts, true);
 
@@ -2045,6 +2053,7 @@ test_malformed_explicit (void *unused)
    bson_value_t ciphertext;
    bool ret;
    bson_error_t error;
+   BSON_UNUSED (unused);
 
    /* Create a MongoClient without encryption enabled */
    client = test_framework_new_default_client ();
@@ -2111,6 +2120,7 @@ test_bypass_spawning_via_mongocryptdBypassSpawn (void *unused)
    bool ret;
    bson_error_t error;
    mongoc_collection_t *coll;
+   BSON_UNUSED (unused);
 
    auto_encryption_opts = mongoc_auto_encryption_opts_new ();
    kms_providers = _make_kms_providers (false /* aws */, true /* local */);
@@ -2176,6 +2186,7 @@ test_bypass_spawning_via_bypassAutoEncryption (void *unused)
    bool ret;
    bson_error_t error;
    mongoc_collection_t *coll;
+   BSON_UNUSED (unused);
 
    auto_encryption_opts = mongoc_auto_encryption_opts_new ();
    kms_providers = _make_kms_providers (false /* aws */, true /* local */);

@@ -1015,12 +1015,13 @@ test_client_cmd_op_ids (void)
 
 
 static void
-test_killcursors_deprecated (void* unused)
+test_killcursors_deprecated (void *unused)
 {
    cmd_test_t test;
    mongoc_client_t *client;
    bool r;
    bson_error_t error;
+   BSON_UNUSED (unused);
 
    cmd_test_init (&test);
    client = test_framework_new_default_client ();

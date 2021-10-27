@@ -191,6 +191,7 @@ bson_realloc_ctx (void *mem,        /* IN */
                   size_t num_bytes, /* IN */
                   void *ctx)        /* IN */
 {
+   BSON_UNUSED (ctx);
    return bson_realloc (mem, num_bytes);
 }
 

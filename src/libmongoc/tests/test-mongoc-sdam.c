@@ -587,6 +587,7 @@ test_topology_discovery (void *ctx)
    bson_t reply;
    bson_error_t error;
    bool r;
+   BSON_UNUSED (ctx);
 
    host_and_port = test_framework_get_host_and_port ();
    replset_name = test_framework_replset_name ();
@@ -650,6 +651,7 @@ test_direct_connection (void *ctx)
    bson_t reply;
    bson_error_t error;
    bool r;
+   BSON_UNUSED (ctx);
 
    host_and_port = test_framework_get_host_and_port ();
    replset_name = test_framework_replset_name ();
@@ -715,6 +717,7 @@ test_existing_behavior (void *ctx)
    bson_t reply;
    bson_error_t error;
    bool r;
+   BSON_UNUSED (ctx);
 
    host_and_port = test_framework_get_host_and_port ();
    replset_name = test_framework_replset_name ();
@@ -810,6 +813,7 @@ test_prose_rtt (void *unused)
    int64_t start_us;
    bool satisfied;
    int64_t rtt = 0;
+   BSON_UNUSED (unused);
 
    uri = test_framework_get_uri ();
    mongoc_uri_set_option_as_utf8 (uri, MONGOC_URI_APPNAME, "streamingRttTest");
@@ -861,9 +865,8 @@ test_prose_rtt (void *unused)
     * RTT_TEST_TIMEOUT_SEC seconds, consider it a failure. */
    satisfied = false;
    start_us = bson_get_monotonic_time ();
-   while (!satisfied &&
-          bson_get_monotonic_time () <
-             start_us + RTT_TEST_TIMEOUT_SEC * 1000 * 1000) {
+   while (!satisfied && bson_get_monotonic_time () <
+                           start_us + RTT_TEST_TIMEOUT_SEC * 1000 * 1000) {
       mongoc_server_description_t *sd;
 
       sd = mongoc_client_select_server (

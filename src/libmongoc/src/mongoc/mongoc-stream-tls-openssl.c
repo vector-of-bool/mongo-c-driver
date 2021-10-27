@@ -52,6 +52,7 @@
 static void
 BIO_meth_free (BIO_METHOD *meth)
 {
+   BSON_UNUSED (meth);
    /* Nothing to free pre OpenSSL 1.1.0 */
 }
 #endif
@@ -623,6 +624,7 @@ static int
 _mongoc_stream_tls_openssl_sni (SSL *ssl, int *ad, void *arg)
 {
    const char *hostname;
+   BSON_UNUSED (ad, arg);
 
    if (ssl == NULL) {
       TRACE ("%s", "No SNI hostname provided");

@@ -635,6 +635,7 @@ gridfs_spec_download_operation (mongoc_database_t *db,
    const char *expected_error;
    bson_error_t error;
    bool r;
+   BSON_UNUSED (db);
 
    ASSERT (bson_iter_init_find (&iter, act, "arguments"));
    arguments =
@@ -704,6 +705,7 @@ gridfs_spec_download_by_name_operation (mongoc_database_t *db,
                                         bson_t *act,
                                         bson_t *assert)
 {
+   BSON_UNUSED (db, bucket, act, assert);
    /* The download_by_name functionality is part of the Advanced API for GridFS
     * and the C Driver hasn't implemented the Advanced API yet. This is a
     * placeholder to be used when the download_by_name is implemented. */
@@ -894,6 +896,7 @@ test_upload_error (void *ctx)
    bson_error_t error = {0};
    char *const dbname = gen_collection_name ("test_upload_error");
    bool r;
+   BSON_UNUSED (ctx);
 
    client = test_framework_new_default_client ();
    db = mongoc_client_get_database (client, dbname);
@@ -955,6 +958,7 @@ test_find_w_session (void *ctx)
    mongoc_client_session_t *session;
    char *dbname = gen_collection_name ("test_find_w_session");
    bool r;
+   BSON_UNUSED (ctx);
 
    client = test_framework_new_default_client ();
    db = mongoc_client_get_database (client, dbname);
@@ -996,6 +1000,7 @@ test_find (void *ctx)
    bson_value_t const *found_id;
    const bson_t *const find_opts =
       tmp_bson ("{'limit': 1, 'skip': 2, 'sort': {'metadata.testOrder': -1}}");
+   BSON_UNUSED (ctx);
 
    _upload_file_from_str (gridfs,
                           "file1",

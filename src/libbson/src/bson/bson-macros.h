@@ -166,8 +166,8 @@
 #else
 #define BSON_ALIGNED_BEGIN(_N)
 #define BSON_ALIGNED_END(_N) \
-   __attribute__ (           \
-      (aligned ((_N) > BSON_ALIGN_OF_PTR ? BSON_ALIGN_OF_PTR : (_N))))
+   __attribute__ ((          \
+      aligned ((_N) > BSON_ALIGN_OF_PTR ? BSON_ALIGN_OF_PTR : (_N))))
 #endif
 #endif
 
@@ -196,18 +196,18 @@
          abort ();                                         \
       }                                                    \
    } while (0)
-       
+
 /* Used for asserting parameters to provide a more precise error message */
-#define BSON_ASSERT_PARAM(param)                                                   \
-   do {                                                                            \
-      if ((BSON_UNLIKELY (param == NULL))) {                                       \
-         fprintf (stderr,                                                          \
-                  "The parameter: %s, in function %s, cannot be NULL\n",           \
-                  #param,                                                          \
-                  BSON_FUNC);                                                      \
-         abort ();                                                                 \
-      }                                                                            \
-   } while (0)      
+#define BSON_ASSERT_PARAM(param)                                         \
+   do {                                                                  \
+      if ((BSON_UNLIKELY (param == NULL))) {                             \
+         fprintf (stderr,                                                \
+                  "The parameter: %s, in function %s, cannot be NULL\n", \
+                  #param,                                                \
+                  BSON_FUNC);                                            \
+         abort ();                                                       \
+      }                                                                  \
+   } while (0)
 
 /* obsolete macros, preserved for compatibility */
 #define BSON_STATIC_ASSERT(s) BSON_STATIC_ASSERT_ (s, __LINE__)
@@ -300,6 +300,106 @@
 #else
 #define BSON_GNUC_DEPRECATED_FOR(f) BSON_GNUC_DEPRECATED
 #endif
+
+
+#define BSON_CONCAT_1(a, b) a##b
+/** Token-paste `a` and `b` */
+#define BSON_CONCAT(a, b) BSON_CONCAT_1 (a, b)
+
+/** Token-paste `a`, `b`, and `c` into a single token */
+#define BSON_CONCAT3(a, b, c) BSON_CONCAT (a, BSON_CONCAT (b, c))
+
+
+#if defined(static_assert) || defined(__cplusplus)
+/** Emit a static_assert(Cond, Message) */
+#define BSON_STATIC_ASSERT_MSG(Cond, Message) static_assert (Cond, Message)
+#else
+/** Emit a static_assert(Cond, Message) */
+#define BSON_STATIC_ASSERT_MSG(Cond, Message)                  \
+   typedef char BSON_CONCAT3 (                                 \
+      _static_assert_, __LINE__, __COUNTER__)[(Cond) ? 1 : -1] \
+      __attribute__ ((unused))
+#endif
+
+#define BSON_STR_1(Arg) #Arg
+#define BSON_STR(Arg) BSON_STR_1 (Arg)
+
+/* A declaration that declares nothing and does nothing. Forces a semi-colon
+ * following its appearance. */
+#define BSON_EMPTY_DECL BSON_STATIC_ASSERT_MSG (1, "never fires")
+
+#define BSON_PRAGMA_1(String) _Pragma (String) BSON_EMPTY_DECL
+#define BSON_PRAGMA(...) _Pragma (BSON_STR (__VA_ARGS__)) BSON_EMPTY_DECL
+
+/** Emit a '_Pragma' for only MSVC */
+#define BSON_MSVC_PRAGMA(...) BSON_EMPTY_DECL
+/** Emit a '_Pragma' for only GCC */
+#define BSON_GNU_PRAGMA(...) BSON_EMPTY_DECL
+/** Emit a '_Pragma' for only Clang */
+#define BSON_CLANG_PRAGMA(...) BSON_EMPTY_DECL
+/** Emit a '_Pragma' for GNU-like compilers (GCC and Clang) */
+#define BSON_GNU_LIKE_PRAGMA(...) BSON_EMPTY_DECL
+
+/** Push the current warning set of the compiler */
+#define BSON_PRAGMA_WARNING_PUSH() BSON_EMPTY_DECL
+/** Pop the current warning set in the compiler */
+#define BSON_PRAGMA_WARNING_POP() BSON_EMPTY_DECL
+
+/* clang-format off */
+#if _MSC_VER
+    #undef BSON_MSVC_PRAGMA
+    #define BSON_MSVC_PRAGMA BSON_PRAGMA
+    #define BSON_PRAGMA_WARNING_PUSH() BSON_PRAGMA(warning(push))
+    #define BSON_PRAGMA_WARNING_POP() BSON_PRAGMA(warning(pop))
+#elif __GNUC__
+    #undef BSON_GNU_PRAGMA
+    #define BSON_GNU_PRAGMA BSON_PRAGMA
+    #undef BSON_PRAGMA_WARNING_PUSH
+    #undef BSON_PRAGMA_WARNING_POP
+    #define BSON_PRAGMA_WARNING_PUSH() BSON_PRAGMA(GCC diagnostic push)
+    #define BSON_PRAGMA_WARNING_POP() BSON_PRAGMA(GCC diagnostic pop)
+#elif __clang__
+    #undef BSON_CLANG_PRAGMA
+    #define BSON_CLANG_PRAGMA BSON_PRAGMA
+    #undef BSON_PRAGMA_WARNING_PUSH
+    #undef BSON_PRAGMA_WARNING_POP
+    #define BSON_PRAGMA_WARNING_PUSH() BSON_PRAGMA(clang diagnostic push)
+    #define BSON_PRAGMA_WARNING_POP() BSON_PRAGMA(clang diagnostic pop)
+#else
+    /* No warning macros to define */
+#endif
+
+#if __GNUC__ || __clang__
+    #define BSON_PRAGMA_MESSAGE(String) BSON_PRAGMA(message, String)
+#elif _MSC_VER
+    #define BSON_PRAGMA_MESSAGE(String) BSON_PRAGMA(message(String))
+#else
+    #define BSON_PRAGMA_MESSAGE(S) static_assert(true)
+#endif
+
+#if __GNUC__ || __clang__
+    #define BSON_PRAGMA_WARNING(String) BSON_PRAGMA(GCC warning String)
+#else
+    #define BSON_PRAGMA_WARNING(String) BSON_PRAGMA_MESSAGE("warning: " String)
+#endif
+
+#if __GNUC__ || __clang__
+    #undef BSON_GNU_LIKE_PRAGMA
+    #define BSON_GNU_LIKE_PRAGMA BSON_PRAGMA
+#endif
+/* clang-format on */
+
+
+/**
+ * @brief Mark the given variable names as unused.
+ */
+#define BSON_UNUSED(...)                                              \
+   do {                                                               \
+      BSON_PRAGMA_WARNING_PUSH ();                                    \
+      BSON_GNU_LIKE_PRAGMA (GCC diagnostic ignored "-Wunused-value"); \
+      (void) (__VA_ARGS__);                                           \
+      BSON_PRAGMA_WARNING_POP ();                                     \
+   } while (0)
 
 
 #endif /* BSON_MACROS_H */

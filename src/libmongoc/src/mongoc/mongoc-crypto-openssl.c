@@ -61,6 +61,7 @@ mongoc_crypto_openssl_sha1 (mongoc_crypto_t *crypto,
 {
    EVP_MD_CTX *digest_ctxp = EVP_MD_CTX_new ();
    bool rval = false;
+   BSON_UNUSED (crypto);
 
    if (1 != EVP_DigestInit_ex (digest_ctxp, EVP_sha1 (), NULL)) {
       goto cleanup;
@@ -86,6 +87,7 @@ mongoc_crypto_openssl_hmac_sha256 (mongoc_crypto_t *crypto,
                                    int data_len,
                                    unsigned char *hmac_out)
 {
+   BSON_UNUSED (crypto);
    /* U1 = HMAC(input, salt + 0001) */
    HMAC (EVP_sha256 (), key, key_len, data, data_len, hmac_out, NULL);
 }
@@ -98,6 +100,7 @@ mongoc_crypto_openssl_sha256 (mongoc_crypto_t *crypto,
 {
    EVP_MD_CTX *digest_ctxp = EVP_MD_CTX_new ();
    bool rval = false;
+   BSON_UNUSED (crypto);
 
    if (1 != EVP_DigestInit_ex (digest_ctxp, EVP_sha256 (), NULL)) {
       goto cleanup;

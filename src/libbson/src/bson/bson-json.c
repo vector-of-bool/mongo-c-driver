@@ -1942,6 +1942,8 @@ _push_callback (jsonsl_t json,
 {
    bson_json_reader_t *reader = (bson_json_reader_t *) json->data;
 
+   BSON_UNUSED (action, buf);
+
    switch (state->type) {
    case JSONSL_T_STRING:
    case JSONSL_T_HKEY:
@@ -1972,6 +1974,8 @@ _pop_callback (jsonsl_t json,
    ssize_t len;
    double d;
    const char *obj_text;
+   
+   BSON_UNUSED (action);
 
    reader = (bson_json_reader_t *) json->data;
    reader_bson = &reader->bson;
@@ -2039,6 +2043,8 @@ _error_callback (jsonsl_t json,
                  char *errat)
 {
    bson_json_reader_t *reader = (bson_json_reader_t *) json->data;
+
+   BSON_UNUSED (state);
 
    if (err == JSONSL_ERROR_CANT_INSERT && *errat == '{') {
       /* start the next document */
@@ -2190,6 +2196,7 @@ bson_json_reader_new (void *data,               /* IN */
    bson_json_reader_t *r;
    bson_json_reader_producer_t *p;
 
+   BSON_UNUSED (allow_multiple);
    r = bson_malloc0 (sizeof *r);
    r->json = jsonsl_new (STACK_MAX);
    r->json->error_callback = _error_callback;

@@ -162,6 +162,7 @@ typedef struct {
 static bool
 _mongoc_set_for_each_helper (uint32_t id, void *item, void *ctx)
 {
+   BSON_UNUSED (id);
    _mongoc_set_for_each_helper_t *helper =
       (_mongoc_set_for_each_helper_t *) ctx;
    return helper->cb (item, helper->ctx);

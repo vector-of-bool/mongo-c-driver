@@ -355,6 +355,7 @@ test_topology_reconcile_from_handshake (void *ctx)
    int count;
    mongoc_topology_scanner_node_t *node;
    mongoc_async_cmd_t *cmd;
+   BSON_UNUSED (ctx);
 
    bson_mutex_init (&data.mutex);
    data.servers = 0;

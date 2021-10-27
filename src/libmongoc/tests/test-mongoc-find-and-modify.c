@@ -241,6 +241,7 @@ test_find_and_modify_write_concern_wire_32_failure (void *context)
    bson_t *update;
    bool success;
    mongoc_write_concern_t *wc;
+   BSON_UNUSED (context);
 
    client = test_framework_new_default_client ();
    collection = get_test_collection (client, "writeFailure");

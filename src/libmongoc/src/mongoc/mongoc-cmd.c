@@ -461,6 +461,7 @@ _mongoc_cmd_parts_assemble_mongos (mongoc_cmd_parts_t *parts,
    bool has_dollar_query = false;
    bool requires_read_concern;
    bool requires_write_concern;
+   BSON_UNUSED (server_stream);
 
    ENTRY;
 

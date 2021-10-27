@@ -105,6 +105,7 @@ _mongoc_stream_gridfs_readv (mongoc_stream_t *stream,
 {
    mongoc_stream_gridfs_t *file = (mongoc_stream_gridfs_t *) stream;
    ssize_t ret = 0;
+   BSON_UNUSED (timeout_msec);
 
    ENTRY;
 
@@ -129,6 +130,7 @@ _mongoc_stream_gridfs_writev (mongoc_stream_t *stream,
 {
    mongoc_stream_gridfs_t *file = (mongoc_stream_gridfs_t *) stream;
    ssize_t ret = 0;
+   BSON_UNUSED (timeout_msec);
 
    ENTRY;
 
@@ -152,6 +154,7 @@ _mongoc_stream_gridfs_writev (mongoc_stream_t *stream,
 static bool
 _mongoc_stream_gridfs_check_closed (mongoc_stream_t *stream) /* IN */
 {
+   BSON_UNUSED (stream);
    return false;
 }
 

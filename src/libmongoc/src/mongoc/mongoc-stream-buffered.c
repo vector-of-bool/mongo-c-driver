@@ -228,6 +228,7 @@ mongoc_stream_buffered_readv (mongoc_stream_t *stream, /* IN */
    size_t total_bytes = 0;
    size_t i;
    size_t off = 0;
+   BSON_UNUSED (min_bytes);
 
    ENTRY;
 

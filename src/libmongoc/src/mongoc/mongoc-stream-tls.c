@@ -142,6 +142,7 @@ mongoc_stream_tls_do_handshake (mongoc_stream_t *stream, int32_t timeout_msec)
 {
    mongoc_stream_tls_t *stream_tls =
       (mongoc_stream_tls_t *) mongoc_stream_get_tls_stream (stream);
+   BSON_UNUSED (timeout_msec);
 
    BSON_ASSERT (stream_tls);
 
@@ -160,6 +161,7 @@ mongoc_stream_tls_check_cert (mongoc_stream_t *stream, const char *host)
 {
    mongoc_stream_tls_t *stream_tls =
       (mongoc_stream_tls_t *) mongoc_stream_get_tls_stream (stream);
+   BSON_UNUSED (host);
 
    BSON_ASSERT (stream_tls);
 

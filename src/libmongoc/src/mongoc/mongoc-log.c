@@ -143,6 +143,7 @@ mongoc_log_default_handler (mongoc_log_level_t log_level,
    FILE *stream;
    char nowstr[32];
    int pid;
+   BSON_UNUSED (user_data);
 
    bson_gettimeofday (&tv);
    t = tv.tv_sec;

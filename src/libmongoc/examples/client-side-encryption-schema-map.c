@@ -22,7 +22,6 @@ create_schema_file (bson_t *kms_providers,
    char *schema_string = NULL;
    size_t schema_string_len;
    FILE *outfile = NULL;
-   bool ret = false;
 
    client_encryption_opts = mongoc_client_encryption_opts_new ();
    mongoc_client_encryption_opts_set_kms_providers (client_encryption_opts,
@@ -82,7 +81,6 @@ create_schema_file (bson_t *kms_providers,
       goto fail;
    }
 
-   ret = true;
 fail:
    mongoc_client_encryption_destroy (client_encryption);
    mongoc_client_encryption_datakey_opts_destroy (datakey_opts);
@@ -120,6 +118,7 @@ main (int argc, char **argv)
    bson_json_reader_t *reader = NULL;
    bson_t schema = BSON_INITIALIZER;
    bson_t *schema_map = NULL;
+   BSON_UNUSED (argc, argv);
 
    /* The MongoClient used to access the key vault (keyvault_namespace). */
    mongoc_client_t *keyvault_client = NULL;

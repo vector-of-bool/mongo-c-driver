@@ -754,6 +754,7 @@ _mongoc_cse_auto_decrypt (mongoc_client_t *client_encrypted,
 {
    bool ret = false;
    mongoc_collection_t *keyvault_coll = NULL;
+   BSON_UNUSED (db_name);
 
    ENTRY;
 

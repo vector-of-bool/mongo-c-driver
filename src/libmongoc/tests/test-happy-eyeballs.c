@@ -126,6 +126,8 @@ _mock_poll (mongoc_stream_poll_t *streams, size_t nstreams, int32_t timeout)
    ssize_t nactive = gOriginalPoll (streams, nstreams, 5);
    starting_nactive = nactive;
 
+   BSON_UNUSED (timeout);
+
    /* check if any of the poll responses need to be overwritten. */
    for (i = 0; i < nstreams; i++) {
       mongoc_stream_t *stream =
@@ -164,6 +166,7 @@ _test_scanner_callback (uint32_t id,
 {
    he_testcase_t *testcase = (he_testcase_t *) data;
    int should_succeed = strcmp (testcase->expected.conn_succeeds_to, "neither");
+   BSON_UNUSED (id, bson, rtt_msec);
    if (should_succeed) {
       ASSERT_OR_PRINT (!error->code, (*error));
    } else {

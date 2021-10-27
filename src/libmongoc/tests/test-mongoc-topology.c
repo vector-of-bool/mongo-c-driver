@@ -294,6 +294,7 @@ test_server_selection_try_once_option (void *ctx)
    mongoc_client_t *client;
    mongoc_uri_t *uri;
    mongoc_client_pool_t *pool;
+   BSON_UNUSED (ctx);
 
    /* try_once is on by default for non-pooled, can be turned off */
    client = test_framework_client_new (uri_strings[0], NULL);
@@ -429,12 +430,14 @@ _test_server_selection (bool try_once)
 static void
 test_server_selection_try_once (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _test_server_selection (true);
 }
 
 static void
 test_server_selection_try_once_false (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _test_server_selection (false);
 }
 
@@ -569,12 +572,14 @@ _test_topology_invalidate_server (bool pooled)
 static void
 test_topology_invalidate_server_single (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _test_topology_invalidate_server (false);
 }
 
 static void
 test_topology_invalidate_server_pooled (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _test_topology_invalidate_server (true);
 }
 
@@ -589,6 +594,7 @@ test_invalid_cluster_node (void *ctx)
    mongoc_server_stream_t *server_stream;
    uint32_t id;
    mongoc_server_description_t *sd;
+   BSON_UNUSED (ctx);
 
    /* use client pool, this test is only valid when multi-threaded */
    pool = test_framework_new_default_client_pool ();
@@ -616,7 +622,7 @@ test_invalid_cluster_node (void *ctx)
       mongoc_generation_map_get (sd->generation_map, &kZeroServiceId), ==, 0);
 
    /* update the server's generation, simulating a connection pool clearing */
-   mongoc_generation_map_increment(sd->generation_map, &kZeroServiceId);
+   mongoc_generation_map_increment (sd->generation_map, &kZeroServiceId);
    bson_mutex_unlock (&client->topology->mutex);
 
    /* cluster discards node and creates new one with the current generation */
@@ -642,6 +648,7 @@ test_max_wire_version_race_condition (void *ctx)
    mongoc_server_stream_t *server_stream;
    uint32_t id;
    bool r;
+   BSON_UNUSED (ctx);
 
    /* connect directly and add our user, test is only valid with auth */
    client = test_framework_new_default_client ();
@@ -1040,6 +1047,7 @@ test_multiple_selection_errors (void *context)
    mongoc_client_t *client;
    bson_t reply;
    bson_error_t error;
+   BSON_UNUSED (context);
 
    client = test_framework_client_new (uri, NULL);
    mongoc_client_command_simple (
@@ -1082,6 +1090,7 @@ test_invalid_server_id (void)
 static bool
 auto_ping (request_t *request, void *data)
 {
+   BSON_UNUSED (data);
    if (!request->is_command || strcasecmp (request->command_name, "ping")) {
       return false;
    }
@@ -1228,6 +1237,7 @@ test_rtt (void *ctx)
    bson_error_t error;
    mongoc_server_description_t *sd;
    int64_t rtt_msec;
+   BSON_UNUSED (ctx);
 
    if (!TestSuite_CheckMockServerAllowed ()) {
       return;

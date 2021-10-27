@@ -728,18 +728,21 @@ test_write_concern_inheritance_fam_txn (bool in_session, bool in_txn)
 static void
 test_fam_no_session_no_txn (void *unused)
 {
+   BSON_UNUSED (unused);
    test_write_concern_inheritance_fam_txn (false, false);
 }
 
 static void
 test_fam_session_no_txn (void *unused)
 {
+   BSON_UNUSED (unused);
    test_write_concern_inheritance_fam_txn (true, false);
 }
 
 static void
 test_fam_session_txn (void *unused)
 {
+   BSON_UNUSED (unused);
    test_write_concern_inheritance_fam_txn (true, true);
 }
 

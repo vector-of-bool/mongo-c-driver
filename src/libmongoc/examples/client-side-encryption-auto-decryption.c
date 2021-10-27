@@ -45,6 +45,7 @@ main (int argc, char **argv)
    mongoc_auto_encryption_opts_t *auto_encryption_opts = NULL;
    mongoc_client_t *unencrypted_client = NULL;
    mongoc_collection_t *unencrypted_coll = NULL;
+   BSON_UNUSED (argc, argv);
 
    mongoc_init ();
 

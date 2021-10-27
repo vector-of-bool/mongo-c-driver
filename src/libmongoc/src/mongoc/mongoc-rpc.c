@@ -635,6 +635,7 @@ _mongoc_rpc_gather (mongoc_rpc_t *rpc, mongoc_array_t *array)
 void
 _mongoc_rpc_swab_to_le (mongoc_rpc_t *rpc)
 {
+   BSON_UNUSED (rpc);
 #if BSON_BYTE_ORDER != BSON_LITTLE_ENDIAN
    mongoc_opcode_t opcode;
 
@@ -682,6 +683,7 @@ _mongoc_rpc_swab_to_le (mongoc_rpc_t *rpc)
 void
 _mongoc_rpc_swab_from_le (mongoc_rpc_t *rpc)
 {
+   BSON_UNUSED (rpc);
 #if BSON_BYTE_ORDER != BSON_LITTLE_ENDIAN
    mongoc_opcode_t opcode;
 

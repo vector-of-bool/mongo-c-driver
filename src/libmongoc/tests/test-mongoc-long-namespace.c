@@ -520,6 +520,7 @@ unsupported_long_coll (void *unused)
    char *long_coll;
    mongoc_client_t *client;
    mongoc_collection_t *coll;
+   BSON_UNUSED (unused);
 
    long_coll = bson_malloc (200);
    memset (long_coll, 'd', 199);

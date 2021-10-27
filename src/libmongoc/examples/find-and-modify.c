@@ -15,6 +15,7 @@ main (int argc, char *argv[])
    bson_t *update;
    bson_t reply;
    char *str;
+   BSON_UNUSED (argc, argv);
 
    mongoc_init ();
 

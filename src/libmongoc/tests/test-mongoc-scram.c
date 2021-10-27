@@ -411,6 +411,7 @@ _test_mongoc_scram_auth (bool pooled)
 static void
 test_mongoc_scram_auth (void *ctx)
 {
+   BSON_UNUSED (ctx);
    /* Auth spec: "Create three test users, one with only SHA-1, one with only
     * SHA-256 and one with both" */
    _create_scram_users ();
@@ -592,6 +593,7 @@ _test_mongoc_scram_saslprep_auth (bool pooled)
 static void
 test_mongoc_saslprep_auth (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _create_saslprep_users ();
    _test_mongoc_scram_saslprep_auth (false);
    _test_mongoc_scram_saslprep_auth (true);
@@ -615,6 +617,7 @@ _test_mongoc_scram_saslprep_auth_no_icu (bool pooled)
 static void
 test_mongoc_saslprep_auth_no_icu (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _create_saslprep_users ();
    _test_mongoc_scram_saslprep_auth_no_icu (false);
    _test_mongoc_scram_saslprep_auth_no_icu (true);

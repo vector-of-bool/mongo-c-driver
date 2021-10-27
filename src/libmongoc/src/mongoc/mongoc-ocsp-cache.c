@@ -91,6 +91,7 @@ _cmp_time (ASN1_TIME *a, ASN1_TIME *b)
 static int
 _cmp_time (ASN1_TIME *a, ASN1_TIME *b)
 {
+   BSON_UNUSED (a, b);
    /* For older OpenSSL, always report that "a" is before "b". I.e. do not
     * replace the entry.
     * If a driver would accept a stapled OCSP response and that response has a

@@ -2537,6 +2537,8 @@ _bson_as_json_visit_utf8 (const bson_iter_t *iter,
    bson_json_state_t *state = data;
    char *escaped;
 
+   BSON_UNUSED (iter, key);
+
    escaped = bson_utf8_escape_for_json (v_utf8, v_utf8_len);
 
    if (escaped) {
@@ -2559,6 +2561,8 @@ _bson_as_json_visit_int32 (const bson_iter_t *iter,
 {
    bson_json_state_t *state = data;
 
+   BSON_UNUSED (iter, key);
+
    if (state->mode == BSON_JSON_MODE_CANONICAL) {
       bson_string_append_printf (
          state->str, "{ \"$numberInt\" : \"%" PRId32 "\" }", v_int32);
@@ -2577,6 +2581,8 @@ _bson_as_json_visit_int64 (const bson_iter_t *iter,
                            void *data)
 {
    bson_json_state_t *state = data;
+
+   BSON_UNUSED (iter, key);
 
    if (state->mode == BSON_JSON_MODE_CANONICAL) {
       bson_string_append_printf (
@@ -2597,6 +2603,9 @@ _bson_as_json_visit_decimal128 (const bson_iter_t *iter,
 {
    bson_json_state_t *state = data;
    char decimal128_string[BSON_DECIMAL128_STRING];
+
+   BSON_UNUSED (iter, key);
+
    bson_decimal128_to_string (value, decimal128_string);
 
    bson_string_append (state->str, "{ \"$numberDecimal\" : \"");
@@ -2617,6 +2626,8 @@ _bson_as_json_visit_double (const bson_iter_t *iter,
    bson_string_t *str = state->str;
    uint32_t start_len;
    bool legacy;
+
+   BSON_UNUSED (iter, key);
 
    /* Determine if legacy (i.e. unwrapped) output should be used. Relaxed mode
     * will use this for nan and inf values, which we check manually since old
@@ -2663,6 +2674,8 @@ _bson_as_json_visit_undefined (const bson_iter_t *iter,
 {
    bson_json_state_t *state = data;
 
+   BSON_UNUSED (iter, key);
+
    bson_string_append (state->str, "{ \"$undefined\" : true }");
 
    return false;
@@ -2673,6 +2686,8 @@ static bool
 _bson_as_json_visit_null (const bson_iter_t *iter, const char *key, void *data)
 {
    bson_json_state_t *state = data;
+
+   BSON_UNUSED (iter, key);
 
    bson_string_append (state->str, "null");
 
@@ -2688,6 +2703,8 @@ _bson_as_json_visit_oid (const bson_iter_t *iter,
 {
    bson_json_state_t *state = data;
    char str[25];
+
+   BSON_UNUSED (iter, key);
 
    bson_oid_to_string (oid, str);
    bson_string_append (state->str, "{ \"$oid\" : \"");
@@ -2710,10 +2727,12 @@ _bson_as_json_visit_binary (const bson_iter_t *iter,
    size_t b64_len;
    char *b64;
 
+   BSON_UNUSED (iter, key);
+
    b64_len = COMMON_PREFIX (bson_b64_ntop_calculate_target_size (v_binary_len));
    b64 = bson_malloc0 (b64_len);
-   BSON_ASSERT (
-      COMMON_PREFIX (bson_b64_ntop (v_binary, v_binary_len, b64, b64_len) != -1));
+   BSON_ASSERT (COMMON_PREFIX (
+      bson_b64_ntop (v_binary, v_binary_len, b64, b64_len) != -1));
 
    if (state->mode == BSON_JSON_MODE_CANONICAL ||
        state->mode == BSON_JSON_MODE_RELAXED) {
@@ -2744,6 +2763,8 @@ _bson_as_json_visit_bool (const bson_iter_t *iter,
 {
    bson_json_state_t *state = data;
 
+   BSON_UNUSED (iter, key);
+
    bson_string_append (state->str, v_bool ? "true" : "false");
 
    return false;
@@ -2757,6 +2778,8 @@ _bson_as_json_visit_date_time (const bson_iter_t *iter,
                                void *data)
 {
    bson_json_state_t *state = data;
+
+   BSON_UNUSED (iter, key);
 
    if (state->mode == BSON_JSON_MODE_CANONICAL ||
        (state->mode == BSON_JSON_MODE_RELAXED && msec_since_epoch < 0)) {
@@ -2786,6 +2809,8 @@ _bson_as_json_visit_regex (const bson_iter_t *iter,
 {
    bson_json_state_t *state = data;
    char *escaped;
+
+   BSON_UNUSED (iter, key);
 
    escaped = bson_utf8_escape_for_json (v_regex, -1);
    if (!escaped) {
@@ -2823,6 +2848,8 @@ _bson_as_json_visit_timestamp (const bson_iter_t *iter,
 {
    bson_json_state_t *state = data;
 
+   BSON_UNUSED (iter, key);
+
    bson_string_append (state->str, "{ \"$timestamp\" : { \"t\" : ");
    bson_string_append_printf (state->str, "%u", v_timestamp);
    bson_string_append (state->str, ", \"i\" : ");
@@ -2844,6 +2871,8 @@ _bson_as_json_visit_dbpointer (const bson_iter_t *iter,
    bson_json_state_t *state = data;
    char *escaped;
    char str[25];
+
+   BSON_UNUSED (iter, key, v_collection_len);
 
    escaped = bson_utf8_escape_for_json (v_collection, -1);
    if (!escaped) {
@@ -2892,6 +2921,8 @@ _bson_as_json_visit_minkey (const bson_iter_t *iter,
 {
    bson_json_state_t *state = data;
 
+   BSON_UNUSED (iter, key);
+
    bson_string_append (state->str, "{ \"$minKey\" : 1 }");
 
    return false;
@@ -2904,6 +2935,8 @@ _bson_as_json_visit_maxkey (const bson_iter_t *iter,
                             void *data)
 {
    bson_json_state_t *state = data;
+
+   BSON_UNUSED (iter, key);
 
    bson_string_append (state->str, "{ \"$maxKey\" : 1 }");
 
@@ -2918,6 +2951,8 @@ _bson_as_json_visit_before (const bson_iter_t *iter,
 {
    bson_json_state_t *state = data;
    char *escaped;
+
+   BSON_UNUSED (iter);
 
    if (state->max_len_reached) {
       return true;
@@ -2949,6 +2984,8 @@ static bool
 _bson_as_json_visit_after (const bson_iter_t *iter, const char *key, void *data)
 {
    bson_json_state_t *state = data;
+
+   BSON_UNUSED (iter, key);
 
    if (state->max_len == BSON_MAX_LEN_UNLIMITED) {
       return false;
@@ -2986,6 +3023,8 @@ _bson_as_json_visit_code (const bson_iter_t *iter,
    bson_json_state_t *state = data;
    char *escaped;
 
+   BSON_UNUSED (iter, key);
+
    escaped = bson_utf8_escape_for_json (v_code, v_code_len);
    if (!escaped) {
       return true;
@@ -3009,6 +3048,8 @@ _bson_as_json_visit_symbol (const bson_iter_t *iter,
 {
    bson_json_state_t *state = data;
    char *escaped;
+
+   BSON_UNUSED (iter, key);
 
    escaped = bson_utf8_escape_for_json (v_symbol, v_symbol_len);
    if (!escaped) {
@@ -3044,6 +3085,8 @@ _bson_as_json_visit_codewscope (const bson_iter_t *iter,
    char *code_escaped;
    char *scope;
    int32_t max_scope_len = BSON_MAX_LEN_UNLIMITED;
+
+   BSON_UNUSED (iter, key);
 
    code_escaped = bson_utf8_escape_for_json (v_code, v_code_len);
    if (!code_escaped) {
@@ -3103,6 +3146,8 @@ _bson_as_json_visit_document (const bson_iter_t *iter,
    bson_json_state_t child_state = {0, true, state->err_offset};
    bson_iter_t child;
 
+   BSON_UNUSED (iter, key);
+
    if (state->depth >= BSON_MAX_RECURSION) {
       bson_string_append (state->str, "{ ... }");
       return false;
@@ -3150,6 +3195,8 @@ _bson_as_json_visit_array (const bson_iter_t *iter,
    bson_json_state_t *state = data;
    bson_json_state_t child_state = {0, false, state->err_offset};
    bson_iter_t child;
+
+   BSON_UNUSED (key, iter);
 
    if (state->depth >= BSON_MAX_RECURSION) {
       bson_string_append (state->str, "{ ... }");
@@ -3240,10 +3287,10 @@ _bson_as_json_visit_all (const bson_t *bson,
       return NULL;
    }
 
-   /* Append closing space and } separately, in case we hit the max in between. */
+   /* Append closing space and } separately, in case we hit the max in between.
+    */
    remaining = state.max_len - state.str->len;
-   if (state.max_len == BSON_MAX_LEN_UNLIMITED ||
-       remaining > 1) {
+   if (state.max_len == BSON_MAX_LEN_UNLIMITED || remaining > 1) {
       bson_string_append (state.str, " }");
    } else if (remaining == 1) {
       bson_string_append (state.str, " ");
@@ -3304,7 +3351,7 @@ bson_array_as_json (const bson_t *bson, size_t *length)
 
    if (length) {
       *length = 0;
-    }
+   }
 
    if (bson_empty0 (bson)) {
       if (length) {
@@ -3466,6 +3513,8 @@ _bson_iter_validate_codewscope (const bson_iter_t *iter,
    bson_validate_state_t *state = data;
    size_t offset = 0;
 
+   BSON_UNUSED (v_code, v_code_len, v_code, key);
+
    if (!bson_validate (v_scope, state->flags, &offset)) {
       state->err_offset = iter->off + offset;
       VALIDATION_ERR (BSON_VALIDATE_NONE, "%s", "corrupt code-with-scope");
@@ -3514,6 +3563,8 @@ _bson_iter_validate_document (const bson_iter_t *iter,
    bson_validate_state_t *state = data;
    bson_iter_t child;
    bson_validate_phase_t phase = state->phase;
+
+   BSON_UNUSED (key);
 
    if (!bson_iter_init (&child, v_document)) {
       state->err_offset = iter->off;

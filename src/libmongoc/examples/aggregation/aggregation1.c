@@ -62,6 +62,7 @@ main (int argc, char *argv[])
       "mongodb://localhost:27017/?appname=aggregation-example";
    mongoc_uri_t *uri;
    bson_error_t error;
+   BSON_UNUSED (argc, argv);
 
    mongoc_init ();
 

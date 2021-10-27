@@ -498,6 +498,7 @@ mongoc_collection_command (mongoc_collection_t *collection,
 {
    char *ns;
    mongoc_cursor_t *cursor;
+   BSON_UNUSED (flags, skip, limit, batch_size, fields);
 
    BSON_ASSERT_PARAM (collection);
    BSON_ASSERT_PARAM (query);

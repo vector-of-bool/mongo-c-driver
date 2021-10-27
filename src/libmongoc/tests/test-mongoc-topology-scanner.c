@@ -31,6 +31,7 @@ test_topology_scanner_helper (uint32_t id,
    bson_iter_t iter;
    int *finished = (int *) data;
    uint32_t max_wire_version;
+   BSON_UNUSED (rtt_msec);
 
    if (error->code) {
       fprintf (stderr, "scanner error: %s\n", error->message);
@@ -468,6 +469,7 @@ _test_topology_scanner_dns_helper (uint32_t id,
                                    const bson_error_t *error /* IN */)
 {
    dns_testcase_t *testcase = (dns_testcase_t *) data;
+   BSON_UNUSED (id, bson, rtt_msec);
    if (testcase->should_succeed) {
       ASSERT_OR_PRINT (!error->code, (*error));
    } else {
@@ -574,12 +576,14 @@ _retired_fails_to_initiate_cb (uint32_t id,
                                const bson_error_t *error /* IN */)
 {
    /* this should never get called. */
+   BSON_UNUSED (id, bson, rtt_msec, data, error);
    BSON_ASSERT (false);
 }
 
 static mongoc_stream_t *
 null_initiator (mongoc_async_cmd_t *acmd)
 {
+   BSON_UNUSED (acmd);
    return NULL;
 }
 
@@ -698,12 +702,14 @@ _test_topology_scanner_does_not_renegotiate (bool pooled)
 static void
 test_topology_scanner_does_not_renegotiate_single (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _test_topology_scanner_does_not_renegotiate (false);
 }
 
 static void
 test_topology_scanner_does_not_renegotiate_pooled (void *ctx)
 {
+   BSON_UNUSED (ctx);
    _test_topology_scanner_does_not_renegotiate (true);
 }
 

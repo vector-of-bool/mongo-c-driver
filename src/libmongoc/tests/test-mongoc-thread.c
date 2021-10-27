@@ -10,6 +10,7 @@ test_cond_wait (void *unused)
    int64_t start, duration_usec;
    bson_mutex_t mutex;
    mongoc_cond_t cond;
+   BSON_UNUSED (unused);
 
    bson_mutex_init (&mutex);
    mongoc_cond_init (&cond);

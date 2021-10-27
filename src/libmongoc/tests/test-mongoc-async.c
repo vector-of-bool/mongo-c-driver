@@ -62,6 +62,8 @@ test_hello_helper (mongoc_async_cmd_t *acmd,
    bson_iter_t iter;
    bson_error_t *error = &acmd->error;
 
+   BSON_UNUSED (duration_usec);
+
    /* ignore the connected event. */
    if (result == MONGOC_ASYNC_CMD_CONNECTED) {
       return;
@@ -316,6 +318,7 @@ test_hello_delay_callback (mongoc_async_cmd_t *acmd,
                            const bson_t *bson,
                            int64_t duration_usec)
 {
+   BSON_UNUSED (result, bson, duration_usec);
    ((stream_with_result_t *) acmd->data)->finished = true;
 }
 

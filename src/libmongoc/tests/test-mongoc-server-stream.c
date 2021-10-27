@@ -46,6 +46,7 @@ test_server_stream_ties_server_description_pooled (void *unused)
    future_t *future;
    bson_error_t error;
    mongoc_server_description_t *sd;
+   BSON_UNUSED (unused);
 
    server = mock_server_new ();
    mock_server_run (server);
@@ -152,6 +153,7 @@ test_server_stream_ties_server_description_single (void *unused)
    future_t *future;
    bson_error_t error;
    mongoc_server_description_t *sd;
+   BSON_UNUSED (unused);
 
    server = mock_server_new ();
    mock_server_run (server);

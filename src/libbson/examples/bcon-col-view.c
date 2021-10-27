@@ -82,6 +82,8 @@ main (int argc, char *argv[])
    bson_t *bson;
    char *json;
 
+   BSON_UNUSED (argc, argv);
+
    bson = COL_VIEW_CREATE (
       SORT ("a", BCON_INT32 (1)), QUERY ("hello", "world"), LIMIT (10));
 

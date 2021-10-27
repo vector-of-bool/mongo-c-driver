@@ -94,6 +94,7 @@ _mongoc_cluster_auth_node_sasl (mongoc_cluster_t *cluster,
                                 mongoc_server_description_t *sd,
                                 bson_error_t *error)
 {
+   BSON_UNUSED (cluster, stream, sd);
 #ifndef MONGOC_ENABLE_SASL
    bson_set_error (error,
                    MONGOC_ERROR_CLIENT,
