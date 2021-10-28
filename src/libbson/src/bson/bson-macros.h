@@ -340,6 +340,7 @@
       abort ();                                              \
    } while (0)
 
+/* clang-format off */
 #if defined(static_assert) || defined(__cplusplus)
 /** Emit a static_assert(Cond, Message) */
 #define BSON_STATIC_ASSERT_MSG(Cond, Message) static_assert (Cond, Message)
@@ -348,7 +349,7 @@
 #define BSON_STATIC_ASSERT_MSG(Cond, Message)                  \
    typedef char BSON_CONCAT3 (                                 \
       _static_assert_, __LINE__, __COUNTER__)[(Cond) ? 1 : -1] \
-      __attribute__ ((unused))
+      BSON_IF_GNU_LIKE(__attribute__ ((unused)))
 #endif
 
 /* A declaration that declares nothing and does nothing. Forces a semi-colon
@@ -372,10 +373,11 @@
 /** Pop the current warning set in the compiler */
 #define BSON_PRAGMA_WARNING_POP() BSON_EMPTY_DECL
 
-/* clang-format off */
 #if _MSC_VER
     #undef BSON_MSVC_PRAGMA
     #define BSON_MSVC_PRAGMA BSON_PRAGMA
+    #undef BSON_PRAGMA_WARNING_PUSH
+    #undef BSON_PRAGMA_WARNING_POP
     #define BSON_PRAGMA_WARNING_PUSH() BSON_PRAGMA(warning(push))
     #define BSON_PRAGMA_WARNING_POP() BSON_PRAGMA(warning(pop))
 #elif __GNUC__
