@@ -257,6 +257,7 @@ PCCERT_CONTEXT
 mongoc_secure_channel_setup_certificate (
    mongoc_stream_tls_secure_channel_t *secure_channel, mongoc_ssl_opt_t *opt)
 {
+   BSON_UNUSED (secure_channel);
    return mongoc_secure_channel_setup_certificate_from_file (opt->pem_file);
 }
 
@@ -283,6 +284,7 @@ _mongoc_secure_channel_extract_subject (const char *filename,
 {
    bson_string_t *retval;
    PCCERT_CONTEXT cert;
+   BSON_UNUSED (passphrase);
 
    cert = mongoc_secure_channel_setup_certificate_from_file (filename);
    if (!cert) {
@@ -313,6 +315,7 @@ mongoc_secure_channel_setup_ca (
    PCCERT_CONTEXT cert = NULL;
    DWORD encrypted_cert_len = 0;
    LPBYTE encrypted_cert = NULL;
+   BSON_UNUSED (secure_channel);
 
    file = fopen (opt->ca_file, "rb");
    if (!file) {
@@ -406,6 +409,7 @@ mongoc_secure_channel_setup_crl (
    PCCERT_CONTEXT cert = NULL;
    LPWSTR str;
    int chars;
+   BSON_UNUSED (secure_channel);
 
    chars = MultiByteToWideChar (CP_ACP, 0, opt->crl_file, -1, NULL, 0);
    if (chars < 1) {
@@ -971,6 +975,7 @@ mongoc_secure_channel_handshake_step_3 (mongoc_stream_tls_t *tls,
 {
    mongoc_stream_tls_secure_channel_t *secure_channel =
       (mongoc_stream_tls_secure_channel_t *) tls->ctx;
+   BSON_UNUSED (hostname);
 
    BSON_ASSERT (ssl_connect_3 == secure_channel->connecting_state);
 

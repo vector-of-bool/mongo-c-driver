@@ -396,6 +396,7 @@ _mongoc_cse_auto_encrypt (mongoc_client_t *client,
                           bson_t *encrypted,
                           bson_error_t *error)
 {
+   BSON_UNUSED (client, cmd, encrypted_cmd);
    bson_init (encrypted);
 
    return _disabled_error (error);
@@ -408,6 +409,7 @@ _mongoc_cse_auto_decrypt (mongoc_client_t *client,
                           bson_t *decrypted,
                           bson_error_t *error)
 {
+   BSON_UNUSED (client, db_name, reply);
    bson_init (decrypted);
    return _disabled_error (error);
 }
@@ -418,6 +420,7 @@ _mongoc_cse_client_enable_auto_encryption (
    mongoc_auto_encryption_opts_t *opts /* may be NULL */,
    bson_error_t *error)
 {
+   BSON_UNUSED (client, opts);
    return _disabled_error (error);
 }
 
@@ -427,6 +430,7 @@ _mongoc_cse_client_pool_enable_auto_encryption (
    mongoc_auto_encryption_opts_t *opts /* may be NULL */,
    bson_error_t *error)
 {
+   BSON_UNUSED (topology, opts);
    return _disabled_error (error);
 }
 
@@ -439,6 +443,7 @@ mongoc_client_encryption_create_datakey (
    bson_value_t *keyid,
    bson_error_t *error)
 {
+   BSON_UNUSED (client_encryption, kms_provider, opts);
    if (keyid) {
       memset (keyid, 0, sizeof (*keyid));
    }
@@ -450,6 +455,7 @@ MONGOC_EXPORT (mongoc_client_encryption_t *)
 mongoc_client_encryption_new (mongoc_client_encryption_opts_t *opts,
                               bson_error_t *error)
 {
+   BSON_UNUSED (opts);
    _disabled_error (error);
    return NULL;
 }
@@ -457,6 +463,7 @@ mongoc_client_encryption_new (mongoc_client_encryption_opts_t *opts,
 void
 mongoc_client_encryption_destroy (mongoc_client_encryption_t *client_encryption)
 {
+   BSON_UNUSED (client_encryption);
 }
 
 bool
@@ -466,6 +473,7 @@ mongoc_client_encryption_encrypt (mongoc_client_encryption_t *client_encryption,
                                   bson_value_t *ciphertext,
                                   bson_error_t *error)
 {
+   BSON_UNUSED (client_encryption, value, opts);
    if (ciphertext) {
       memset (ciphertext, 0, sizeof (*ciphertext));
    }
@@ -478,6 +486,7 @@ mongoc_client_encryption_decrypt (mongoc_client_encryption_t *client_encryption,
                                   bson_value_t *value,
                                   bson_error_t *error)
 {
+   BSON_UNUSED (client_encryption, ciphertext);
    if (value) {
       memset (value, 0, sizeof (*value));
    }
@@ -487,6 +496,7 @@ mongoc_client_encryption_decrypt (mongoc_client_encryption_t *client_encryption,
 bool
 _mongoc_cse_is_enabled (mongoc_client_t *client)
 {
+   BSON_UNUSED (client);
    return false;
 }
 

@@ -169,6 +169,7 @@ enum {
 #define COUNTER(ident, Category, Name, Description)                   \
    static BSON_INLINE void mongoc_counter_##ident##_add (int64_t val) \
    {                                                                  \
+      BSON_UNUSED (val);                                              \
    }                                                                  \
    static BSON_INLINE void mongoc_counter_##ident##_inc (void)        \
    {                                                                  \

@@ -46,6 +46,7 @@ static void *gLogData;
 
 static BSON_ONCE_FUN (_mongoc_ensure_mutex_once)
 {
+   BSON_ONCE_FUN_BEGIN ();
    bson_mutex_init (&gLogMutex);
 
    BSON_ONCE_RETURN;

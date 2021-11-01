@@ -108,6 +108,7 @@ TestSuite_SeedRand (TestSuite *suite, /* IN */
 
 static BSON_ONCE_FUN (_test_suite_ensure_mutex_once)
 {
+   BSON_ONCE_FUN_BEGIN ();
    bson_mutex_init (&gTestMutex);
 
    BSON_ONCE_RETURN;

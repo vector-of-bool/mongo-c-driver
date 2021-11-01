@@ -932,6 +932,7 @@ mongoc_stream_tls_secure_channel_new (mongoc_stream_t *base_stream,
    PCCERT_CONTEXT cert = NULL;
 
    ENTRY;
+   BSON_UNUSED (client, host);
    BSON_ASSERT (base_stream);
    BSON_ASSERT (opt);
 

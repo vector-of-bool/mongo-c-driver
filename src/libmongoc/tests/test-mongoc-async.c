@@ -226,6 +226,7 @@ test_large_hello_helper (mongoc_async_cmd_t *acmd,
 {
    bson_iter_t iter;
    bson_error_t *error = &acmd->error;
+   BSON_UNUSED (duration_usec);
 
    /* ignore the connected event. */
    if (result == MONGOC_ASYNC_CMD_CONNECTED) {
@@ -250,6 +251,7 @@ test_large_hello (void *ctx)
    bson_t q = BSON_INITIALIZER;
    char buf[1024 * 1024];
    mongoc_server_api_t *default_api = NULL;
+   BSON_UNUSED (ctx);
 
 #ifdef MONGOC_ENABLE_SSL
    mongoc_ssl_opt_t ssl_opts;

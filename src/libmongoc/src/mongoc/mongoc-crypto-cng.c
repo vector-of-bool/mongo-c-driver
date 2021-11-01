@@ -173,6 +173,7 @@ mongoc_crypto_cng_hmac_sha1 (mongoc_crypto_t *crypto,
                              int data_len,
                              unsigned char *hmac_out)
 {
+   BSON_UNUSED (crypto);
    if (!_sha1_hmac_algo) {
       return;
    }
@@ -188,6 +189,7 @@ mongoc_crypto_cng_sha1 (mongoc_crypto_t *crypto,
                         unsigned char *hash_out)
 {
    bool res;
+   BSON_UNUSED (crypto);
 
    if (!_sha1_hash_algo) {
       return false;
@@ -206,6 +208,7 @@ mongoc_crypto_cng_hmac_sha256 (mongoc_crypto_t *crypto,
                                int data_len,
                                unsigned char *hmac_out)
 {
+   BSON_UNUSED (crypto);
    if (!_sha256_hmac_algo) {
       return;
    }
@@ -221,6 +224,7 @@ mongoc_crypto_cng_sha256 (mongoc_crypto_t *crypto,
                           unsigned char *hash_out)
 {
    bool res;
+   BSON_UNUSED (crypto);
 
    if (!_sha256_hash_algo) {
       return false;

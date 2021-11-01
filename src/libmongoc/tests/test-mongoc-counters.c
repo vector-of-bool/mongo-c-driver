@@ -617,5 +617,7 @@ test_counters_install (TestSuite *suite)
    TestSuite_AddLive (suite, "/counters/dns", test_counters_dns);
    TestSuite_AddMockServerTest (
       suite, "/counters/streams_timeout", test_counters_streams_timeout);
+#else
+   BSON_UNUSED (suite);
 #endif
 }

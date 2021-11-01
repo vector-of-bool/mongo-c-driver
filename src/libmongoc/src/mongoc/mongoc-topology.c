@@ -221,6 +221,7 @@ _server_session_init (mongoc_server_session_t *session,
                       mongoc_topology_t *unused,
                       bson_error_t *error)
 {
+   BSON_UNUSED (unused);
    _mongoc_server_session_init (session, error);
 }
 
@@ -228,6 +229,7 @@ static void
 _server_session_destroy (mongoc_server_session_t *session,
                          mongoc_topology_t *unused)
 {
+   BSON_UNUSED (unused);
    _mongoc_server_session_destroy (session);
 }
 
@@ -1628,6 +1630,7 @@ _mongoc_topology_push_server_session (mongoc_topology_t *topology,
                                       mongoc_server_session_t *server_session)
 {
    ENTRY;
+   BSON_UNUSED (topology);
 
    /**
     * ! note:

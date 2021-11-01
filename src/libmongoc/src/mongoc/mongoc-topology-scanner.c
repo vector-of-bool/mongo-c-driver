@@ -910,6 +910,7 @@ mongoc_topology_scanner_node_connect_unix (mongoc_topology_scanner_node_t *node,
 {
 #ifdef _WIN32
    ENTRY;
+   BSON_UNUSED (node);
    bson_set_error (error,
                    MONGOC_ERROR_STREAM,
                    MONGOC_ERROR_STREAM_CONNECT,

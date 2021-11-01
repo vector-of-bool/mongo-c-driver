@@ -203,6 +203,7 @@ test_mongohouse_kill_cursors (void *ctx_unused)
    mongoc_uri_t *uri;
    bson_t query = BSON_INITIALIZER;
    const bson_t *doc;
+   BSON_UNUSED (ctx_unused);
 
    uri = mongoc_uri_new (uri_str);
    client = test_framework_client_new_from_uri (uri, NULL);
@@ -274,6 +275,7 @@ _run_ping_test (const char *connection_string)
 static void
 test_mongohouse_auth (void *ctx_unused)
 {
+   BSON_UNUSED (ctx_unused);
    /* SCRAM-SHA-1 */
    _run_ping_test (
       "mongodb://mhuser:pencil@localhost/?authMechanism=SCRAM-SHA-1");
@@ -287,6 +289,7 @@ test_mongohouse_auth (void *ctx_unused)
 static void
 test_mongohouse_no_auth (void *ctx_unused)
 {
+   BSON_UNUSED (ctx_unused);
    _run_ping_test ("mongodb://localhost:27017");
 }
 

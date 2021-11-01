@@ -447,5 +447,7 @@ test_stream_tls_install (TestSuite *suite)
 
    TestSuite_AddLive (
       suite, "/TLS/insecure_nowarning", test_mongoc_tls_insecure_nowarning);
+#else
+   BSON_UNUSED (suite);
 #endif
 }

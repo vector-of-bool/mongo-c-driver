@@ -33,6 +33,7 @@ BSON_BEGIN_DECLS
 #include <pthread.h>
 
 #define BSON_ONCE_FUN(n) void n (void)
+#define BSON_ONCE_FUN_BEGIN() BSON_EMPTY_DECL
 #define BSON_ONCE_RETURN return
 #define BSON_ONCE_INIT PTHREAD_ONCE_INIT
 #define bson_once pthread_once
@@ -95,6 +96,7 @@ typedef struct {
 #define BSON_ONCE_FUN(n) \
    BOOL CALLBACK n (PINIT_ONCE _ignored_a, PVOID _ignored_b, PVOID *_ignored_c)
 #define BSON_ONCE_INIT INIT_ONCE_STATIC_INIT
+#define BSON_ONCE_FUN_BEGIN() BSON_UNUSED (_ignored_a, _ignored_b, _ignored_c)
 #define BSON_ONCE_RETURN return true
 #define bson_mutex_destroy DeleteCriticalSection
 #define bson_mutex_init InitializeCriticalSection

@@ -226,6 +226,7 @@ _get_rand (unsigned int *pseed)
 {
    int32_t result = 0;
 #ifndef BSON_HAVE_RAND_R
+   BSON_UNUSED (pseed);
    /* ms's runtime is multithreaded by default, so no rand_r */
    /* no rand_r on android either */
    result = rand ();
@@ -408,6 +409,7 @@ bson_context_destroy (bson_context_t *context) /* IN */
 
 static BSON_ONCE_FUN (_bson_context_init_default)
 {
+   BSON_ONCE_FUN_BEGIN ();
    _bson_context_init (
       &gContextDefault,
       (BSON_CONTEXT_THREAD_SAFE | BSON_CONTEXT_DISABLE_PID_CACHE));

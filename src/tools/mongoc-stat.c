@@ -234,6 +234,7 @@ main (int argc, char *argv[])
 int
 main (int argc, char *argv[])
 {
+   BSON_UNUSED (argc, argv);
    fprintf (stderr, "mongoc-stat is not supported on your platform.\n");
    return EXIT_FAILURE;
 }

@@ -16,6 +16,8 @@
 
 #include "kms_crypto.h"
 
+#include "common-thread-private.h"
+
 #ifdef KMS_MESSAGE_ENABLE_CRYPTO_CNG
 
 // tell windows.h not to include a bunch of headers we don't need:
@@ -76,6 +78,7 @@ kms_sha256 (void *unused_ctx,
             unsigned char *hash_out)
 {
    BCRYPT_HASH_HANDLE hHash;
+   BSON_UNUSED (unused_ctx);
 
    NTSTATUS status =
       BCryptCreateHash (_algoSHA256, &hHash, NULL, 0, NULL, 0, 0);
@@ -109,6 +112,7 @@ kms_sha256_hmac (void *unused_ctx,
                  unsigned char *hash_out)
 {
    BCRYPT_HASH_HANDLE hHash;
+   BSON_UNUSED (unused_ctx);
 
    NTSTATUS status = BCryptCreateHash (
       _algoSHA256Hmac, &hHash, NULL, 0, (PUCHAR) key_input, (ULONG) key_len, 0);

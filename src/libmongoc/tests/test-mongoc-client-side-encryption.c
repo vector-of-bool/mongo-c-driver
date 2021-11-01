@@ -2089,6 +2089,7 @@ _test_multi_threaded (bool external_key_vault)
 static void
 test_multi_threaded (void *ctx_unused)
 {
+   BSON_UNUSED (ctx_unused);
    _test_multi_threaded (true);
    _test_multi_threaded (false);
 }
@@ -2314,6 +2315,7 @@ test_kms_tls_cert_valid (void *unused)
    const int is_client = 1;
 
    mongoc_host_list_t host;
+   BSON_UNUSED (unused);
 
 #if defined(MONGOC_ENABLE_SSL_SECURE_CHANNEL)
    /* Certificate verification fails with Secure Channel given "127.0.0.1:7999"
@@ -2348,6 +2350,7 @@ static void
 test_kms_tls_cert_expired (void *unused)
 {
    bson_error_t error;
+   BSON_UNUSED (unused);
 
    mongoc_client_t *client = test_framework_new_default_client ();
 
@@ -2390,6 +2393,7 @@ static void
 test_kms_tls_cert_wrong_host (void *unused)
 {
    bson_error_t error;
+   BSON_UNUSED (unused);
 
    mongoc_client_t *client = test_framework_new_default_client ();
 

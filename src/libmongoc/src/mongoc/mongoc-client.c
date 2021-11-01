@@ -116,6 +116,8 @@ srv_callback (const char *service,
 {
    mongoc_host_list_t new_host;
 
+   BSON_UNUSED (service);
+
    if (rr_data && rr_data->hosts) {
       _mongoc_host_list_remove_host (
          &(rr_data->hosts), pdns->Data.SRV.pNameTarget, pdns->Data.SRV.wPort);
@@ -139,6 +141,8 @@ txt_callback (const char *service,
 {
    DWORD i;
    bson_string_t *txt;
+
+   BSON_UNUSED (service, error);
 
    txt = bson_string_new (NULL);
 
@@ -605,6 +609,7 @@ _mongoc_client_get_rr (const char *service,
    BSON_ASSERT (rr_data);
 
 #ifdef MONGOC_HAVE_DNSAPI
+   BSON_UNUSED (initial_buffer_size);
    return _mongoc_get_rr_dnsapi (service, rr_type, rr_data, error);
 #elif (defined(MONGOC_HAVE_RES_NSEARCH) || defined(MONGOC_HAVE_RES_SEARCH))
    return _mongoc_get_rr_search (
@@ -743,6 +748,7 @@ mongoc_client_connect_unix (const mongoc_host_list_t *host, bson_error_t *error)
 {
 #ifdef _WIN32
    ENTRY;
+   BSON_UNUSED (host);
    bson_set_error (error,
                    MONGOC_ERROR_STREAM,
                    MONGOC_ERROR_STREAM_CONNECT,

@@ -1262,6 +1262,7 @@ check_session_returned_visit (mongoc_server_session_t *ss,
                               mongoc_topology_t *unused,
                               void *check_state_)
 {
+   BSON_UNUSED (unused);
    match_ctx_t ctx = {{0}};
    struct check_session_returned_t *check_state = check_state_;
    ctx.strict_numeric_types = false;

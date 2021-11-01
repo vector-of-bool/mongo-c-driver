@@ -94,6 +94,7 @@ mongoc_cyrus_mutex_free (void *mutex)
 
 static BSON_ONCE_FUN (_mongoc_do_init)
 {
+   BSON_ONCE_FUN_BEGIN ();
 #ifdef MONGOC_ENABLE_SASL_CYRUS
    int status;
 #endif
@@ -159,6 +160,7 @@ mongoc_init (void)
 
 static BSON_ONCE_FUN (_mongoc_do_cleanup)
 {
+   BSON_ONCE_FUN_BEGIN ();
 #ifdef MONGOC_ENABLE_SSL_OPENSSL
    _mongoc_openssl_cleanup ();
 #endif

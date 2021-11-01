@@ -16,6 +16,8 @@
 
 #include <stdlib.h>
 
+#include "common-thread-private.h"
+
 #if defined(__linux__)
 
 #include <mongoc/mongoc.h>
@@ -88,5 +90,6 @@ main (int argc, char *argv[])
 
    mongoc_cleanup ();
 #endif
+   BSON_UNUSED (argc, argv);
    return EXIT_SUCCESS;
 }

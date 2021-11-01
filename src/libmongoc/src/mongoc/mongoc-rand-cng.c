@@ -58,12 +58,14 @@ void
 mongoc_rand_seed (const void *buf, int num)
 {
    /* N/A - OS Does not need entropy seed */
+   BSON_UNUSED (buf, num);
 }
 
 void
 mongoc_rand_add (const void *buf, int num, double entropy)
 {
    /* N/A - OS Does not need entropy seed */
+   BSON_UNUSED (buf, num, entropy);
 }
 
 int

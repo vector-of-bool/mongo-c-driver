@@ -296,5 +296,7 @@ test_linux_distro_scanner_install (TestSuite *suite)
    TestSuite_Add (suite,
                   "/LinuxDistroScanner/test_distro_scanner_reads",
                   test_distro_scanner_reads);
+#else
+   BSON_UNUSED (suite);
 #endif
 }

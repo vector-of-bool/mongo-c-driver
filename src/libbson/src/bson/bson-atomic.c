@@ -91,6 +91,7 @@ _bson_emul_atomic_int64_fetch_add (volatile int64_t *p,
                                    enum bson_memory_order _unused)
 {
    int64_t ret;
+   BSON_UNUSED (_unused);
    _lock_64bit_atomic ();
    ret = *p;
    *p += n;
@@ -104,6 +105,7 @@ _bson_emul_atomic_int64_exchange (volatile int64_t *p,
                                   enum bson_memory_order _unused)
 {
    int64_t ret;
+   BSON_UNUSED (_unused);
    _lock_64bit_atomic ();
    ret = *p;
    *p = n;
@@ -118,6 +120,7 @@ _bson_emul_atomic_int64_compare_exchange_strong (volatile int64_t *p,
                                                  enum bson_memory_order _unused)
 {
    int64_t ret;
+   BSON_UNUSED (_unused);
    _lock_64bit_atomic ();
    ret = *p;
    if (ret == expect_value) {
