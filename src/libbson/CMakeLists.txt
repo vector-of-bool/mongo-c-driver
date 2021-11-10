@@ -269,12 +269,7 @@ if (!APPLE)
    endif ()
 endif ()
 
-set (THREADS_PREFER_PTHREAD_FLAG 1)
-find_package (Threads REQUIRED)
-target_link_libraries (bson_shared PRIVATE Threads::Threads)
-if (CMAKE_USE_PTHREADS_INIT)
-   set (BSON_LIBRARIES ${BSON_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
-endif ()
+target_link_libraries (bson_shared PUBLIC Threads::Threads)
 
 if (WIN32)
    # gethostbyname

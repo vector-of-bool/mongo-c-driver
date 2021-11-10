@@ -63,6 +63,14 @@ else ()
    message (STATUS "No CXX support")
 endif ()
 
+# Conditionally pass -fno-omit-frame-pointer for the `RelWithDebInfo` configuration.
+set(is_release $<CONFIG:Release>)
+set(not_release $<NOT:${is_release}>)
+set(is_msvc $<C_COMPILER_ID:MSVC>)
+set(has_no_omit_frame_pointer $<NOT:${is_msvc}>)
+add_compile_options(
+   $<$<AND:${not_release},${has_no_omit_frame_pointer}>:-fno-omit-frame-pointer>)
+
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
    set (CMAKE_BUILD_TYPE "RelWithDebInfo")
    message (
@@ -133,6 +141,9 @@ include (LoadVersion)
 LoadVersion (${PROJECT_SOURCE_DIR}/VERSION_CURRENT MONGOC)
 
 include (MaintainerFlags)
+
+set (THREADS_PREFER_PTHREAD_FLAG 1)
+find_package (Threads REQUIRED)
 
 if ( (ENABLE_BUILD_DEPENDECIES STREQUAL OFF) AND (NOT CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR) )
    set (ENABLE_BUILD_DEPENDECIES ON)
@@ -532,3 +543,7 @@ if (TARGET test-libmongoc)
          TEST_INCLUDE_FILES "${PROJECT_BINARY_DIR}/LoadTests-${CMAKE_BUILD_TYPE}.cmake")
    endif ()
 endif ()
+
+add_executable (bench bench.cpp)
+target_link_libraries (bench PRIVATE mongoc_static Threads::Threads)
+target_compile_features (bench PRIVATE cxx_std_17)
