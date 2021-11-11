@@ -789,6 +789,16 @@ failure:
    EXIT;
 }
 
+
+static bson_t
+_bson_copy (bson_t b)
+{
+   bson_t ret = BSON_INITIALIZER;
+   bson_copy_to (&ret, &b);
+   return ret;
+}
+
+
 /*
  *-------------------------------------------------------------------------
  *
@@ -799,53 +809,62 @@ failure:
  *-------------------------------------------------------------------------
  */
 mongoc_server_description_t *
-mongoc_server_description_new_copy (
-   const mongoc_server_description_t *description)
+mongoc_server_description_new_copy (const mongoc_server_description_t *from)
 {
    mongoc_server_description_t *copy;
 
-   if (!description) {
+   if (!from) {
       return NULL;
    }
 
    copy = (mongoc_server_description_t *) bson_malloc0 (sizeof (*copy));
 
-   copy->id = description->id;
-   copy->opened = description->opened;
-   memcpy (&copy->host, &description->host, sizeof (copy->host));
-   copy->round_trip_time_msec = MONGOC_RTT_UNSET;
+   *copy = (mongoc_server_description_t){
+      .id = from->id,
+      .host = from->host,
+      .round_trip_time_msec = MONGOC_RTT_UNSET,
+      .last_update_time_usec = bson_get_monotonic_time (),
+      .last_hello_response = _bson_copy (from->last_hello_response),
+      .has_hello_response = from->has_hello_response,
+      .hello_ok = from->hello_ok,
+      .connection_address = NULL, /* Copied below */
+
+      .me = bson_strdup (from->me),
+
+      .opened = from->opened,
+
+      .set_name = bson_strdup (from->set_name),
+      .error = from->error,
+      .type = from->type,
+
+      .min_wire_version = from->min_wire_version,
+      .max_wire_version = from->max_wire_version,
+      .max_msg_size = from->max_msg_size,
+      .max_bson_obj_size = from->max_bson_obj_size,
+      .max_write_batch_size = from->max_write_batch_size,
+      .session_timeout_minutes = from->session_timeout_minutes,
+
+      .hosts = _bson_copy (from->hosts),
+      .passives = _bson_copy (from->passives),
+      .arbiters = _bson_copy (from->arbiters),
+
+      .tags = _bson_copy (from->tags),
+      .current_primary = bson_strdup (from->current_primary),
+      .set_version = from->set_version,
+      .election_id = from->election_id,
+      .last_write_date_ms = from->last_write_date_ms,
+
+      .compressors = _bson_copy (from->compressors),
+      .topology_version = _bson_copy (from->topology_version),
+
+      .generation = from->generation,
+      ._generation_map_ =
+         mongoc_generation_map_copy (mc_tpl_sd_generation_map_const (from)),
+      .service_id = from->service_id,
+   };
 
    copy->connection_address = copy->host.host_and_port;
-   bson_init (&copy->last_hello_response);
-   bson_init (&copy->hosts);
-   bson_init (&copy->passives);
-   bson_init (&copy->arbiters);
-   bson_init (&copy->tags);
-   bson_init (&copy->compressors);
-   bson_copy_to (&description->topology_version, &copy->topology_version);
-   bson_oid_copy (&description->service_id, &copy->service_id);
 
-   if (description->has_hello_response) {
-      /* calls mongoc_server_description_reset */
-      int64_t last_rtt_ms = bson_atomic_int64_fetch (
-         &description->round_trip_time_msec, bson_memory_order_relaxed);
-      mongoc_server_description_handle_hello (copy,
-                                              &description->last_hello_response,
-                                              last_rtt_ms,
-                                              &description->error);
-   } else {
-      mongoc_server_description_reset (copy);
-      /* preserve the original server description type, which is manually set
-       * for a LoadBalancer server */
-      copy->type = description->type;
-   }
-
-   /* Preserve the error */
-   memcpy (&copy->error, &description->error, sizeof copy->error);
-
-   copy->generation = description->generation;
-   copy->_generation_map_ =
-      mongoc_generation_map_copy (mc_tpl_sd_generation_map_const (description));
    return copy;
 }
 
