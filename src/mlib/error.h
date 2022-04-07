@@ -20,7 +20,7 @@
  * @return mstr A new string containing the resulting error. Must be freed with
  * @ref mstr_free().
  */
-mlib_inline mstr
+mlib_inline_def mstr
 merror_system_error_string (int errn)
 {
 #ifdef _WIN32

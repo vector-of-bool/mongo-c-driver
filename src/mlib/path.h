@@ -35,7 +35,7 @@ typedef enum mpath_format {
  * @param c A path character
  * @param f The path format to use
  */
-mlib_inline bool
+mlib_inline_def bool
 mpath_is_sep (char c, mpath_format f)
 {
    if (f == MPATH_WIN32) {
@@ -48,7 +48,7 @@ mpath_is_sep (char c, mpath_format f)
 /**
  * @brief Obtain the preferred path separator character for the given format
  */
-mlib_inline char
+mlib_inline_def char
 mpath_preferred_sep (mpath_format f)
 {
    if (f == MPATH_WIN32) {
@@ -64,7 +64,7 @@ mpath_preferred_sep (mpath_format f)
  *
  * @return mstr A new string which must be freed with mstr_free()
  */
-mlib_inline mstr
+mlib_inline_def mstr
 mpath_current_path ()
 {
 #ifdef _WIN32
@@ -97,7 +97,7 @@ mpath_current_path ()
 /**
  * @brief Determine whether the given path string has a trailing path separator
  */
-mlib_inline bool
+mlib_inline_def bool
 mpath_has_trailing_sep (mstr_view path, mpath_format f)
 {
    return path.len && mpath_is_sep (path.data[path.len - 1], f);
@@ -106,7 +106,7 @@ mpath_has_trailing_sep (mstr_view path, mpath_format f)
 /**
  * @brief Obtain the parent path of the given path.
  */
-mlib_inline mstr_view
+mlib_inline_def mstr_view
 mpath_parent (mstr_view path, mpath_format f)
 {
    if (mpath_has_trailing_sep (path, f)) {
@@ -134,7 +134,7 @@ mpath_parent (mstr_view path, mpath_format f)
  * The returned path will include no directory separators. If the given path
  * ends with a directory separator, the single-dot '.' path is returned instead.
  */
-mlib_inline mstr_view
+mlib_inline_def mstr_view
 mpath_filename (mstr_view path, mpath_format f)
 {
    if (!path.len) {
@@ -164,7 +164,7 @@ mpath_filename (mstr_view path, mpath_format f)
  * @param f The path format to use
  * @return mstr A new string resulting from the join
  */
-mlib_inline mstr
+mlib_inline_def mstr
 mpath_join (mstr_view base, mstr_view suffix, mpath_format f)
 {
    if (!base.len) {
@@ -195,7 +195,7 @@ mpath_join (mstr_view base, mstr_view suffix, mpath_format f)
  * For the Windows format, this will return the drive letter, if present.
  * Otherwise, this will return an empty string.
  */
-mlib_inline mstr_view
+mlib_inline_def mstr_view
 mpath_root_name (mstr_view path, mpath_format f)
 {
    if (f == MPATH_WIN32 && path.len > 1) {
@@ -213,7 +213,7 @@ mpath_root_name (mstr_view path, mpath_format f)
  *
  * @note This will not include the drive letter of a Win32 path.
  */
-mlib_inline mstr_view
+mlib_inline_def mstr_view
 mpath_root_directory (mstr_view path, mpath_format f)
 {
    mstr_view rname = mpath_root_name (path, f);
@@ -230,7 +230,7 @@ mpath_root_directory (mstr_view path, mpath_format f)
  *
  * This will include both the root name and the root filepath, if present.
  */
-mlib_inline mstr_view
+mlib_inline_def mstr_view
 mpath_root_path (mstr_view path, mpath_format f)
 {
    mstr_view rname = mpath_root_name (path, f);
@@ -244,7 +244,7 @@ mpath_root_path (mstr_view path, mpath_format f)
  *
  * @note A Win32 filepath without a drive letter is not absolute!
  */
-mlib_inline bool
+mlib_inline_def bool
 mpath_is_absolute (mstr_view path, mpath_format f)
 {
    if (f == MPATH_WIN32) {
@@ -264,7 +264,7 @@ mpath_is_absolute (mstr_view path, mpath_format f)
  * If the path has a root path, returns the content of the path following that
  * root path, otherwise returns the same path itself.
  */
-mlib_inline mstr_view
+mlib_inline_def mstr_view
 mpath_relative_path (mstr_view path, mpath_format f)
 {
    mstr_view root = mpath_root_path (path, f);
@@ -277,7 +277,7 @@ mpath_relative_path (mstr_view path, mpath_format f)
  *
  * @note The return value must be freed with mstr_free()
  */
-mlib_inline mstr
+mlib_inline_def mstr
 mpath_to_format (mpath_format from, mstr_view path, mpath_format to)
 {
    mstr_mut ret = mstr_new (path.len);
@@ -297,7 +297,7 @@ mpath_to_format (mpath_format from, mstr_view path, mpath_format to)
 /**
  * @brief Determine whether the given path is relative (not absolute)
  */
-mlib_inline bool
+mlib_inline_def bool
 mpath_is_relative (mstr_view path, mpath_format f)
 {
    return !mpath_is_absolute (path, f);
@@ -308,7 +308,7 @@ mpath_is_relative (mstr_view path, mpath_format f)
  *
  * @note The return value must be freed with mstr_free()
  */
-mlib_inline mstr
+mlib_inline_def mstr
 mpath_absolute (mstr_view path, mpath_format f);
 
 /**
@@ -321,7 +321,7 @@ mpath_absolute (mstr_view path, mpath_format f);
  * @note If `base` is also a relative path, it will also be given to
  * mpath_absolute() to resolve it.
  */
-mlib_inline mstr
+mlib_inline_def mstr
 mpath_absolute_from (mstr_view path, mstr_view base, mpath_format f)
 {
    mstr_view rname = mpath_root_name (path, f);
@@ -364,7 +364,7 @@ mpath_absolute_from (mstr_view path, mstr_view base, mpath_format f)
    }
 }
 
-mlib_inline mstr
+mlib_inline_def mstr
 mpath_absolute (mstr_view path, mpath_format f)
 {
    if (mpath_is_absolute (path, f)) {
