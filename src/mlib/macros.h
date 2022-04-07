@@ -36,7 +36,7 @@
     // On other platforms, declare the symbol "weak" to cause symbol merging,
     // and "hidden" to disable the ability for the symbol to be overridden via
     // interposition
-    #define mlib_inline_def extern mlib_inline __attribute__((weak, visibility("hidden")))
+    #define mlib_inline_def extern __attribute__((weak, visibility("hidden")))
 #endif
 
 // clang-format on
