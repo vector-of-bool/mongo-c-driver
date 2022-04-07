@@ -4,6 +4,7 @@
 #include "./user-check.h"
 
 #include "./str.h"
+#include "./macros.h"
 
 #ifdef _WIN32
 #include "./windows-lean.h"
@@ -19,7 +20,7 @@
  * @return mstr A new string containing the resulting error. Must be freed with
  * @ref mstr_free().
  */
-static inline mstr
+mlib_inline mstr
 merror_system_error_string (int errn)
 {
 #ifdef _WIN32

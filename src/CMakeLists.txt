@@ -35,6 +35,7 @@ set_local_dist (src_DIST_local
 set (src_mlib_DIST
    src/mlib/mlib.cmake
    src/mlib/error.h
+   src/mlib/macros.h
    src/mlib/path.h
    src/mlib/path.test.c
    src/mlib/str.h
