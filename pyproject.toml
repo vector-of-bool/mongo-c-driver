@@ -13,3 +13,6 @@ aiohttp = "^3.8.1"
 yapf = "^0.32.0"
 toml = "^0.10.2"
 
+[tool.yapf]
+based_on_style = "pep8"
+column_limit = 120
