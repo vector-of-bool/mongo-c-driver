@@ -1887,6 +1887,9 @@ _reset (mongoc_client_pool_t **pool,
    *opts = mongoc_auto_encryption_opts_new ();
    extra = BCON_NEW ("mongocryptdBypassSpawn", BCON_BOOL (true));
    mongoc_auto_encryption_opts_set_extra (*opts, extra);
+#ifdef TESTING_CSFLE_OVERRIDE_PATH
+   BSON_APPEND_UTF8 (extra, "csflePath", TESTING_CSFLE_OVERRIDE_PATH);
+#endif
    mongoc_auto_encryption_opts_set_keyvault_namespace (*opts, "db", "keyvault");
    kms_providers = _make_kms_providers (false /* aws */, true /* local */);
    mongoc_auto_encryption_opts_set_kms_providers (*opts, kms_providers);
@@ -2321,16 +2324,17 @@ test_bypass_spawning_via_mongocryptdBypassSpawn (void *unused)
 
    /* Create a MongoClient with encryption enabled */
    client_encrypted = test_framework_new_default_client ();
-   extra =
-      BCON_NEW ("mongocryptdBypassSpawn",
-                BCON_BOOL (true),
-                "mongocryptdSpawnArgs",
-                "[",
-                "--pidfilepath=bypass-spawning-mongocryptd.pid",
-                "--port=27021",
-                "]",
-                "mongocryptdURI",
-                "mongodb://localhost:27021/?serverSelectionTimeoutMS=1000");
+   extra = BCON_NEW ("mongocryptdBypassSpawn",
+                     BCON_BOOL (true),
+                     "mongocryptdSpawnArgs",
+                     "[",
+                     "--pidfilepath=bypass-spawning-mongocryptd.pid",
+                     "--port=27021",
+                     "]",
+                     "mongocryptdURI",
+                     "mongodb://localhost:27021/?serverSelectionTimeoutMS=1000",
+                     "__csfleDisabled",
+                     BCON_BOOL (true));
    mongoc_auto_encryption_opts_set_extra (auto_encryption_opts, extra);
    mongoc_auto_encryption_opts_set_schema_map (auto_encryption_opts,
                                                schema_map);

@@ -910,6 +910,10 @@ _mongoc_crypt_t *
 _mongoc_crypt_new (const bson_t *kms_providers,
                    const bson_t *schema_map,
                    const bson_t *tls_opts,
+                   const char *csfle_override_path,
+                   bool csfle_required,
+                   bool csfle_disabled,
+                   bool bypass_auto_encryption,
                    bson_error_t *error)
 {
    _mongoc_crypt_t *crypt;
@@ -945,9 +949,45 @@ _mongoc_crypt_new (const bson_t *kms_providers,
       }
    }
 
+   if (!bypass_auto_encryption && !csfle_disabled) {
+      mongocrypt_setopt_append_csfle_search_path (crypt->handle, "$SYSTEM");
+      if (!_crypt_check_error (crypt->handle, error, false)) {
+         goto fail;
+      }
+
+      if (csfle_override_path != NULL) {
+         mongocrypt_setopt_set_csfle_lib_path_override (crypt->handle,
+                                                        csfle_override_path);
+         if (!_crypt_check_error (crypt->handle, error, false)) {
+            goto fail;
+         }
+      }
+   }
+
    if (!mongocrypt_init (crypt->handle)) {
       _crypt_check_error (crypt->handle, error, true);
       goto fail;
+   }
+
+   if (csfle_required) {
+      BSON_ASSERT (!csfle_disabled &&
+                   "Both csfleRequired and __csfleDisabled were set 'true'");
+      uint32_t len = 0;
+      const char *s = mongocrypt_csfle_version_string (crypt->handle, &len);
+      if (!s || len == 0) {
+         // empty/null version string indicates that csfle was not loaded by
+         // libmongocrypt
+         bson_set_error (error,
+                         MONGOC_ERROR_CLIENT_SIDE_ENCRYPTION,
+                         MONGOC_ERROR_CLIENT_INVALID_ENCRYPTION_STATE,
+                         "Option 'csfleRequired' is 'true', but we failed to "
+                         "load the csfle runtime libary");
+         goto fail;
+      }
+      mongoc_log (MONGOC_LOG_LEVEL_DEBUG,
+                  MONGOC_LOG_DOMAIN,
+                  "csfle version '%s' was found and loaded",
+                  s);
    }
 
    success = true;
