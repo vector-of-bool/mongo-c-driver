@@ -14,7 +14,7 @@ $poetry = Join-Path $poetry_dir "bin\poetry.exe"
 
 if (! (Test-Path $poetry)) {
     $py = Get-Command py -CommandType Application
-    Write-Host "Note: Installing Poetry"
+    Write-Host "Note: Installing Poetry in [$poetry_dir]"
     $get_poetry_py = "$mcd_dir/get-poetry.py"
     Invoke-WebRequest -UseBasicParsing -Uri https://install.python-poetry.org -OutFile $get_poetry_py `
     | Out-Null
