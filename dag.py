@@ -1,16 +1,18 @@
-import subprocess
+import asyncio
+import itertools
 import json
 import os
 import platform
 import re
-import itertools
+import subprocess
 import sys
-from pathlib import Path
 import tempfile
-from typing import IO, Any, AsyncIterable, Mapping, Optional
+from contextlib import AsyncExitStack, asynccontextmanager
+from pathlib import Path
+from typing import (IO, Any, AsyncContextManager, AsyncIterable, AsyncIterator, Mapping, NamedTuple, Optional)
 
 import aiohttp
-from dagon import ar, fs, option, proc, task, ui, persist
+from dagon import ar, fs, option, persist, proc, task, ui
 
 HERE = Path(__file__).parent.resolve()
 
@@ -77,6 +79,17 @@ def _which(program: str) -> Optional[Path]:
         cand = Path(pathdir) / (program + pathext)
         if cand.is_file():
             return cand
+
+
+def _ninja_progress(message: proc.ProcessOutputItem) -> None:
+    line = message.out.decode()
+    ui.status(line)
+    mat = PROG_RE.search(line)
+    if not mat:
+        return
+    num, den = mat.groups()
+    prog = int(num) / int(den)
+    ui.progress(prog)
 
 
 @task.define()
@@ -246,7 +259,7 @@ async def get_ninja() -> Path:
 
 
 @task.define()
-async def get_cmake() -> Path:
+async def __get_cmake() -> Path:
     "Obtain a CMake executable for the build"
     if use_system_cmake.get():
         found = _which('cmake')
@@ -296,104 +309,244 @@ async def get_cmake() -> Path:
     return cmake_bin
 
 
-def _ninja_progress(message: proc.ProcessOutputItem) -> None:
-    line = message.out.decode()
-    ui.status(line)
-    mat = PROG_RE.search(line)
-    if not mat:
-        return
-    num, den = mat.groups()
-    prog = int(num) / int(den)
-    ui.progress(prog)
+class CMake(NamedTuple):
+    cmake: Path
+    ninja: Optional[Path]
+    env: Optional[Mapping[str, str]]
+
+    async def configure(self,
+                        src_dir: Path,
+                        bin_dir: Path,
+                        *,
+                        cmake_flags: proc.CommandLine = (),
+                        on_output: proc.OutputMode = 'print') -> None:
+        cmd = [
+            self.cmake,
+            f'-S{src_dir}',
+            f'-B{bin_dir}',
+            '-GNinja Multi-Config',
+            f'-DCMAKE_MAKE_PROGRAM={self.ninja}',
+            cmake_flags,
+        ]
+        try:
+            await proc.run(cmd, on_output=on_output, env=self.env)
+        except subprocess.CalledProcessError as e:
+            if b'No CMAKE_C_COMPILER could be found' in e.stderr and os.name == 'nt':
+                ui.print('Note: No C compiler could be found. Did you mean to set a "vs-version" option?',
+                         type=ui.MessageType.Warning)
+            raise
+
+    async def build(self,
+                    bin_dir: Path,
+                    *,
+                    target: Optional[str] = None,
+                    install: bool = False,
+                    config: str = 'Debug',
+                    print_on_finish: proc._PrintOnFinishArg = 'on-fail') -> None:
+        build_cmd: proc.CommandLine = [
+            self.cmake,
+            ('--build', bin_dir),
+            ('--config', config),
+        ]
+        if target:
+            build_cmd.append(('--target', target))
+        await proc.run(build_cmd, env=self.env, on_output=_ninja_progress, print_output_on_finish=print_on_finish)
+        if install:
+            install_cmd: proc.CommandLine = [
+                self.cmake,
+                f'-DCMAKE_INSTALL_CONFIG_NAME={config}',
+                '-P',
+                bin_dir / 'cmake_install.cmake',
+            ]
+            await proc.run(install_cmd)
+
+
+@task.define(depends=[__get_cmake, get_ninja, calc_env])
+async def get_cmake() -> CMake:
+    return CMake(await task.result_of(__get_cmake), await task.result_of(get_ninja), await task.result_of(calc_env))
 
 
 @task.define(order_only_depends=[clean])
 async def dl_libmongocrypt() -> Path:
     tag = libmongocrypt_version.get()
     tar_dest = build_dir.get() / f'libmongocrypt-{tag}.tar.gz'
-    await _download(f'https://github.com/mongodb/libmongocrypt/archive/refs/tags/{tag}.tar.gz', tar_dest)
+    await _download(f'https://github.com/mongodb/libmongocrypt/archive/refs/heads/master.tar.gz', tar_dest)
     root = build_dir.get() / f'libmongocrypt-{tag}'
+    stamp = root / 'extracted.stamp'
+    if stamp.is_file():
+        return root
     await fs.remove(root, recurse=True, absent_ok=True)
     await ar.expand(tar_dest, destination=root, on_extract=_on_extract, strip_components=1)
+    stamp.write_bytes(b'')
     return root
 
 
-async def _cmake_configure(src_dir: Path, build_dir: Path, *, cmake_flags: proc.CommandLine) -> None:
-    cmake = await task.result_of(get_cmake)
-    ninja = await task.result_of(get_ninja)
-    env = await task.result_of(calc_env)
-    cmd = [
-        cmake,
-        f'-H{src_dir}',
-        f'-B{build_dir}',
-        '-GNinja Multi-Config',
-        f'-DCMAKE_MAKE_PROGRAM={ninja}',
-        cmake_flags,
-    ]
-    try:
-        await proc.run(cmd, on_output='print', env=env)
-    except subprocess.CalledProcessError as e:
-        if b'No CMAKE_C_COMPILER could be found' in e.stderr and os.name == 'nt':
-            ui.print('Note: No C compiler could be found. Did you mean to set a "vs-version" option?',
-                     type=ui.MessageType.Warning)
-        raise
-
-
-async def _cmake_build(build_dir: Path,
-                       *,
-                       print_on_finish: proc._PrintOnFinishArg = 'on-fail',
-                       install: bool = False,
-                       config: str = 'Debug') -> None:
-    cmake = await task.result_of(get_cmake)
-    env = await task.result_of(calc_env)
-    await proc.run([cmake, '--build', build_dir, f'--config={config}'],
-                   env=env,
-                   on_output=_ninja_progress,
-                   print_output_on_finish=print_on_finish)
-    if install:
-        await proc.run([cmake, f'-DCMAKE_INSTALL_CONFIG_NAME={config}', '-P', build_dir / 'cmake_install.cmake'])
-
-
-@task.define(order_only_depends=[clean], depends=[get_cmake, get_ninja, calc_env])
+@task.define(order_only_depends=[clean], depends=[get_cmake])
 async def build_install_libbson_tmp() -> Path:
     src_dir = HERE
     tmp_dir = src_dir / '_build/_libbson-only'
     prefix = src_dir / '_build/_libbson-install'
-    await _cmake_configure(src_dir, tmp_dir, cmake_flags=('-DENABLE_MONGOC=OFF', f'-DCMAKE_INSTALL_PREFIX={prefix}'))
-    await _cmake_build(tmp_dir, install=True)
+    cmake = await task.result_of(get_cmake)
+    await cmake.configure(src_dir,
+                          tmp_dir,
+                          cmake_flags=('-DENABLE_MONGOC=OFF', f'-DCMAKE_INSTALL_PREFIX={prefix}'),
+                          on_output='status')
+    await cmake.build(tmp_dir, install=True)
     return prefix
 
 
-@task.define(order_only_depends=[clean],
-             depends=[get_cmake, get_ninja, calc_env, dl_libmongocrypt, build_install_libbson_tmp])
+@task.define(order_only_depends=[clean], depends=[get_cmake, dl_libmongocrypt, build_install_libbson_tmp])
 async def build_libmongocrypt() -> Path:
     src_dir = await task.result_of(dl_libmongocrypt)
     bin_dir = src_dir / '_build/_libmongocrypt'
-    prefix = src_dir / '_build/_libmongocrypt-intsall'
-    env = await task.result_of(calc_env)
+    prefix = src_dir / '_build/_libmongocrypt-install'
+    stamp = prefix / f'{libmongocrypt_version.get()}.install.stamp'
+    # if stamp.is_file():
+    #     return prefix
     cmake = await task.result_of(get_cmake)
     libbson_root = await task.result_of(build_install_libbson_tmp)
-    await _cmake_configure(src_dir,
-                           bin_dir,
-                           cmake_flags=(f'-DCMAKE_INSTALL_PREFIX={prefix}', f'-DCMAKE_PREFIX_PATH={libbson_root}'))
-    await _cmake_build(bin_dir, install=True)
+    await cmake.configure(src_dir,
+                          bin_dir,
+                          cmake_flags=(f'-DCMAKE_INSTALL_PREFIX={prefix}', f'-DCMAKE_PREFIX_PATH={libbson_root}'),
+                          on_output='status')
+    await cmake.build(bin_dir, install=True)
+    stamp.write_bytes(b'')
     return prefix
 
 
-@task.define(order_only_depends=[clean], depends=[get_cmake, get_ninja, calc_env, build_libmongocrypt])
+@task.define(order_only_depends=[clean], depends=[get_cmake, build_libmongocrypt])
 async def configure() -> None:
-    cmake_bin = await task.result_of(get_cmake)
-    ninja_bin = await task.result_of(get_ninja)
     lmc_prefix = await task.result_of(build_libmongocrypt)
-    await _cmake_configure(HERE, build_dir.get(), cmake_flags=(f'-DCMAKE_INSTALL_PREFIX={lmc_prefix}'))
+    cmake = await task.result_of(get_cmake)
+    await cmake.configure(HERE, build_dir.get(), cmake_flags=(f'-DCMAKE_INSTALL_PREFIX={lmc_prefix}'))
 
 
 @task.define(depends=[configure, get_cmake, calc_env])
 async def build() -> None:
-    cmake_bin = await task.result_of(get_cmake)
-    res = await proc.run(
-        [cmake_bin, '--build', build_dir.get()],
-        on_output=_ninja_progress,
-        env=await task.result_of(calc_env),
-        print_output_on_finish='always',
-    )
+    cmake = await task.result_of(get_cmake)
+    await cmake.build(build_dir.get(), print_on_finish='always')
+
+
+@task.define()
+async def __evg_tools() -> Path:
+    clone_dir = build_dir.get() / '_evergreen-driver-tools'
+    if clone_dir.joinpath('.git').is_dir():
+        return clone_dir
+    await proc.run(
+        ['git', 'clone', 'https://github.com/mongodb-labs/drivers-evergreen-tools', '--depth=1', '--quiet', clone_dir])
+    return clone_dir
+
+
+test_pattern = option.add('test.pattern', str, doc='The globbing pattern to select a subset of tests to run')
+test_debug = option.add('test.debug', bool, default=False, doc='Enable test debug output')
+test_env = option.add('test.env', Path, default=None, doc='A JSON file of environment variables to load for the test')
+
+
+def load_secrets(fpath: Path) -> Mapping[str, str]:
+    secrets = json.loads(fpath.read_bytes())
+    varmap = {
+        # AWS
+        'AWS_SECRET_ACCESS_KEY': secrets['aws']['secretAccessKey'],
+        'AWS_ACCESS_KEY_ID': secrets['aws']['accessKeyId'],
+        # Azure
+        'AZURE_TENANT_ID': secrets['azure']['tenantId'],
+        'AZURE_CLIENT_ID': secrets['azure']['clientId'],
+        'AZURE_CLIENT_SECRET': secrets['azure']['clientSecret'],
+        # GCP
+        'GCP_EMAIL': secrets['gcp']['email'],
+        'GCP_PRIVATEKEY': secrets['gcp']['privateKey'],
+    }
+    return varmap
+
+
+secrets_json = option.add('cse.secrets.json',
+                          Path,
+                          default=None,
+                          doc='A JSON file containing secrets for client-side encryption tests')
+
+mongocryptd_path = option.add('test.mongocryptd', Path, default=None, doc='A mongocryptd executable to use for testing')
+
+
+@asynccontextmanager
+async def _tmp_process(cmd: proc.CommandLine) -> AsyncIterator[proc.RunningProcess]:
+    cmd = proc.plain_commandline(cmd)
+    cancel = proc.CancellationToken()
+    ui.print(f'Start: {cmd}')
+    child = await proc.spawn(cmd, cancel=cancel, print_output_on_finish='never')
+    try:
+        yield child
+    finally:
+        cancel.cancel()
+        try:
+            res = await child.result
+        except asyncio.CancelledError:
+            pass
+
+
+def mongocryptd_process() -> AsyncContextManager[proc.RunningProcess]:
+    md = mongocryptd_path.get()
+    if not md:
+        md = _which('mongocryptd')
+    if not md:
+        raise RuntimeError('No [mongocrypt] executable provided or available on PATH.')
+    return _tmp_process([md, f'--logpath={build_dir.get()/"test-mongocryptd.log"}'])
+
+
+def _kmip_server(evg: Path) -> AsyncContextManager[proc.RunningProcess]:
+    return _tmp_process([sys.executable, '-u', evg / '.evergreen/csfle/kms_kmip_server.py'])
+
+
+def tmp_kms(evg: Path, cert: str, port: int,
+            more_args: proc.CommandLine = ()) -> AsyncContextManager[proc.RunningProcess]:
+    return _tmp_process([
+        sys.executable,
+        '-u',
+        evg / '.evergreen/csfle/kms_http_server.py',
+        ('--ca_file', evg / '.evergreen/x509gen/ca.pem'),
+        ('--cert_file', evg / f'.evergreen/x509gen/{cert}.pem'),
+        ('--port', port),
+        more_args,
+    ])
+
+
+@task.define(order_only_depends=[build], depends=[build_libmongocrypt, __evg_tools])
+async def test() -> None:
+    tester = build_dir.get() / 'src/libmongoc/Debug/test-libmongoc'
+    env = os.environ.copy()
+    if os.name == 'nt':
+        tester = tester.with_suffix('.exe')
+        lmc_install_dir = await task.result_of(build_libmongocrypt)
+        env['PATH'] += f';{lmc_install_dir/"bin"}'
+
+    evg_tools_dir = await task.result_of(__evg_tools)
+
+    cmd: proc.CommandLine = [tester, '--no-fork']
+    pat = test_pattern.get(default=None)
+    if pat:
+        cmd.extend(('-l', pat))
+    if test_debug.get():
+        cmd.append('-d')
+    sj = secrets_json.get()
+    if sj:
+        vars = load_secrets(sj)
+        env.update({f'MONGOC_TEST_{key}': val for key, val in vars.items()})
+    te = test_env.get()
+    if te:
+        env_data = json.loads(te.read_text("utf-8"))
+        env.update(env_data)
+    env.update({
+        'MONGOC_TEST_CSFLE_TLS_CA_FILE': str(evg_tools_dir / '.evergreen/x509gen/ca.pem'),
+        'MONGOC_TEST_CSFLE_TLS_CERTIFICATE_KEY_FILE': str(evg_tools_dir / '.evergreen/x509gen/client.pem'),
+        'MONGOC_TEST_MONGOCRYPTD_BYPASS_SPAWN': 'on',
+    })
+    async with AsyncExitStack() as st:
+        ui.status(f'Spawning temporary servers for CSE')
+        await st.enter_async_context(mongocryptd_process())
+        await st.enter_async_context(_kmip_server(evg_tools_dir))
+        await st.enter_async_context(tmp_kms(evg_tools_dir, 'server', 7999))
+        await st.enter_async_context(tmp_kms(evg_tools_dir, 'expired', 8000))
+        await st.enter_async_context(tmp_kms(evg_tools_dir, 'wrong-host', 8001))
+        await st.enter_async_context(tmp_kms(evg_tools_dir, 'server', 8002, ['--require_client_cert']))
+        ui.status('Running tests...')
+        await proc.run(cmd, cwd=HERE, on_output='print', env=env)
+        ui.status('Shutting down temporary servers...')

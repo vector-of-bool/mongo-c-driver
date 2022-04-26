@@ -8,6 +8,8 @@ authors = []
 python = "^3.9"
 dagon = "^0.9.3"
 aiohttp = "^3.8.1"
+botocore = "^1.25.0"
+PyKMIP = "^0.10.0"
 
 [tool.poetry.dev-dependencies]
 yapf = "^0.32.0"
