@@ -26,6 +26,8 @@ set -o errexit  # Exit the script with error if any of the commands fail
 #       ENABLE_SHM_COUNTERS     Build with SHM counters
 #       ZSTD                    Build against system zstd.
 
+bash build/poetry.sh help
+
 # Options for this script.
 RELEASE=${RELEASE:-OFF}
 DEBUG=${DEBUG:-OFF}

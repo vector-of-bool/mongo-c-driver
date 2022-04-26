@@ -10,6 +10,7 @@ set -o errexit  # Exit the script with error if any of the commands fail
 #  RELEASE         Enable release-build MSVC flags (default: debug flags)
 #  SKIP_MOCK_TESTS Skips running the libmongoc mock server tests after compiling
 
+powershell -nop -noni build/poetry.ps1 help
 
 INSTALL_DIR="$(cygpath -a ./install-dir -w)"
 CONFIGURE_FLAGS="\
