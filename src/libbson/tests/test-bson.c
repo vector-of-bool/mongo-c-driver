@@ -21,6 +21,8 @@
 #include <fcntl.h>
 #include <time.h>
 
+#include <bson/bson-dsl.h>
+
 #include "TestSuite.h"
 #include "test-conveniences.h"
 
@@ -2502,6 +2504,47 @@ test_bson_as_json_string (void)
    bson_free (actual);
 }
 
+static void
+test_bson_dsl (void)
+{
+   BSON_BUILD_DECL (
+      meow,
+      kv ("foo", i32 (12)),
+      kv ("bar", cstr ("baz")),
+      kv (
+         "another",
+         array (
+            i32 (1),
+            i32 (2),
+            i32 (3),
+            i32 (4),
+            i32 (5),
+            insert (meow),
+            doc (kv ("sub1", i32 (84)),
+                 kv ("sub2",
+                     doc (kv ("item", i32 (99)),
+                          kv ("item2", i32 (42)),
+                          kv ("nope",
+                              doc (kv (
+                                 "1", doc (kv ("2", doc (kv ("3", doc ()))))))),
+                          kv ("another nested",
+                              array (i32 (6), i32 (4), i32 (-9))),
+                          kv ("int64", i64 (94412))))))));
+   bson_iter_t it;
+   bson_iter_init (&it, meow);
+   bson_iter_t found;
+   BSON_ASSERT (
+      bson_iter_find_descendant (&it, "another.5.sub2.int64", &found));
+   BSON_ASSERT (BSON_ITER_HOLDS_INT64 (&found));
+   ASSERT_CMPINT64 (bson_iter_as_int64 (&found), ==, 94412);
+
+   BSON_BUILD_DECL (another, insert (meow));
+   BSON_ASSERT_BSON_EQUAL (meow, another);
+
+   bson_destroy (meow);
+   bson_destroy (another);
+}
+
 void
 test_bson_install (TestSuite *suite)
 {
@@ -2600,4 +2643,6 @@ test_bson_install (TestSuite *suite)
                   "/bson/append_null_from_utf8_or_symbol",
                   test_bson_append_null_from_utf8_or_symbol);
    TestSuite_Add (suite, "/bson/as_json_string", test_bson_as_json_string);
+
+   TestSuite_Add (suite, "/bson/dsl/basic", test_bson_dsl);
 }

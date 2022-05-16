@@ -185,6 +185,7 @@ set (HEADERS
    ${PROJECT_SOURCE_DIR}/src/bson/bson-compat.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-context.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-decimal128.h
+   ${PROJECT_SOURCE_DIR}/src/bson/bson-dsl.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-endian.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-error.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson.h
