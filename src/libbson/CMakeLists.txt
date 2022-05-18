@@ -492,7 +492,6 @@ target_link_libraries(json-fuzz PRIVATE bson_static)
 mongoc_add_fuzzer (bson-fuzz fuzz/bson.fuzz.c)
 target_link_libraries(bson-fuzz PRIVATE bson_static)
 set_property(TARGET bson-fuzz PROPERTY FUZZER_MAX_LEN 65536)
-)
 
 set (src_libbson_DIST
    ${src_libbson_DIST_local}
