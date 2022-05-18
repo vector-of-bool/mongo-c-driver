@@ -154,6 +154,7 @@ set (SOURCES
    ${PROJECT_SOURCE_DIR}/src/bson/bson-clock.c
    ${PROJECT_SOURCE_DIR}/src/bson/bson-context.c
    ${PROJECT_SOURCE_DIR}/src/bson/bson-decimal128.c
+   ${PROJECT_SOURCE_DIR}/src/bson/bson-dsl.c
    ${PROJECT_SOURCE_DIR}/src/bson/bson-error.c
    ${PROJECT_SOURCE_DIR}/src/bson/bson-iso8601.c
    ${PROJECT_SOURCE_DIR}/src/bson/bson-iter.c

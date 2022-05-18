@@ -42,6 +42,7 @@ set (src_libbson_src_bson_DIST_cs
    bson-clock.c
    bson-context.c
    bson-decimal128.c
+   bson-dsl.c
    bson-error.c
    bson-iter.c
    bson-iso8601.c

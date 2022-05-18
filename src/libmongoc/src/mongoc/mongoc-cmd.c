@@ -25,6 +25,8 @@
 /* For strcasecmp on Windows */
 #include "mongoc-util-private.h"
 
+#include <bson/bson-dsl.h>
+
 
 void
 mongoc_cmd_parts_init (mongoc_cmd_parts_t *parts,
@@ -404,7 +406,6 @@ static void
 _mongoc_cmd_parts_add_read_prefs (bson_t *query,
                                   const mongoc_read_prefs_t *prefs)
 {
-   bson_t child;
    const char *mode_str;
    const bson_t *tags;
    int64_t stale;
@@ -415,21 +416,20 @@ _mongoc_cmd_parts_add_read_prefs (bson_t *query,
    stale = mongoc_read_prefs_get_max_staleness_seconds (prefs);
    hedge = mongoc_read_prefs_get_hedge (prefs);
 
-   bson_append_document_begin (query, "$readPreference", 15, &child);
-   bson_append_utf8 (&child, "mode", 4, mode_str, -1);
-   if (!bson_empty0 (tags)) {
-      bson_append_array (&child, "tags", 4, tags);
-   }
 
-   if (stale != MONGOC_NO_MAX_STALENESS) {
-      bson_append_int64 (&child, "maxStalenessSeconds", 19, stale);
-   }
-
-   if (!bson_empty0 (hedge)) {
-      bson_append_document (&child, "hedge", 5, hedge);
-   }
-
-   bson_append_document_end (query, &child);
+   BSON_BUILD_APPEND (
+      query,
+      kv ("$readPreference",
+          doc (kv ("mode", cstr (mode_str)),
+               if (!bson_empty (tags), //
+                   then (kv ("tags", bsonArray (tags))),
+                   else()),
+               if (stale != MONGOC_NO_MAX_STALENESS,
+                   then (kv ("maxStalenessSeconds", i32 (stale))),
+                   else()),
+               if (!bson_empty (hedge), //
+                   then (kv ("hedge", bson (hedge))),
+                   else()))));
 }
 
 

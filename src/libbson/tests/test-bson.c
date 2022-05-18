@@ -2519,7 +2519,6 @@ test_bson_dsl (void)
             i32 (3),
             i32 (4),
             i32 (5),
-            insert (meow),
             doc (kv ("sub1", i32 (84)),
                  kv ("sub2",
                      doc (kv ("item", i32 (99)),
@@ -2529,7 +2528,8 @@ test_bson_dsl (void)
                                  "1", doc (kv ("2", doc (kv ("3", doc ()))))))),
                           kv ("another nested",
                               array (i32 (6), i32 (4), i32 (-9))),
-                          kv ("int64", i64 (94412))))))));
+                          kv ("int64", i64 (94412))))))),
+      if (12, then (kv ("foo", cstr ("bar"))), else(kv ("bar", i32 (88)))));
    bson_iter_t it;
    bson_iter_init (&it, meow);
    bson_iter_t found;
@@ -2538,8 +2538,25 @@ test_bson_dsl (void)
    BSON_ASSERT (BSON_ITER_HOLDS_INT64 (&found));
    ASSERT_CMPINT64 (bson_iter_as_int64 (&found), ==, 94412);
 
-   BSON_BUILD_DECL (another, insert (meow));
+   BSON_BUILD_DECL (another, insert (meow, all));
    BSON_ASSERT_BSON_EQUAL (meow, another);
+
+   BSON_PARSE (
+      meow,
+      ifKey (
+         "foo",
+         ifType (array,
+                 nop,
+                 doc (ifKey (
+                    "meow",
+                    forEach (doc (ifKey (
+                       "bark",
+                       doc (ifKey (
+                          "foo",
+                          doc (ifKey (
+                             "foo",
+                             doc (ifKey (
+                                "foo", doc (ifKey ("nope", nop))))))))))))))));
 
    bson_destroy (meow);
    bson_destroy (another);
