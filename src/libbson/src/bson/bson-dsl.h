@@ -98,7 +98,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 #define pBsonDSL_paste3(a, b, c) pBsonDSL_paste(a, pBsonDSL_paste(b, c))
 #define pBsonDSL_paste4(a, b, c, d) pBsonDSL_paste(a, pBsonDSL_paste3(b, c, d))
 
-#define pBSONDSL_PICK_128th(\
+#define pBSONDSL_PICK_64th(\
                     _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, \
                     _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, \
                     _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, \
@@ -112,11 +112,12 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
  * @brief Expands to 1 if the given arguments contain a top-level comma, zero otherwise.
  */
 #define pBsonDSL_hasComma(...) \
-    pBSONDSL_PICK_128th(__VA_ARGS__, \
+    pBSONDSL_PICK_64th \
+    pBsonDSL_nothing (__VA_ARGS__, \
                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, \
                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, \
                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, \
-                         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, ~)
+                         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, ~)
 
 /** Expands to a comma if the token to the right-hand side is an opening parenthesis */
 #define pBsonDSL_commaIfRHSHasParens(...) ,
@@ -149,11 +150,11 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
     pBsonDSL_paste(pBsonDSL_ifElse_PICK_, Cond)(IfTrue, IfFalse)
 
 #define pBsonDSL_eval_1(...) __VA_ARGS__
-#define pBsonDSL_eval_2(...) pBsonDSL_eval_1(pBsonDSL_eval_1(__VA_ARGS__))
-#define pBsonDSL_eval_4(...) pBsonDSL_eval_2(pBsonDSL_eval_2(__VA_ARGS__))
-#define pBsonDSL_eval_8(...) pBsonDSL_eval_4(pBsonDSL_eval_4(__VA_ARGS__))
-#define pBsonDSL_eval_16(...) pBsonDSL_eval_8(pBsonDSL_eval_8(__VA_ARGS__))
-#define pBsonDSL_eval(...) pBsonDSL_eval_16(pBsonDSL_eval_16(__VA_ARGS__))
+#define pBsonDSL_eval_2(...) pBsonDSL_eval_1(pBsonDSL_eval_1(pBsonDSL_eval_1(pBsonDSL_eval_1(pBsonDSL_eval_1(__VA_ARGS__)))))
+#define pBsonDSL_eval_4(...) pBsonDSL_eval_2(pBsonDSL_eval_2(pBsonDSL_eval_2(pBsonDSL_eval_2(pBsonDSL_eval_2(__VA_ARGS__)))))
+#define pBsonDSL_eval_8(...) pBsonDSL_eval_4(pBsonDSL_eval_4(pBsonDSL_eval_4(pBsonDSL_eval_4(pBsonDSL_eval_4(__VA_ARGS__)))))
+#define pBsonDSL_eval_16(...) pBsonDSL_eval_8(pBsonDSL_eval_8(pBsonDSL_eval_8(pBsonDSL_eval_8(pBsonDSL_eval_8(__VA_ARGS__)))))
+#define pBsonDSL_eval(...) pBsonDSL_eval_16(pBsonDSL_eval_16(pBsonDSL_eval_16(pBsonDSL_eval_16(pBsonDSL_eval_16(__VA_ARGS__)))))
 
 #define pBsonDSL_mapMacro_final(Action, Constant, Counter, Fin) \
     Action(Fin, Constant, Counter)
@@ -210,20 +211,21 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
    pBsonDSL_docElementDeferred_doc pBsonDSL_nothing
 #define pBsonDSL_arrayElement_doc pBsonDSL_documentValue_doc
 
-#define pBsonDSL_docElementDeferred_doc(...)                                  \
-   pBsonDSL_begin ("Append a new document [%s]", pBsonDSL_str (__VA_ARGS__)); \
-   /* Write to this variable as the child: */                                 \
-   bson_t _doc_ = BSON_INITIALIZER;                                           \
-   pBsonDSL_append (document_begin, &_doc_);                                  \
-   /* Remember the parent: */                                                 \
-   bson_t *prev_doc = bsonDSLContext.doc;                                     \
-   /* Set the child as the new context doc to modify: */                      \
-   bsonDSLContext.doc = &_doc_;                                               \
-   /* Apply the nested dsl for documents: */                                  \
-   pBsonDSL_mapMacroInner (pBsonDSL_docElement, ~, __VA_ARGS__);              \
-   /* Restore the prior context document and finish the append: */            \
-   bsonDSLContext.doc = prev_doc;                                             \
-   bson_append_document_end (prev_doc, &_doc_);                               \
+#define pBsonDSL_docElementDeferred_doc(...)                       \
+   pBsonDSL_begin ("Append a new document [%s]",                   \
+                   "" pBsonDSL_str (__VA_ARGS__));                 \
+   /* Write to this variable as the child: */                      \
+   bson_t _doc_ = BSON_INITIALIZER;                                \
+   pBsonDSL_append (document_begin, &_doc_);                       \
+   /* Remember the parent: */                                      \
+   bson_t *prev_doc = bsonDSLContext.doc;                          \
+   /* Set the child as the new context doc to modify: */           \
+   bsonDSLContext.doc = &_doc_;                                    \
+   /* Apply the nested dsl for documents: */                       \
+   pBsonDSL_mapMacroInner (pBsonDSL_docElement, ~, __VA_ARGS__);   \
+   /* Restore the prior context document and finish the append: */ \
+   bsonDSLContext.doc = prev_doc;                                  \
+   bson_append_document_end (prev_doc, &_doc_);                    \
    pBsonDSL_end
 
 /// We must defer expansion of the nested array() to allow "recursive"
@@ -234,7 +236,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 
 #define pBsonDSL_docElementDeferred_array(...)                        \
    pBsonDSL_begin ("Append an array() value: [%s]",                   \
-                   pBsonDSL_str (__VA_ARGS__));                       \
+                   "" pBsonDSL_str (__VA_ARGS__));                    \
    /* Write to this variable as the child array: */                   \
    bson_t _array_ = BSON_INITIALIZER;                                 \
    pBsonDSL_append (array_begin, &_array_);                           \
