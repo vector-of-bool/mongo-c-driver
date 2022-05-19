@@ -56,6 +56,8 @@
 #include "mongoc-cluster-aws-private.h"
 #include "mongoc-error-private.h"
 
+#include <bson/bson-dsl.h>
+
 #undef MONGOC_LOG_DOMAIN
 #define MONGOC_LOG_DOMAIN "cluster"
 
@@ -848,8 +850,10 @@ _stream_run_hello (mongoc_cluster_t *cluster,
    if (!mongoc_cluster_run_command_private (
           cluster, &hello_cmd, &reply, error)) {
       if (negotiate_sasl_supported_mechs) {
-         if (bson_iter_init_find (&iter, &reply, "ok") &&
-             !bson_iter_as_bool (&iter)) {
+         bool is_okay = false;
+         bsonParse (reply,
+                    ifKey ("ok", ifType (bool, storeBool (is_okay), halt)));
+         if (!is_okay) {
             /* hello response returned ok: 0. According to auth spec: "If the
              * hello of the MongoDB Handshake fails with an error, drivers
              * MUST treat this an authentication error." */
@@ -1580,6 +1584,9 @@ _mongoc_cluster_scram_handle_reply (mongoc_scram_t *scram,
    const char *tmpstr;
 
    BSON_ASSERT (scram);
+
+   bool is_done = false;
+   bsonParse (*reply, ifKey ("done", storeBool (is_done), halt));
 
    if (bson_iter_init_find (&iter, reply, "done") &&
        bson_iter_as_bool (&iter)) {

@@ -2541,22 +2541,48 @@ test_bson_dsl (void)
    BSON_BUILD_DECL (another, insert (meow, all));
    BSON_ASSERT_BSON_EQUAL (meow, another);
 
-   BSON_PARSE (
-      meow,
-      ifKey (
-         "foo",
-         ifType (array,
-                 nop,
-                 doc (ifKey (
-                    "meow",
-                    forEach (doc (ifKey (
-                       "bark",
-                       doc (ifKey (
-                          "foo",
-                          doc (ifKey (
-                             "foo",
-                             doc (ifKey (
-                                "foo", doc (ifKey ("nope", nop))))))))))))))));
+   bsonParse (
+      *meow,
+      ifKey ("foo",
+             ifType (
+                array,
+                nop,
+                doc (ifKey (
+                   "meow",
+                   visitEach (doc (ifKey (
+                      "bark",
+                      doc (ifKey (
+                         "foo",
+                         doc (ifKey (
+                            "foo",
+                            doc (ifKey ("foo",
+                                        continue,
+                                        doc (ifKey ("nope", nop))))))))))))))));
+
+   BSON_BUILD (another,
+               kv ("foo", cstr ("bar")),
+               kv ("baz", null),
+               kv ("somethingElse",
+                   array (i32 (1729),
+                          cstr ("I am a string"),
+                          doc (kv ("subdoc", null)))));
+   bool foundfoo = false;
+   bool foundbar = false;
+   bool any_unmatched = false;
+   char *path;
+   bsonParse (*another,
+              ifKey ("foo", setTrue (foundfoo)),
+              ifKey ("bar", setTrue (foundbar)),
+              ignoreKeys ("baz"),
+              else(setTrue (any_unmatched),
+                   visitEach (doc (ifKey (
+                      "subdoc", do(path = bsonParse_createPathString ()))))));
+   BSON_ASSERT (foundfoo);
+   BSON_ASSERT (!foundbar);
+   BSON_ASSERT (any_unmatched);
+   ASSERT_CMPSTR (path, "$.somethingElse[2].subdoc");
+
+   bsonVisitEach (*another, nop);
 
    bson_destroy (meow);
    bson_destroy (another);

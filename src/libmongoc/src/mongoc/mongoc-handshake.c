@@ -679,17 +679,15 @@ _mongoc_handshake_parse_sasl_supported_mechs (
    const bson_t *hello,
    mongoc_handshake_sasl_supported_mechs_t *sasl_supported_mechs)
 {
-   bson_iter_t iter;
    memset (sasl_supported_mechs, 0, sizeof (*sasl_supported_mechs));
-   BSON_PARSE (
-      hello,
-      ifKey (
-         "saslSupportedMechs",
-         ifType (
-            array,
-            forEach (
-               ifStrEqual ("SCRAM-SHA-256",
-                           do(sasl_supported_mechs->scram_sha_256 = true)),
-               ifStrEqual ("SCRAM-SHA-1",
-                           do(sasl_supported_mechs->scram_sha_1 = true))))));
+   bsonParse (
+      *hello,
+      ifKey ("saslSupportedMechs",
+             ifType (
+                array,
+                visitEach (
+                   ifStrEqual ("SCRAM-SHA-256",
+                               setTrue (sasl_supported_mechs->scram_sha_256)),
+                   ifStrEqual ("SCRAM-SHA-1",
+                               setTrue (sasl_supported_mechs->scram_sha_1))))));
 }

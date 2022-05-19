@@ -41,6 +41,8 @@
 #include "mongoc-error-private.h"
 #include "mongoc-database-private.h"
 
+#include <bson/bson-dsl.h>
+
 #undef MONGOC_LOG_DOMAIN
 #define MONGOC_LOG_DOMAIN "collection"
 
@@ -749,6 +751,17 @@ mongoc_collection_count_with_opts (
    ENTRY;
 
    BSON_ASSERT_PARAM (collection);
+
+   BSON_BUILD_APPEND (
+      &cmd,
+      kv ("count",
+          utf8_w_len (collection->collection, collection->collectionlen)),
+      kv ("query",
+          if (query, //
+              then (bson (query)),
+              else(doc ()))),
+      if (limit, then (kv ("limit", i64 (limit))), else()),
+      if (skip, then (kv ("skip", i64 (skip))), else()));
 
    bson_append_utf8 (
       &cmd, "count", 5, collection->collection, collection->collectionlen);

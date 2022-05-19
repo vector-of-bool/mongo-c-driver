@@ -319,13 +319,13 @@ _mongoc_cursor_new_with_opts (mongoc_client_t *client,
             opts,
             excluding ("serverId", "sessionId", "bypassDocumentValidation")));
 
-      bson_copy_to_excluding_noinit (opts,
-                                     &cursor->opts,
-                                     "serverId",
-                                     "sessionId",
-                                     "bypassDocumentValidation",
-                                     NULL);
-
+      bsonParse (*opts,
+                 ifKey ("bypassDocumentValidation",
+                        ifTruthy (do( //
+                           BSON_BUILD_APPEND (&cursor->opts,
+                                              kv ("byPassDocumentValidation",
+                                                  bool (true))); //
+                           ))));
 
       /* only include bypassDocumentValidation if it's true */
       if (bson_iter_init_find (&iter, opts, "bypassDocumentValidation") &&
