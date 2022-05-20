@@ -583,7 +583,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
    }                                                                    \
    _bsonDSL_end;
 
-#define _bsonParseDo_append(...) _bsonBuildAppend (__VA_ARGS__)
+#define _bsonParseDo_append _bsonBuildAppend
 
 /**
  * @brief Parse each entry in the document at the given pointer.
