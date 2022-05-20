@@ -23,6 +23,7 @@
 #include "mongoc-trace-private.h"
 #include "mongoc-util-private.h"
 
+#include <bson/bson-dsl.h>
 
 /*--------------------------------------------------------------------------
  *
@@ -102,6 +103,12 @@ _make_agg_cmd (const char *ns,
 
    dot = strstr (ns, ".");
 
+   bsonBuildAppend (command,
+                    kv ("aggregate", //
+                        if (dot,     //
+                            then (cstr (dot + 1)),
+                            else(i32 (1)))));
+
    if (dot) {
       /* Note: we're not validating that the collection name's length is one or
        * more characters, as functions such as mongoc_client_get_collection also
@@ -115,6 +122,21 @@ _make_agg_cmd (const char *ns,
     * The following will allow @pipeline to be either an array of
     * items for the pipeline, or {"pipeline": [...]}.
     */
+   bsonParse (
+      *pipeline,
+      ifKey ("pipeline",
+             ifType (
+                array,
+                // We have a pipeline. Append a copy
+                append (command, kv ("pipeline", iter (bsonVisitContext.iter))),
+                // Visit each element of the pipeline
+                visitEach (parse (
+                   // Check if there's a "write" or "merge"
+                   ifKey ("$out", setTrue (has_write_key), break),
+                   ifKey ("$merge", setTrue (has_write_key), break))),
+                halt)),
+      // We did not find a "pipeline" array. Create a new one
+      append (command, kv ("pipeline", array ())));
    if (bson_iter_init_find (&iter, pipeline, "pipeline") &&
        BSON_ITER_HOLDS_ARRAY (&iter)) {
       bson_iter_recurse (&iter, &has_write_key_iter);

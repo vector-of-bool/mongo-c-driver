@@ -417,19 +417,18 @@ _mongoc_cmd_parts_add_read_prefs (bson_t *query,
    hedge = mongoc_read_prefs_get_hedge (prefs);
 
 
-   BSON_BUILD_APPEND (
-      query,
-      kv ("$readPreference",
-          doc (kv ("mode", cstr (mode_str)),
-               if (!bson_empty (tags), //
-                   then (kv ("tags", bsonArray (tags))),
-                   else()),
-               if (stale != MONGOC_NO_MAX_STALENESS,
-                   then (kv ("maxStalenessSeconds", i32 (stale))),
-                   else()),
-               if (!bson_empty (hedge), //
-                   then (kv ("hedge", bson (hedge))),
-                   else()))));
+   bsonBuildAppend (query,
+                    kv ("$readPreference",
+                        doc (kv ("mode", cstr (mode_str)),
+                             if (!bson_empty (tags), //
+                                 then (kv ("tags", bsonArray (tags))),
+                                 else()),
+                             if (stale != MONGOC_NO_MAX_STALENESS,
+                                 then (kv ("maxStalenessSeconds", i32 (stale))),
+                                 else()),
+                             if (!bson_empty (hedge), //
+                                 then (kv ("hedge", bson (hedge))),
+                                 else()))));
 }
 
 

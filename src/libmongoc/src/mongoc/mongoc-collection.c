@@ -752,7 +752,7 @@ mongoc_collection_count_with_opts (
 
    BSON_ASSERT_PARAM (collection);
 
-   BSON_BUILD_APPEND (
+   bsonBuildAppend (
       &cmd,
       kv ("count",
           utf8_w_len (collection->collection, collection->collectionlen)),

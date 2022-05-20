@@ -519,7 +519,7 @@ _mongoc_handshake_build_doc_with_application (bson_t *doc, const char *appname)
 {
    const mongoc_handshake_t *md = _mongoc_handshake_get ();
 
-   BSON_BUILD_APPEND (
+   bsonBuildAppend (
       doc,
       if (appname,
           then (kv ("application", doc (kv ("name", cstr (appname))))),

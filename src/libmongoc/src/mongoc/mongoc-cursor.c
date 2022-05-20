@@ -313,7 +313,7 @@ _mongoc_cursor_new_with_opts (mongoc_client_t *client,
          (void) mongoc_cursor_set_hint (cursor, server_id);
       }
 
-      BSON_BUILD_APPEND (
+      bsonBuildAppend (
          &cursor->opts,
          insert (
             opts,
@@ -322,9 +322,9 @@ _mongoc_cursor_new_with_opts (mongoc_client_t *client,
       bsonParse (*opts,
                  ifKey ("bypassDocumentValidation",
                         ifTruthy (do( //
-                           BSON_BUILD_APPEND (&cursor->opts,
-                                              kv ("byPassDocumentValidation",
-                                                  bool (true))); //
+                           bsonBuildAppend (&cursor->opts,
+                                            kv ("byPassDocumentValidation",
+                                                bool (true))); //
                            ))));
 
       /* only include bypassDocumentValidation if it's true */
@@ -798,14 +798,13 @@ _mongoc_cursor_monitor_succeeded (mongoc_cursor_t *cursor,
 
 
    bson_init (&reply);
-   BSON_BUILD_APPEND (
-      &reply,
-      kv ("ok", i32 (1)),
-      kv ("cursor",
-          doc (kv ("id", i64 (mongoc_cursor_get_id (cursor))),
-               kv ("ns", utf8_w_len (cursor->ns, cursor->nslen)),
-               kv (first_batch ? "firstBatch" : "nextBatch",
-                   bsonArray (&docs_array)))));
+   bsonBuildAppend (&reply,
+                    kv ("ok", i32 (1)),
+                    kv ("cursor",
+                        doc (kv ("id", i64 (mongoc_cursor_get_id (cursor))),
+                             kv ("ns", utf8_w_len (cursor->ns, cursor->nslen)),
+                             kv (first_batch ? "firstBatch" : "nextBatch",
+                                 bsonArray (&docs_array)))));
 
    bson_destroy (&docs_array);
 
