@@ -2507,7 +2507,7 @@ test_bson_as_json_string (void)
 static void
 test_bson_dsl (void)
 {
-   BSON_BUILD_DECL (
+   bsonBuildDecl (
       meow,
       kv ("foo", i32 (12)),
       kv ("bar", cstr ("baz")),
@@ -2519,6 +2519,7 @@ test_bson_dsl (void)
             i32 (3),
             i32 (4),
             i32 (5),
+            array (i32 (9), i32 (41)),
             doc (kv ("sub1", i32 (84)),
                  kv ("sub2",
                      doc (kv ("item", i32 (99)),
@@ -2538,51 +2539,45 @@ test_bson_dsl (void)
    BSON_ASSERT (BSON_ITER_HOLDS_INT64 (&found));
    ASSERT_CMPINT64 (bson_iter_as_int64 (&found), ==, 94412);
 
-   BSON_BUILD_DECL (another, insert (meow, all));
+   bsonBuildDecl (another, insert (meow, all));
    BSON_ASSERT_BSON_EQUAL (meow, another);
 
    bsonParse (
       *meow,
       ifKey ("foo",
-             ifType (
-                array,
-                nop,
-                doc (ifKey (
-                   "meow",
-                   visitEach (doc (ifKey (
-                      "bark",
-                      doc (ifKey (
-                         "foo",
-                         doc (ifKey (
-                            "foo",
-                            doc (ifKey ("foo",
-                                        continue,
-                                        doc (ifKey ("nope", nop))))))))))))))));
+             ifType (array,
+                     nop,
+                     parse (ifKey (
+                        "meow",
+                        visitEach (parse (ifKey (
+                           "bark",
+                           parse (ifKey (
+                              "foo",
+                              parse (ifKey (
+                                 "foo",
+                                 parse (ifKey (
+                                    "foo",
+                                    continue,
+                                    parse (ifKey ("nope", nop))))))))))))))));
 
-   BSON_BUILD (another,
-               kv ("foo", cstr ("bar")),
-               kv ("baz", null),
-               kv ("somethingElse",
-                   array (i32 (1729),
-                          cstr ("I am a string"),
-                          doc (kv ("subdoc", null)))));
+   bsonBuild (another,
+              kv ("foo", cstr ("bar")),
+              kv ("baz", null),
+              kv ("somethingElse",
+                  array (i32 (1729),
+                         cstr ("I am a string"),
+                         doc (kv ("subdoc", null)))));
    bool foundfoo = false;
    bool foundbar = false;
    bool any_unmatched = false;
-   char *path;
    bsonParse (*another,
               ifKey ("foo", setTrue (foundfoo)),
-              ifKey ("bar", setTrue (foundbar)),
-              ignoreKeys ("baz"),
-              else(setTrue (any_unmatched),
-                   visitEach (doc (ifKey (
-                      "subdoc", do(path = bsonParse_createPathString ()))))));
+              ifKey ("bar", setTrue (foundbar)));
    BSON_ASSERT (foundfoo);
    BSON_ASSERT (!foundbar);
    BSON_ASSERT (any_unmatched);
-   ASSERT_CMPSTR (path, "$.somethingElse[2].subdoc");
 
-   bsonVisitEach (*another, nop);
+   bsonVisitEach (*another, ifType (doc, visitEach ()));
 
    bson_destroy (meow);
    bson_destroy (another);
@@ -2689,3 +2684,5 @@ test_bson_install (TestSuite *suite)
 
    TestSuite_Add (suite, "/bson/dsl/basic", test_bson_dsl);
 }
+
+// bsonVisitEach (thing, append (other))

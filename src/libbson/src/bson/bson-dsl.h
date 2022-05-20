@@ -8,14 +8,14 @@
  * This file defines an embedded DSL for working with BSON objects consisely and
  * correctly. The main macros are:
  *
- * - @see BSON_BUILD(Ptr, ...)
+ * - @see bsonBuild(Ptr, ...)
  *       Construct a new document and assign the result to `Ptr`.
  *       bson_destroy(Ptr) will be called before the assignment, but after the
  *       construction.
- * - @see BSON_BUILD_APPEND(Ptr, ...)
+ * - @see bsonBuildAppend(Ptr, ...)
  *       Append new items to the bson_t at `Ptr`. `Ptr` must be an initialized
  *       bson_t object.
- * - @see BSON_BUILD_DECL(Var, ...)
+ * - @see bsonBuildDecl(Var, ...)
  *       Declare a new bson_t `Var` and construct a new document into it.
  *
  * The remaining arguments are the same for all three macros, and the same as
@@ -53,15 +53,15 @@ bsonParse_createPathString ();
 #define bsonBuildContext (**_bsonBuildContextPtr ())
 #define bsonVisitContext (**_bsonVisitContextPtr ())
 
-static const char *_bson_dsl_file = NULL;
-static int _bson_dsl_line = 0;
+#define pBsonDSL_defer(...) __VA_ARGS__
+
 static int _bson_dsl_indent = 0;
 
-static inline void BSON_GNUC_PRINTF (1, 2)
-   _bson_dsl_debug (const char *string, ...)
+static inline void BSON_GNUC_PRINTF (4, 5) _bson_dsl_debug (
+   const char *file, int line, const char *func, const char *string, ...)
 {
    if (BSON_DSL_DEBUG) {
-      fprintf (stderr, "%s:%d: bson_dsl: ", _bson_dsl_file, _bson_dsl_line);
+      fprintf (stderr, "%s:%d: [%s] bson_dsl: ", file, line, func);
       for (int i = 0; i < _bson_dsl_indent; ++i) {
          fputs ("  ", stderr);
       }
@@ -73,6 +73,9 @@ static inline void BSON_GNUC_PRINTF (1, 2)
       fflush (stderr);
    }
 }
+
+#define _bsonDSLDebug(...) \
+   _bson_dsl_debug (__FILE__, __LINE__, __func__, __VA_ARGS__)
 
 static inline bool
 _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
@@ -191,21 +194,14 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
     pBsonDSL_nothing (Action, Constant, Counter, __VA_ARGS__)
 
 #define pBsonDSL_mapMacro(Action, Constant, ...) \
-    pBsonDSL_eval(\
-        pBsonDSL_ifElse(pBsonDSL_isEmpty(__VA_ARGS__), pBsonDSL_ignore, pBsonDSL_mapMacro_first) \
-        pBsonDSL_nothing (Action, Constant, 0, __VA_ARGS__))
-
-#define pBsonDSL_mapMacroInner(Action, Constant, ...) \
     pBsonDSL_ifElse(pBsonDSL_isEmpty(__VA_ARGS__), pBsonDSL_ignore, pBsonDSL_mapMacro_first) \
     pBsonDSL_nothing (Action, Constant, 0, __VA_ARGS__)
 
 // clang-format on
 
-#define _bsonDSL_begin(Str, ...)          \
-   do {                                   \
-      _bson_dsl_file = __FILE__;          \
-      _bson_dsl_line = __LINE__;          \
-      _bson_dsl_debug (Str, __VA_ARGS__); \
+#define _bsonDSL_begin(Str, ...)        \
+   do {                                 \
+      _bsonDSLDebug (Str, __VA_ARGS__); \
    ++_bson_dsl_indent
 
 #define _bsonDSL_end   \
@@ -243,7 +239,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
    };                                                                \
    *_bsonBuildContextPtr () = &_bbCtx;                               \
    /* Apply the nested dsl for documents: */                         \
-   pBsonDSL_mapMacroInner (_bsonBuild_docElement, ~, __VA_ARGS__);   \
+   pBsonDSL_mapMacro (_bsonBuild_docElement, ~, __VA_ARGS__);        \
    /* Restore the prior context document and finish the append: */   \
    *_bsonBuildContextPtr () = _bbCtx.parent;                         \
    bson_append_document_end (bsonBuildContext.doc, &_doc_);          \
@@ -269,7 +265,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
       .index = 0,                                                    \
    };                                                                \
    *_bsonBuildContextPtr () = &_bbCtx;                               \
-   pBsonDSL_mapMacroInner (pBsonDSL_arrayAppend, ~, __VA_ARGS__);    \
+   pBsonDSL_mapMacro (pBsonDSL_arrayAppend, ~, __VA_ARGS__);         \
    /* Restore the prior context document and finish the append: */   \
    *_bsonBuildContextPtr () = _bbCtx.parent;                         \
    bson_append_array_end (bsonBuildContext.doc, &_array_);           \
@@ -297,7 +293,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 #define _bsonBuild_arrAppendValue_i64 _bsonBuild_docAppendValue_i64
 
 /// Append the value referenced by a given iterator
-#define _bsonBuild_docAppendValue_iter(Iter) _bsonBuild_append (iter, (Iter))
+#define _bsonBuild_docAppendValue_iter(Iter) _bsonBuild_append (iter, &(Iter))
 #define _bsonBuild_arrAppendValue_iter _bsonBuild_docAppendValue_iter
 
 /// Append the BSON document referenced by the given pointer
@@ -319,7 +315,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
       bsonBuildContext.doc, bsonBuildContext.key, bsonBuildContext.key_len)
 #define _bsonBuild_arrAppendValue_null _bsonBuild_docAppendValue_null
 
-// DSL items for doc() appending (and the top-level BSON_BUILD):
+// DSL items for doc() appending (and the top-level bsonBuild):
 
 /// key-value pair with explicit key length
 #define _bsonBuild_docElement_kvl(String, Len, Element)                     \
@@ -354,13 +350,13 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
    bson_iter_init (&_bbDocInsertIter, _bbInsertDoc);                        \
    while (bson_iter_next (&_bbDocInsertIter)) {                             \
       bool _filter_drop_ = false;                                           \
-      pBsonDSL_mapMacroInner (pBsonDSL_insertFilter, ~, __VA_ARGS__);       \
+      pBsonDSL_mapMacro (pBsonDSL_insertFilter, ~, __VA_ARGS__);            \
       if (_filter_drop_) {                                                  \
          continue;                                                          \
       }                                                                     \
       _bsonBuild_docElement_kvl (bson_iter_key (&_bbDocInsertIter),         \
                                  bson_iter_key_len (&_bbDocInsertIter),     \
-                                 iter (&_bbDocInsertIter));                 \
+                                 iter (_bbDocInsertIter));                  \
    }                                                                        \
    _bsonDSL_end
 
@@ -372,7 +368,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
    bson_iter_init (&iter, (bson_t *) (OtherArr));                            \
    while (bson_iter_next (&iter)) {                                          \
       pBsonDSL_setKeyToArrayIndex (bsonBuildContext.index);                  \
-      _bsonBuild_arrAppendValue_iter (&iter);                                \
+      _bsonBuild_arrAppendValue_iter (iter);                                 \
       ++_bbCtx.index;                                                        \
    }                                                                         \
    /* Decrement once to counter the outer increment that will be applied: */ \
@@ -385,10 +381,10 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 #define _bsonBuild_docElement_if(Condition, Then, Else)                     \
    _bsonDSL_begin ("Conditional append on [%s]", pBsonDSL_str (Condition)); \
    if ((Condition)) {                                                       \
-      _bson_dsl_debug ("Taking TRUE branch: [%s]", pBsonDSL_str (Then));    \
+      _bsonDSLDebug ("Taking TRUE branch: [%s]", pBsonDSL_str (Then));      \
       _bsonBuild_docElementIfThen_##Then;                                   \
    } else {                                                                 \
-      _bson_dsl_debug ("Taking FALSE branch: [%s]", pBsonDSL_str (Else));   \
+      _bsonDSLDebug ("Taking FALSE branch: [%s]", pBsonDSL_str (Else));     \
       _bsonBuild_docElementIfElse_##Else;                                   \
    }                                                                        \
    _bsonDSL_end
@@ -399,10 +395,10 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 #define _bsonBuild_arrAppendValue_if(Condition, Then, Else)                \
    _bsonDSL_begin ("Conditional value on [%s]", pBsonDSL_str (Condition)); \
    if ((Condition)) {                                                      \
-      _bson_dsl_debug ("Taking TRUE branch: [%s]", pBsonDSL_str (Then));   \
+      _bsonDSLDebug ("Taking TRUE branch: [%s]", pBsonDSL_str (Then));     \
       _bsonBuild_arrAppendValueIfThen_##Then;                              \
    } else {                                                                \
-      _bson_dsl_debug ("Taking FALSE branch: [%s]", pBsonDSL_str (Else));  \
+      _bsonDSLDebug ("Taking FALSE branch: [%s]", pBsonDSL_str (Else));    \
       _bsonBuild_arrAppendValueIfElse_##Else;                              \
    }                                                                       \
    _bsonDSL_end
@@ -431,57 +427,10 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 #define pBsonDSL_documentBuild(...) \
    pBsonDSL_mapMacro (_bsonBuild_docElement, ~, __VA_ARGS__)
 
-/**
- * @brief Build a BSON document by appending to an existing bson_t document
- *
- * @param Pointer The document upon which to append
- * @param ... The Document elements to append to the document
- */
-#define BSON_BUILD_APPEND(Pointer, ...)                                   \
-   _bsonDSL_begin ("Appending to document '%s'", pBsonDSL_str (Pointer)); \
-   BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic push");)                    \
-   BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic ignored \"-Wshadow\"");)    \
-   /* Save the dsl context */                                             \
-   _bsonBuildContext_t _bbCtx = (_bsonBuildContext_t){                    \
-      .doc = (Pointer),                                                   \
-      .key = NULL,                                                        \
-      .key_len = 0,                                                       \
-      .index = 0,                                                         \
-      .strbuf64 = {0},                                                    \
-      .parent = *_bsonBuildContextPtr (),                                 \
-   };                                                                     \
-   *_bsonBuildContextPtr () = &_bbCtx;                                    \
-   /* Reset the context */                                                \
-   pBsonDSL_documentBuild (__VA_ARGS__);                                  \
-   /* Restore the dsl context */                                          \
-   *_bsonBuildContextPtr () = _bbCtx.parent;                              \
-   BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic pop");)                     \
-   _bsonDSL_end
-
-/**
- * @brief Build a new BSON document and assign the value into the given
- * pointer. The pointed-to document is destroyed before being assigned, but
- * after the document is built.
- */
-#define BSON_BUILD(PointerDest, ...)                    \
-   _bsonDSL_begin ("Build a new document for '%s'",     \
-                   pBsonDSL_str (PointerDest));         \
-   bson_t *_bson_dsl_new_doc_ = bson_new ();            \
-   BSON_BUILD_APPEND (_bson_dsl_new_doc_, __VA_ARGS__); \
-   bson_destroy ((PointerDest));                        \
-   (PointerDest) = _bson_dsl_new_doc_;                  \
-   _bsonDSL_end
-
-/**
- * @brief Declare a variable and build it with the BSON DSL @see BSON_BUILD
- */
-#define BSON_BUILD_DECL(Variable, ...) \
-   bson_t *Variable = NULL;            \
-   BSON_BUILD (Variable, __VA_ARGS__)
-
 #define pBsonDSL_iterType_array BSON_TYPE_ARRAY
 #define pBsonDSL_iterType_bool BSON_TYPE_BOOL
 #define pBsonDSL_iterType__Bool BSON_TYPE_BOOL
+#define pBsonDSL_iterType_doc BSON_TYPE_DOCUMENT
 
 #define _bsonVisitOneApply_ifType(T, ...)                \
    if (bson_iter_type_unsafe (&bsonVisitContext.iter) == \
@@ -528,74 +477,78 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
    } while (0);                                               \
    _bsonDSL_end
 
-#define _bsonVisitEach(Doc, ...)                                               \
-   _bsonDSL_begin (                                                            \
-      "visitEach(%s, %s)", pBsonDSL_str (Doc), pBsonDSL_str (__VA_ARGS__));    \
-   do {                                                                        \
-      /* Reset the context */                                                  \
-      struct _bsonVisitContext_t _bsonParseInfo = {                            \
-         .doc = &(Doc),                                                        \
-         .parent = *_bsonVisitContextPtr (),                                   \
-      };                                                                       \
-      *_bsonVisitContextPtr () = &_bsonParseInfo;                              \
-      /* Iterate over each element of the document */                          \
-      bson_iter_init (&_bsonParseInfo.iter, &(Doc));                           \
-      bool _bvBreak = false;                                                   \
-      bool _bvContinue = false;                                                \
-      while (bson_iter_next (&_bsonParseInfo.iter) && !_bwHalt && !_bvBreak) { \
-         _bvContinue = false;                                                  \
-         _bsonVisitOneApplyOps (__VA_ARGS__);                                  \
-      }                                                                        \
-      /* Restore the dsl context */                                            \
-      *_bsonVisitContextPtr () = bsonVisitContext.parent;                      \
-   } while (0);                                                                \
+#define _bsonVisitOneApply_append \
+   _bsonVisitOneApplyDeferred_append pBsonDSL_nothing
+#define _bsonVisitOneApplyDeferred_append(Doc, ...)                           \
+   _bsonDSL_begin (                                                           \
+      "append to [%s] : %s", pBsonDSL_str (Doc), pBsonDSL_str (__VA_ARGS__)); \
+   _bsonBuildAppend (Doc, __VA_ARGS__);                                       \
+   _bsonDSL_end
+
+#define _bsonVisitEach(Doc, ...)                                            \
+   _bsonDSL_begin (                                                         \
+      "visitEach(%s, %s)", pBsonDSL_str (Doc), pBsonDSL_str (__VA_ARGS__)); \
+   do {                                                                     \
+      /* Reset the context */                                               \
+      struct _bsonVisitContext_t _bpCtx = {                                 \
+         .doc = &(Doc),                                                     \
+         .parent = *_bsonVisitContextPtr (),                                \
+      };                                                                    \
+      *_bsonVisitContextPtr () = &_bpCtx;                                   \
+      /* Iterate over each element of the document */                       \
+      bson_iter_init (&_bpCtx.iter, &(Doc));                                \
+      bool _bvBreak = false;                                                \
+      bool _bvContinue = false;                                             \
+      while (bson_iter_next (&_bpCtx.iter) && !_bwHalt && !_bvBreak) {      \
+         _bvContinue = false;                                               \
+         _bsonVisitOneApplyOps (__VA_ARGS__);                               \
+      }                                                                     \
+      /* Restore the dsl context */                                         \
+      *_bsonVisitContextPtr () = bsonVisitContext.parent;                   \
+   } while (0);                                                             \
    _bsonDSL_end
 
 #define _bsonVisitOneApply_visitEach \
    _bsonVisitOneApply_visitEachDeferred pBsonDSL_nothing
-#define _bsonVisitOneApply_visitEachDeferred(...)                       \
-   _bsonDSL_begin ("visitEach(%s)", pBsonDSL_str (__VA_ARGS__));        \
+#define _bsonVisitOneApply_visitEachDeferred(...)                              \
+   _bsonDSL_begin ("visitEach(%s)", pBsonDSL_str (__VA_ARGS__));               \
+   do {                                                                        \
+      const uint8_t *data;                                                     \
+      uint32_t len;                                                            \
+      bson_type_t typ = bson_iter_type_unsafe (&bsonVisitContext.iter);        \
+      if (typ == BSON_TYPE_ARRAY)                                              \
+         bson_iter_array (&bsonVisitContext.iter, &len, &data);                \
+      else if (typ == BSON_TYPE_DOCUMENT)                                      \
+         bson_iter_document (&bsonVisitContext.iter, &len, &data);             \
+      else {                                                                   \
+         _bsonDSLDebug ("(Skipping visitEach() of non-array/document value)"); \
+         break;                                                                \
+      }                                                                        \
+      bson_t inner;                                                            \
+      bson_init_static (&inner, data, len);                                    \
+      _bsonVisitEach (inner, __VA_ARGS__);                                     \
+   } while (0);                                                                \
+   _bsonDSL_end
+
+#define _bsonParseDeferred _bsonParse pBsonDSL_nothing
+
+#define _bsonVisitOneApply_nop ((void) 0)
+#define _bsonVisitOneApply_parse(...)                                   \
    do {                                                                 \
       const uint8_t *data;                                              \
       uint32_t len;                                                     \
-      bson_type_t typ = bson_iter_type_unsafe (&bsonVisitContext.iter); \
+      bson_type_t typ = bson_iter_type (&bsonVisitContext.iter);        \
       if (typ == BSON_TYPE_ARRAY)                                       \
          bson_iter_array (&bsonVisitContext.iter, &len, &data);         \
       else if (typ == BSON_TYPE_DOCUMENT)                               \
          bson_iter_document (&bsonVisitContext.iter, &len, &data);      \
       else {                                                            \
-         _bson_dsl_debug (                                              \
-            "(Skipping visitEach() of non-array/document value)");      \
+         _bsonDSLDebug ("Ignoring doc() for non-document/array value"); \
          break;                                                         \
       }                                                                 \
       bson_t inner;                                                     \
       bson_init_static (&inner, data, len);                             \
-      _bsonVisitEach (inner, __VA_ARGS__);                              \
-   } while (0);                                                         \
-   _bsonDSL_end
-
-#define _bsonParseDeferred _bsonParseInner pBsonDSL_nothing
-
-#define _bsonVisitOneApply_nop ((void) 0)
-#define _bsonVisitOneApply_doc(...)                                    \
-   do {                                                                \
-      const uint8_t *data;                                             \
-      uint32_t len;                                                    \
-      bson_type_t typ = bson_iter_type (&bsonVisitContext.iter);       \
-      if (typ == BSON_TYPE_ARRAY)                                      \
-         bson_iter_array (&bsonVisitContext.iter, &len, &data);        \
-      else if (typ == BSON_TYPE_DOCUMENT)                              \
-         bson_iter_document (&bsonVisitContext.iter, &len, &data);     \
-      else {                                                           \
-         char *p = bsonParse_createPathString ();                      \
-         _bson_dsl_debug (                                             \
-            "Ignoring doc() for non-document/array value at [%s]", p); \
-         bson_free (p);                                                \
-         break;                                                        \
-      }                                                                \
-      bson_t inner;                                                    \
-      bson_init_static (&inner, data, len);                            \
-      _bsonParseDeferred (&inner, __VA_ARGS__);                        \
+      _bsonParse (&inner, __VA_ARGS__);                                 \
    } while (0);
 
 #define _bsonVisitOneApply_setTrue(B)                       \
@@ -622,86 +575,112 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 #define _bsonParseDo(P, _nil, Counter) _bsonParseDo_##P;
 
 /// Match an entry by its key
-#define _bsonParseDo_ifKey(Key, ...)                                      \
-   if (strlen (Key) == _bwKeyLen && 0 == strcmp (Key, _bwKeyStr)) {       \
-      _bwDidHandleKey = true;                                             \
-      _bson_dsl_debug ("Found key '%s' [%s]", (Key), pBsonDSL_str (Key)); \
-      _bsonVisitOneApplyOps (__VA_ARGS__);                                \
-   }
-
-/// Ignore one or more keys
-#define _bsonParseDo_ignoreKeys(...) \
-   _bwDidHandleKey =                 \
-      _bson_dsl_key_is_anyof (_bwKeyStr, _bwKeyLen, __VA_ARGS__, NULL);
-
-/// Matches any key
-#define _bsonParseDo_else(...)                                 \
-   _bsonDSL_begin ("Implicitly handling key '%s'", _bwKeyStr); \
-   _bwDidHandleKey = true;                                     \
-   _bsonVisitOneApplyOps (__VA_ARGS__);                        \
+#define _bsonParseDo_ifKey(Key, ...)                                    \
+   _bsonDSL_begin (                                                     \
+      "Searching for key \"%s\" [%s]", (Key), pBsonDSL_str (Key));      \
+   if (bson_iter_init_find (&_bpCtx.iter, bsonVisitContext.doc, Key)) { \
+      _bsonVisitOneApplyOps (__VA_ARGS__);                              \
+   }                                                                    \
    _bsonDSL_end;
 
-/**
- * @brief Parse each entry in the document at the given pointer.
- */
-#define _bsonParse(DocPointer, ...)                                         \
-   _bsonDSL_begin ("Walking: [%s]", pBsonDSL_str (__VA_ARGS__));            \
-   /* Reset the context */                                                  \
-   struct _bsonVisitContext_t _bsonParseInfo = {                            \
-      .doc = (DocPointer),                                                  \
-      .parent = &bsonVisitContext,                                          \
-   };                                                                       \
-   *_bsonVisitContextPtr () = &_bsonParseInfo;                              \
-   /* Iterate over each element of the document */                          \
-   bson_iter_init (&_bsonParseInfo.iter, _bsonParseInfo.doc);               \
-   while (bson_iter_next (&_bsonParseInfo.iter) && !_bwHalt && !_bvBreak && \
-          !_bvContinue) {                                                   \
-      bool _bwDidHandleKey = false;                                         \
-      const char *const _bwKeyStr = bson_iter_key (&_bsonParseInfo.iter);   \
-      const size_t _bwKeyLen = bson_iter_key_len (&_bsonParseInfo.iter);    \
-      pBsonDSL_mapMacro (_bsonParseDo, ~, __VA_ARGS__);                     \
-      _bson_dsl_debug ("Unhandled document key \"%s\"", _bwKeyStr);         \
-   }                                                                        \
-   /* Restore the dsl context */                                            \
-   *_bsonVisitContextPtr () = bsonVisitContext.parent;                      \
-   _bsonDSL_end
+#define _bsonParseDo_append(...) _bsonBuildAppend (__VA_ARGS__)
 
 /**
  * @brief Parse each entry in the document at the given pointer.
- *
- * Yes, this is a copy-paste of the above, but is required to defer macro
- * expansion to allow for nested doc() walking. "mapMacroInner" must be used in
- * the below.
- *
- * Be sure to keep these copy-pasted macros in sync.
  */
-#define _bsonParseInner(DocPointer, ...)                                    \
-   _bsonDSL_begin ("Walking: [%s]", pBsonDSL_str (__VA_ARGS__));            \
-   /* Reset the context */                                                  \
-   struct _bsonVisitContext_t _bsonParseInfo = {                            \
-      .doc = (DocPointer),                                                  \
-      .parent = &bsonVisitContext,                                          \
-   };                                                                       \
-   *_bsonVisitContextPtr () = &_bsonParseInfo;                              \
-   /* Iterate over each element of the document */                          \
-   bson_iter_init (&_bsonParseInfo.iter, _bsonParseInfo.doc);               \
-   while (bson_iter_next (&_bsonParseInfo.iter) && !_bwHalt && !_bvBreak && \
-          !_bvContinue) {                                                   \
-      bool _bwDidHandleKey = false;                                         \
-      const char *const _bwKeyStr = bson_iter_key (&_bsonParseInfo.iter);   \
-      const size_t _bwKeyLen = bson_iter_key_len (&_bsonParseInfo.iter);    \
-      pBsonDSL_mapMacroInner (_bsonParseDo, ~, __VA_ARGS__);                \
-      _bson_dsl_debug ("Unhandled document key \"%s\"", _bwKeyStr);         \
-   }                                                                        \
-   /* Restore the dsl context */                                            \
-   *_bsonVisitContextPtr () = bsonVisitContext.parent;                      \
+#define _bsonParse(DocPointer, ...)                              \
+   _bsonDSL_begin ("Walking: [%s]", pBsonDSL_str (__VA_ARGS__)); \
+   /* Reset the context */                                       \
+   struct _bsonVisitContext_t _bpCtx = {                         \
+      .doc = (DocPointer),                                       \
+      .parent = &bsonVisitContext,                               \
+   };                                                            \
+   *_bsonVisitContextPtr () = &_bpCtx;                           \
+   pBsonDSL_mapMacro (_bsonParseDo, ~, __VA_ARGS__);             \
+   /* Restore the dsl context */                                 \
+   *_bsonVisitContextPtr () = bsonVisitContext.parent;           \
    _bsonDSL_end
+
+// /**
+//  * @brief Parse each entry in the document at the given pointer.
+//  *
+//  * Yes, this is a copy-paste of the above, but is required to defer macro
+//  * expansion to allow for nested doc() walking. "mapMacroInner" must be used
+//  in
+//  * the below.
+//  *
+//  * Be sure to keep these copy-pasted macros in sync.
+//  */
+// #define _bsonParseInner(DocPointer, ...)                         \
+//    _bsonDSL_begin ("Walking: [%s]", pBsonDSL_str (__VA_ARGS__)); \
+//    /* Reset the context */                                       \
+//    struct _bsonVisitContext_t _bpCtx = {                         \
+//       .doc = (DocPointer),                                       \
+//       .parent = &bsonVisitContext,                               \
+//    };                                                            \
+//    *_bsonVisitContextPtr () = &_bpCtx;                           \
+//    bson_iter_t iter;                                             \
+//    pBsonDSL_mapMacro (_bsonParseDo, ~, __VA_ARGS__);             \
+//    /* Restore the dsl context */                                 \
+//    *_bsonVisitContextPtr () = bsonVisitContext.parent;           \
+//    _bsonDSL_end
 
 #define _bsonVisitOneApplyOps _bsonVisitOneApplyOpsDeferred pBsonDSL_nothing
-#define _bsonVisitOneApplyOpsDeferred(...)                      \
-   _bsonDSL_begin ("Walk [%s]", pBsonDSL_str (__VA_ARGS__));    \
-   pBsonDSL_mapMacroInner (_bsonVisitOneApply, ~, __VA_ARGS__); \
+#define _bsonVisitOneApplyOpsDeferred(...)                   \
+   _bsonDSL_begin ("Walk [%s]", pBsonDSL_str (__VA_ARGS__)); \
+   pBsonDSL_mapMacro (_bsonVisitOneApply, ~, __VA_ARGS__);   \
    _bsonDSL_end;
+
+/**
+ * @brief Build a BSON document by appending to an existing bson_t document
+ *
+ * @param Pointer The document upon which to append
+ * @param ... The Document elements to append to the document
+ */
+#define bsonBuildAppend(Pointer, ...) \
+   pBsonDSL_eval (_bsonBuildAppend (Pointer, __VA_ARGS__))
+#define _bsonBuildAppend(Pointer, ...)                                    \
+   _bsonDSL_begin ("Appending to document '%s'", pBsonDSL_str (Pointer)); \
+   BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic push");)                    \
+   BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic ignored \"-Wshadow\"");)    \
+   /* Save the dsl context */                                             \
+   _bsonBuildContext_t _bbCtx = (_bsonBuildContext_t){                    \
+      .doc = (Pointer),                                                   \
+      .key = NULL,                                                        \
+      .key_len = 0,                                                       \
+      .index = 0,                                                         \
+      .strbuf64 = {0},                                                    \
+      .parent = *_bsonBuildContextPtr (),                                 \
+   };                                                                     \
+   *_bsonBuildContextPtr () = &_bbCtx;                                    \
+   /* Reset the context */                                                \
+   pBsonDSL_documentBuild (__VA_ARGS__);                                  \
+   /* Restore the dsl context */                                          \
+   *_bsonBuildContextPtr () = _bbCtx.parent;                              \
+   BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic pop");)                     \
+   _bsonDSL_end
+
+/**
+ * @brief Build a new BSON document and assign the value into the given
+ * pointer. The pointed-to document is destroyed before being assigned, but
+ * after the document is built.
+ */
+#define bsonBuild(PointerDest, ...)                   \
+   _bsonDSL_begin ("Build a new document for '%s'",   \
+                   pBsonDSL_str (PointerDest));       \
+   bson_t *_bson_dsl_new_doc_ = bson_new ();          \
+   bsonBuildAppend (_bson_dsl_new_doc_, __VA_ARGS__); \
+   bson_destroy ((PointerDest));                      \
+   (PointerDest) = _bson_dsl_new_doc_;                \
+   _bsonDSL_end
+
+/**
+ * @brief Declare a variable and build it with the BSON DSL @see bsonBuild
+ */
+#define bsonBuildDecl(Variable, ...) \
+   bson_t *Variable = NULL;          \
+   bsonBuild (Variable, __VA_ARGS__)
+
 
 /**
  * @brief Walk the given BSON document.
@@ -715,7 +694,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
    bool _bwHalt = false;                                               \
    const bool _bvContinue = false;                                     \
    const bool _bvBreak = false;                                        \
-   _bsonParse (&(doc), __VA_ARGS__);                                   \
+   pBsonDSL_eval (_bsonParse (&(doc), __VA_ARGS__));                   \
    BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic pop");)                  \
    _bsonDSL_end
 
