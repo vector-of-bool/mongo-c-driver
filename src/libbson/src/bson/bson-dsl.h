@@ -53,8 +53,6 @@ bsonParse_createPathString ();
 #define bsonBuildContext (**_bsonBuildContextPtr ())
 #define bsonVisitContext (**_bsonVisitContextPtr ())
 
-#define pBsonDSL_defer(...) __VA_ARGS__
-
 static int _bson_dsl_indent = 0;
 
 static inline void BSON_GNUC_PRINTF (4, 5) _bson_dsl_debug (
@@ -97,16 +95,25 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 }
 
 // clang-format off
-#define pBsonDSL_nothing /* Expands to nothing */
-#define pBsonDSL_ignore(...) /* Ignore your arguments */
 
-#define pBsonDSL_paste_IMPL(a, ...) a##__VA_ARGS__
-#define pBsonDSL_paste(a, ...) pBsonDSL_paste_IMPL(a, __VA_ARGS__)
+/// Convert the given argument into a string without inhibitting macro expansion
+#define _bsonDSL_str(...) _bsonDSL_str_1(__VA_ARGS__)
+#define _bsonDSL_str_1(...) "" #__VA_ARGS__
 
-#define pBsonDSL_paste3(a, b, c) pBsonDSL_paste(a, pBsonDSL_paste(b, c))
-#define pBsonDSL_paste4(a, b, c, d) pBsonDSL_paste(a, pBsonDSL_paste3(b, c, d))
+/* Expands to nothing. Used to defer a function-like macro and ignore arguments */
+#define _bsonDSL_nothing(...)
 
-#define pBSONDSL_PICK_64th(\
+/// Paste two tokens:
+#define _bsonDSL_paste(a, ...) _bsonDSL_paste_IMPL(a, __VA_ARGS__)
+#define _bsonDSL_paste_IMPL(a, ...) a##__VA_ARGS__
+
+/// Paste three tokens:
+#define _bsonDSL_paste3(a, b, c) _bsonDSL_paste(a, _bsonDSL_paste(b, c))
+/// Paste four tokens:
+#define _bsonDSL_paste4(a, b, c, d) _bsonDSL_paste(a, _bsonDSL_paste3(b, c, d))
+
+/// Expand to the 64th argument. See below for why this is useful.
+#define _bsonDSL_pick64th(\
                     _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, \
                     _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, \
                     _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, \
@@ -118,92 +125,167 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 
 /**
  * @brief Expands to 1 if the given arguments contain a top-level comma, zero otherwise.
+ *
+ * There is an expansion of __VA_ARGS__, followed by 62 '1' arguments, followed
+ * by single '0'. If __VA_ARGS__ contains no commas, pick64th() will return the
+ * single zero. If __VA_ARGS__ contains any top-level commas, the series of ones
+ * will shift to the right and pick64th will return one of those ones. This only
+ * works __VA_ARGS__ contains fewer than 62 commas, which is a somewhat reasonable
+ * limit. The _bsonDSL_nothing() is a workaround for MSVC's bad preprocessor that
+ * forwards __VA_ARGS__ incorrectly.
+ *
+ * If we have __VA_OPT__, this can be a lot simpler.
  */
-#define pBsonDSL_hasComma(...) \
-    pBSONDSL_PICK_64th \
-    pBsonDSL_nothing (__VA_ARGS__, \
+#define _bsonDSL_hasComma(...) \
+    _bsonDSL_pick64th \
+    _bsonDSL_nothing() (__VA_ARGS__, \
                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, \
                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, \
                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, \
                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, ~)
 
-/** Expands to a comma if the token to the right-hand side is an opening parenthesis */
-#define pBsonDSL_commaIfRHSHasParens(...) ,
-
-#define pBsonDSL_isEmpty_CASE_0001 ,
-#define pBsonDSL_isEmpty_1(_1, _2, _3, _4) \
-    pBsonDSL_hasComma(pBsonDSL_paste(pBsonDSL_isEmpty_CASE_, pBsonDSL_paste4(_1, _2, _3, _4)))
-
-#define pBsonDSL_str(...) pBsonDSL_str_1(__VA_ARGS__)
-#define pBsonDSL_str_1(...) #__VA_ARGS__
+/**
+ * Expands to a comma if the token to the right-hand side is an opening
+ * parenthesis. This will make sense, I promise.
+ */
+#define _bsonDSL_commaIfRHSHasParens(...) ,
 
 /**
- * @brief Expand to 1 if given no arguments, otherwise 0
+ * A helper for isEmpty(): If given (0, 0, 0, 1), expands as:
+ *    - _bsonDSL_hasComma(_bsonDSL_isEmpty_CASE_0001)
+ *    - _bsonDSL_hasComma(,)
+ *    - 1
+ * Given any other aruments:
+ *    - _bsonDSL_hasComma(_bsonDSL_isEmpty_CASE_<somethingelse>)
+ *    - 0
  */
-#define pBsonDSL_isEmpty(...) \
-    pBsonDSL_isEmpty_1(\
-        pBsonDSL_hasComma(__VA_ARGS__), \
-        pBsonDSL_hasComma(pBsonDSL_commaIfRHSHasParens __VA_ARGS__), \
-        pBsonDSL_hasComma(__VA_ARGS__ ()), \
-        pBsonDSL_hasComma(pBsonDSL_commaIfRHSHasParens __VA_ARGS__ ()))
+#define _bsonDSL_isEmpty_1(_1, _2, _3, _4) \
+    _bsonDSL_hasComma(_bsonDSL_paste(_bsonDSL_isEmpty_CASE_, _bsonDSL_paste4(_1, _2, _3, _4)))
+#define _bsonDSL_isEmpty_CASE_0001 ,
 
-#define pBsonDSL_ifElse_PICK_1(IfTrue, IfFalse) IfTrue pBsonDSL_ignore(#IfFalse)
-#define pBsonDSL_ifElse_PICK_0(IfTrue, IfFalse) IfFalse pBsonDSL_ignore(#IfTrue)
+/**
+ * @brief Expand to 1 if given no arguments, otherwise 0.
+ *
+ * This could be done much more simply using __VA_OPT__, but we need to work on
+ * older compilers.
+ */
+#define _bsonDSL_isEmpty(...) \
+    _bsonDSL_isEmpty_1(\
+        /* Expands to '1' if __VA_ARGS__ contains any top-level comma */ \
+        _bsonDSL_hasComma(__VA_ARGS__), \
+        /* Expands to '1' if __VA_ARGS__ begins with a parenthesis */ \
+        _bsonDSL_hasComma(_bsonDSL_commaIfRHSHasParens __VA_ARGS__), \
+        /* Expands to '1' if __VA_ARGS__ expands to a function-like macro name \
+         * that then expands to anything containing a top-level comma */ \
+        _bsonDSL_hasComma(__VA_ARGS__ ()), \
+        /* Expands to '1' if __VA_ARGS__ expands to nothing. */ \
+        _bsonDSL_hasComma(_bsonDSL_commaIfRHSHasParens __VA_ARGS__ ()))
 
 /**
  * @brief Expand to the first argument if `Cond` is 1, the second argument if `Cond` is 0
  */
-#define pBsonDSL_ifElse(Cond, IfTrue, IfFalse) \
-    pBsonDSL_ignore(#IfTrue, #IfFalse) /* <- Suppress expansion of the two conditionals */ \
-    pBsonDSL_paste(pBsonDSL_ifElse_PICK_, Cond)(IfTrue, IfFalse)
+#define _bsonDSL_ifElse(Cond, IfTrue, IfFalse) \
+    /* Suppress expansion of the two branches by using the '#' operator */ \
+    _bsonDSL_nothing(#IfTrue, #IfFalse)  \
+    /* Concat the cond 1/0 with a prefix macro: */ \
+    _bsonDSL_paste(_bsonDSL_ifElse_PICK_, Cond)(IfTrue, IfFalse)
+
+#define _bsonDSL_ifElse_PICK_1(IfTrue, IfFalse) \
+   /* Expand the first operand, throw away the second */ \
+   IfTrue _bsonDSL_nothing(#IfFalse)
+#define _bsonDSL_ifElse_PICK_0(IfTrue, IfFalse) \
+   /* Expand to the second operand, throw away the first */ \
+   IfFalse _bsonDSL_nothing(#IfTrue)
 
 #ifdef _MSVC_TRADITIONAL
 // MSVC's "traditional" preprocessor requires many more expansion passes,
-// but GNU and Clang are very slow when evaluating hugely nested expansions.
-#define pBsonDSL_eval_1(...) __VA_ARGS__
-#define pBsonDSL_eval_2(...) pBsonDSL_eval_1(pBsonDSL_eval_1(pBsonDSL_eval_1(pBsonDSL_eval_1(pBsonDSL_eval_1(__VA_ARGS__)))))
-#define pBsonDSL_eval_4(...) pBsonDSL_eval_2(pBsonDSL_eval_2(pBsonDSL_eval_2(pBsonDSL_eval_2(pBsonDSL_eval_2(__VA_ARGS__)))))
-#define pBsonDSL_eval_8(...) pBsonDSL_eval_4(pBsonDSL_eval_4(pBsonDSL_eval_4(pBsonDSL_eval_4(pBsonDSL_eval_4(__VA_ARGS__)))))
-#define pBsonDSL_eval_16(...) pBsonDSL_eval_8(pBsonDSL_eval_8(pBsonDSL_eval_8(pBsonDSL_eval_8(pBsonDSL_eval_8(__VA_ARGS__)))))
-#define pBsonDSL_eval(...) pBsonDSL_eval_16(pBsonDSL_eval_16(pBsonDSL_eval_16(pBsonDSL_eval_16(pBsonDSL_eval_16(__VA_ARGS__)))))
+// but GNU and Clang are very slow when evaluating hugely nested expansions
+// and generate massive macro expansion backtraces.
+#define _bsonDSL_eval_1(...) __VA_ARGS__
+#define _bsonDSL_eval_2(...) _bsonDSL_eval_1(_bsonDSL_eval_1(_bsonDSL_eval_1(_bsonDSL_eval_1(_bsonDSL_eval_1(__VA_ARGS__)))))
+#define _bsonDSL_eval_4(...) _bsonDSL_eval_2(_bsonDSL_eval_2(_bsonDSL_eval_2(_bsonDSL_eval_2(_bsonDSL_eval_2(__VA_ARGS__)))))
+#define _bsonDSL_eval_8(...) _bsonDSL_eval_4(_bsonDSL_eval_4(_bsonDSL_eval_4(_bsonDSL_eval_4(_bsonDSL_eval_4(__VA_ARGS__)))))
+#define _bsonDSL_eval_16(...) _bsonDSL_eval_8(_bsonDSL_eval_8(_bsonDSL_eval_8(_bsonDSL_eval_8(_bsonDSL_eval_8(__VA_ARGS__)))))
+#define _bsonDSL_eval(...) _bsonDSL_eval_16(_bsonDSL_eval_16(_bsonDSL_eval_16(_bsonDSL_eval_16(_bsonDSL_eval_16(__VA_ARGS__)))))
 #else
-#define pBsonDSL_eval_1(...) __VA_ARGS__
-#define pBsonDSL_eval_2(...) pBsonDSL_eval_1(pBsonDSL_eval_1(__VA_ARGS__))
-#define pBsonDSL_eval_4(...) pBsonDSL_eval_2(pBsonDSL_eval_2(__VA_ARGS__))
-#define pBsonDSL_eval_8(...) pBsonDSL_eval_4(pBsonDSL_eval_4(__VA_ARGS__))
-#define pBsonDSL_eval_16(...) pBsonDSL_eval_8(pBsonDSL_eval_8(__VA_ARGS__))
-#define pBsonDSL_eval_32(...) pBsonDSL_eval_16(pBsonDSL_eval_16(__VA_ARGS__))
-#define pBsonDSL_eval(...) pBsonDSL_eval_32(__VA_ARGS__)
+#define _bsonDSL_eval_1(...) __VA_ARGS__
+#define _bsonDSL_eval_2(...) _bsonDSL_eval_1(_bsonDSL_eval_1(__VA_ARGS__))
+#define _bsonDSL_eval_4(...) _bsonDSL_eval_2(_bsonDSL_eval_2(__VA_ARGS__))
+#define _bsonDSL_eval_8(...) _bsonDSL_eval_4(_bsonDSL_eval_4(__VA_ARGS__))
+#define _bsonDSL_eval_16(...) _bsonDSL_eval_8(_bsonDSL_eval_8(__VA_ARGS__))
+#define _bsonDSL_eval_32(...) _bsonDSL_eval_16(_bsonDSL_eval_16(__VA_ARGS__))
+#define _bsonDSL_eval(...) _bsonDSL_eval_32(__VA_ARGS__)
 #endif
 
-#define pBsonDSL_mapMacro_final(Action, Constant, Counter, Fin) \
-    Action(Fin, Constant, Counter)
+/**
+ * Finally, the Map() macro that allows us to do the magic, which we've been
+ * building up to all along.
+ *
+ * The dance with mapMacro_first, mapMacro_final, and _bsonDSL_nothing
+ * conditional on argument count is to prevent warnings from pre-C99 about
+ * passing no arguments to the '...' parameters. Yet again, if we had C99 and
+ * __VA_OPT__ this would be somewhat simpler.
+ */
+#define _bsonDSL_mapMacro(Action, Constant, ...) \
+   /* Pick our first action based on the content of '...': */ \
+    _bsonDSL_ifElse( \
+      /* If given no arguments: */\
+      _bsonDSL_isEmpty(__VA_ARGS__), \
+         /* expand to _bsonDSL_nothing */ \
+         _bsonDSL_nothing, \
+         /* Otherwise, expand to mapMacro_first: */ \
+         _bsonDSL_mapMacro_first) \
+   /* Now "invoke" the chosen macro: */ \
+   _bsonDSL_nothing() (Action, Constant, __VA_ARGS__)
 
-#define pBsonDSL_mapMacro_A(Action, Constant, Counter, Head, ...) \
+#define _bsonDSL_mapMacro_first(Action, Constant, ...) \
+   /* Select our next step based on whether we have one or more arguments: */ \
+   _bsonDSL_ifElse( \
+      /* If '...' contains more than one argument (has a top-level comma): */ \
+      _bsonDSL_hasComma(__VA_ARGS__), \
+         /* Begin the mapMacro loop with mapMacro_A: */ \
+         _bsonDSL_mapMacro_A, \
+         /* Otherwise skip to the final step of the loop: */ \
+         _bsonDSL_mapMacro_final) \
+   /* Invoke the chosen macro, setting the counter to zero: */ \
+   _bsonDSL_nothing() (Action, Constant, 0, __VA_ARGS__)
+
+/// Handle the last expansion in a mapMacro sequence.
+#define _bsonDSL_mapMacro_final(Action, Constant, Counter, FinalElement) \
+    Action(FinalElement, Constant, Counter)
+
+/**
+ * mapMacro_A and mapMacro_B are identical and just invoke each other.
+ */
+#define _bsonDSL_mapMacro_A(Action, Constant, Counter, Head, ...) \
+   /* First evaluate the action once: */ \
+   Action(Head, Constant, Counter) \
+   /* Pick our next step: */ \
+   _bsonDSL_ifElse( \
+      /* If '...' contains more than one argument (has a top-level comma): */ \
+      _bsonDSL_hasComma(__VA_ARGS__), \
+         /* Jump to the other mapMacro: */ \
+         _bsonDSL_mapMacro_B, \
+         /* Otherwise go to mapMacro_final */ \
+         _bsonDSL_mapMacro_final) \
+   /* Invoke the next step of the map: */ \
+   _bsonDSL_nothing() (Action, Constant, Counter + 1, __VA_ARGS__)
+
+#define _bsonDSL_mapMacro_B(Action, Constant, Counter, Head, ...) \
     Action(Head, Constant, Counter) \
-    pBsonDSL_ifElse(pBsonDSL_hasComma(__VA_ARGS__), pBsonDSL_mapMacro_B, pBsonDSL_mapMacro_final) \
-    pBsonDSL_nothing (Action, Constant, Counter + 1, __VA_ARGS__)
-
-#define pBsonDSL_mapMacro_B(Action, Constant, Counter, Head, ...) \
-    Action(Head, Constant, Counter) \
-    pBsonDSL_ifElse(pBsonDSL_hasComma(__VA_ARGS__), pBsonDSL_mapMacro_A, pBsonDSL_mapMacro_final) \
-    pBsonDSL_nothing (Action, Constant, Counter + 1, __VA_ARGS__)
-
-#define pBsonDSL_mapMacro_first(Action, Constant, Counter, ...) \
-    pBsonDSL_ifElse(pBsonDSL_hasComma(__VA_ARGS__), pBsonDSL_mapMacro_A, pBsonDSL_mapMacro_final) \
-    pBsonDSL_nothing (Action, Constant, Counter, __VA_ARGS__)
-
-#define pBsonDSL_mapMacro(Action, Constant, ...) \
-    pBsonDSL_ifElse(pBsonDSL_isEmpty(__VA_ARGS__), pBsonDSL_ignore, pBsonDSL_mapMacro_first) \
-    pBsonDSL_nothing (Action, Constant, 0, __VA_ARGS__)
+    _bsonDSL_ifElse(_bsonDSL_hasComma(__VA_ARGS__), _bsonDSL_mapMacro_A, _bsonDSL_mapMacro_final) \
+    _bsonDSL_nothing() (Action, Constant, Counter + 1, __VA_ARGS__)
 
 // clang-format on
 
+/// Begin any function-like macro by opening a new scope and writing a debug
+/// message.
 #define _bsonDSL_begin(Str, ...)        \
    do {                                 \
       _bsonDSLDebug (Str, __VA_ARGS__); \
    ++_bson_dsl_indent
 
+/// End a function-like macro scope.
 #define _bsonDSL_end   \
    --_bson_dsl_indent; \
    }                   \
@@ -213,50 +295,36 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
  * @brief Expands to a call to bson_append_{Kind}, with the three first
  * arguments filled in by the DSL context variables.
  */
-#define _bsonBuild_append(Kind, ...)             \
-   bson_append_##Kind (bsonBuildContext.doc,     \
-                       bsonBuildContext.key,     \
-                       bsonBuildContext.key_len, \
-                       __VA_ARGS__)
+#define _bsonBuildAppendArgs \
+   bsonBuildContext.doc, bsonBuildContext.key, bsonBuildContext.key_len
+#define _bsonDSL_append(Kind, ...) \
+   bson_append_##Kind (_bsonBuildAppendArgs, __VA_ARGS__)
 
 /// We must defer expansion of the nested doc() to allow "recursive" evaluation
 #define _bsonBuild_docAppendValue_doc \
-   _bsonBuild_docAppendValueDeferred_doc pBsonDSL_nothing
+   _bsonBuild_docAppendValueDeferred_doc _bsonDSL_nothing ()
 #define _bsonBuild_arrAppendValue_doc _bsonBuild_docAppendValue_doc
 
-#define _bsonBuild_docAppendValueDeferred_doc(...)                   \
-   _bsonDSL_begin ("Append a new document [%s]",                     \
-                   "" pBsonDSL_str (__VA_ARGS__));                   \
-   /* Write to this variable as the child: */                        \
-   bson_t _doc_ = BSON_INITIALIZER;                                  \
-   _bsonBuild_append (document_begin, &_doc_);                       \
-   /* Remember the parent: */                                        \
-   /* Set the child as the new context doc to modify: */             \
-   /* Remember the parent: */                                        \
-   struct _bsonBuildContext_t _bbCtx = (struct _bsonBuildContext_t){ \
-      .doc = &_doc_,                                                 \
-      .parent = *_bsonBuildContextPtr (),                            \
-   };                                                                \
-   *_bsonBuildContextPtr () = &_bbCtx;                               \
-   /* Apply the nested dsl for documents: */                         \
-   pBsonDSL_mapMacro (_bsonBuild_docElement, ~, __VA_ARGS__);        \
-   /* Restore the prior context document and finish the append: */   \
-   *_bsonBuildContextPtr () = _bbCtx.parent;                         \
-   bson_append_document_end (bsonBuildContext.doc, &_doc_);          \
+#define _bsonBuild_docAppendValueDeferred_doc(...)                  \
+   _bsonDSL_begin ("doc(%s)", _bsonDSL_str (__VA_ARGS__));          \
+   /* Write to this variable as the child: */                       \
+   bson_t _bbChildDoc = BSON_INITIALIZER;                           \
+   bson_append_document_begin (_bsonBuildAppendArgs, &_bbChildDoc); \
+   _bsonBuildAppend (&_bbChildDoc, __VA_ARGS__);                    \
+   bson_append_document_end (bsonBuildContext.doc, &_bbChildDoc);   \
    _bsonDSL_end
 
 /// We must defer expansion of the nested array() to allow "recursive"
 /// evaluation
 #define _bsonBuild_docAppendValue_array \
-   _bsonBuild_docAppendValueDeferred_array pBsonDSL_nothing
+   _bsonBuild_docAppendValueDeferred_array _bsonDSL_nothing ()
 #define _bsonBuild_arrAppendValue_array _bsonBuild_docAppendValue_array
 
 #define _bsonBuild_docAppendValueDeferred_array(...)                 \
-   _bsonDSL_begin ("Append an array() value: [%s]",                  \
-                   "" pBsonDSL_str (__VA_ARGS__));                   \
+   _bsonDSL_begin ("array(%s)", _bsonDSL_str (__VA_ARGS__));         \
    /* Write to this variable as the child array: */                  \
    bson_t _array_ = BSON_INITIALIZER;                                \
-   _bsonBuild_append (array_begin, &_array_);                        \
+   _bsonDSL_append (array_begin, &_array_);                          \
    /* Set the child as the new context doc to modify: */             \
    /* Remember the parent: */                                        \
    struct _bsonBuildContext_t _bbCtx = (struct _bsonBuildContext_t){ \
@@ -265,7 +333,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
       .index = 0,                                                    \
    };                                                                \
    *_bsonBuildContextPtr () = &_bbCtx;                               \
-   pBsonDSL_mapMacro (pBsonDSL_arrayAppend, ~, __VA_ARGS__);         \
+   _bsonDSL_mapMacro (_bsonDSL_arrayAppend, ~, __VA_ARGS__);         \
    /* Restore the prior context document and finish the append: */   \
    *_bsonBuildContextPtr () = _bbCtx.parent;                         \
    bson_append_array_end (bsonBuildContext.doc, &_array_);           \
@@ -273,41 +341,40 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 
 /// Append a "cstr" as UTF-8
 #define _bsonBuild_docAppendValue_cstr(String) \
-   _bsonBuild_append (utf8, String, strlen (String))
+   _bsonDSL_append (utf8, String, strlen (String))
 #define _bsonBuild_arrAppendValue_cstr _bsonBuild_docAppendValue_cstr
 
 /// Append a UTF-8 string with an explicit length
 #define _bsonBuild_docAppendValue_utf8_w_len(String, Len) \
-   _bsonBuild_append (utf8, (String), (Len))
+   _bsonDSL_append (utf8, (String), (Len))
 #define _bsonBuild_arrAppendValue_utf8_w_len \
    _bsonBuild_docAppendValue_utf8_w_len
 
 /// Append an int32
 #define _bsonBuild_docAppendValue_i32(Integer) \
-   _bsonBuild_append (int32, (Integer))
+   _bsonDSL_append (int32, (Integer))
 #define _bsonBuild_arrAppendValue_i32 _bsonBuild_docAppendValue_i32
 
 /// Append an int64
 #define _bsonBuild_docAppendValue_i64(Integer) \
-   _bsonBuild_append (int64, (Integer))
+   _bsonDSL_append (int64, (Integer))
 #define _bsonBuild_arrAppendValue_i64 _bsonBuild_docAppendValue_i64
 
 /// Append the value referenced by a given iterator
-#define _bsonBuild_docAppendValue_iter(Iter) _bsonBuild_append (iter, &(Iter))
+#define _bsonBuild_docAppendValue_iter(Iter) _bsonDSL_append (iter, &(Iter))
 #define _bsonBuild_arrAppendValue_iter _bsonBuild_docAppendValue_iter
 
 /// Append the BSON document referenced by the given pointer
-#define _bsonBuild_docAppendValue_bson(Ptr) _bsonBuild_append (document, (Ptr))
+#define _bsonBuild_docAppendValue_bson(Ptr) _bsonDSL_append (document, (Ptr))
 #define _bsonBuild_arrAppendValue_bson _bsonBuild_docAppendValue_bson
 
 /// Append the BSON document referenced by the given pointer as an array
-#define _bsonBuild_docAppendValue_bsonArray(Ptr) \
-   _bsonBuild_append (array, (Ptr))
+#define _bsonBuild_docAppendValue_bsonArray(Ptr) _bsonDSL_append (array, (Ptr))
 #define _bsonBuild_arrAppendValue_bsonArray _bsonBuild_docAppendValue_bsonArray
 
-#define _bsonBuild_docAppendValue_bool(b) _bsonBuild_append (bool, (b))
+#define _bsonBuild_docAppendValue_bool(b) _bsonDSL_append (bool, (b))
 #define _bsonBuild_arrAppendValue_bool _bsonBuild_docAppendValue_bool
-#define _bsonBuild_docAppendValue__Bool(b) _bsonBuild_append (bool, (b))
+#define _bsonBuild_docAppendValue__Bool(b) _bsonDSL_append (bool, (b))
 #define _bsonBuild_arrAppendValue__Bool _bsonBuild_docAppendValue_bool
 
 #define _bsonBuild_docAppendValue_null \
@@ -319,7 +386,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 
 /// key-value pair with explicit key length
 #define _bsonBuild_docElement_kvl(String, Len, Element)                     \
-   _bsonDSL_begin ("Append: '%s' => [%s]", String, pBsonDSL_str (Element)); \
+   _bsonDSL_begin ("Append: '%s' => [%s]", String, _bsonDSL_str (Element)); \
    _bbCtx.key = (String);                                                   \
    _bbCtx.key_len = (Len);                                                  \
    _bsonBuild_docAppendValue_##Element;                                     \
@@ -329,28 +396,28 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 #define _bsonBuild_docElement_kv(String, Element) \
    _bsonBuild_docElement_kvl ((String), strlen ((String)), Element)
 
-#define pBsonDSL_insertFilter_all _filter_drop_ = false
-#define pBsonDSL_insertFilter_excluding(...)                         \
+#define _bsonDSL_insertFilter_all _filter_drop_ = false
+#define _bsonDSL_insertFilter_excluding(...)                         \
    _filter_drop_ =                                                   \
       _bson_dsl_key_is_anyof (bson_iter_key (&_bbDocInsertIter),     \
                               bson_iter_key_len (&_bbDocInsertIter), \
                               __VA_ARGS__,                           \
                               NULL)
 
-#define pBsonDSL_insertFilter(F, _nil, _count) \
+#define _bsonDSL_insertFilter(F, _nil, _count) \
    if (!_filter_drop_) {                       \
-      pBsonDSL_insertFilter_##F;               \
+      _bsonDSL_insertFilter_##F;               \
    }
 
 /// Insert the given BSON document into the parent document in-place
 #define _bsonBuild_docElement_insert(OtherDoc, ...)                         \
-   _bsonDSL_begin ("Insert other document: [%s]", pBsonDSL_str (OtherDoc)); \
+   _bsonDSL_begin ("Insert other document: [%s]", _bsonDSL_str (OtherDoc)); \
    bson_iter_t _bbDocInsertIter;                                            \
    bson_t *_bbInsertDoc = (bson_t *) (OtherDoc);                            \
    bson_iter_init (&_bbDocInsertIter, _bbInsertDoc);                        \
    while (bson_iter_next (&_bbDocInsertIter)) {                             \
       bool _filter_drop_ = false;                                           \
-      pBsonDSL_mapMacro (pBsonDSL_insertFilter, ~, __VA_ARGS__);            \
+      _bsonDSL_mapMacro (_bsonDSL_insertFilter, ~, __VA_ARGS__);            \
       if (_filter_drop_) {                                                  \
          continue;                                                          \
       }                                                                     \
@@ -363,11 +430,11 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 /// Insert the given BSON document into the parent array. Keys of the given
 /// document are discarded and it is treated as an array of values.
 #define _bsonBuild_arrAppendValue_insert(OtherArr)                           \
-   _bsonDSL_begin ("Insert other array: [%s]", pBsonDSL_str (OtherArr));     \
+   _bsonDSL_begin ("Insert other array: [%s]", _bsonDSL_str (OtherArr));     \
    bson_iter_t iter;                                                         \
    bson_iter_init (&iter, (bson_t *) (OtherArr));                            \
    while (bson_iter_next (&iter)) {                                          \
-      pBsonDSL_setKeyToArrayIndex (bsonBuildContext.index);                  \
+      _bsonDSL_setKeyToArrayIndex (bsonBuildContext.index);                  \
       _bsonBuild_arrAppendValue_iter (iter);                                 \
       ++_bbCtx.index;                                                        \
    }                                                                         \
@@ -379,12 +446,12 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 #define _bsonBuild_docElementIfElse_else _bsonBuild_docAppendValue_doc
 
 #define _bsonBuild_docElement_if(Condition, Then, Else)                     \
-   _bsonDSL_begin ("Conditional append on [%s]", pBsonDSL_str (Condition)); \
+   _bsonDSL_begin ("Conditional append on [%s]", _bsonDSL_str (Condition)); \
    if ((Condition)) {                                                       \
-      _bsonDSLDebug ("Taking TRUE branch: [%s]", pBsonDSL_str (Then));      \
+      _bsonDSLDebug ("Taking TRUE branch: [%s]", _bsonDSL_str (Then));      \
       _bsonBuild_docElementIfThen_##Then;                                   \
    } else {                                                                 \
-      _bsonDSLDebug ("Taking FALSE branch: [%s]", pBsonDSL_str (Else));     \
+      _bsonDSLDebug ("Taking FALSE branch: [%s]", _bsonDSL_str (Else));     \
       _bsonBuild_docElementIfElse_##Else;                                   \
    }                                                                        \
    _bsonDSL_end
@@ -393,18 +460,18 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 #define _bsonBuild_arrAppendValueIfElse_else _bsonBuild_docAppendValue_array
 
 #define _bsonBuild_arrAppendValue_if(Condition, Then, Else)                \
-   _bsonDSL_begin ("Conditional value on [%s]", pBsonDSL_str (Condition)); \
+   _bsonDSL_begin ("Conditional value on [%s]", _bsonDSL_str (Condition)); \
    if ((Condition)) {                                                      \
-      _bsonDSLDebug ("Taking TRUE branch: [%s]", pBsonDSL_str (Then));     \
+      _bsonDSLDebug ("Taking TRUE branch: [%s]", _bsonDSL_str (Then));     \
       _bsonBuild_arrAppendValueIfThen_##Then;                              \
    } else {                                                                \
-      _bsonDSLDebug ("Taking FALSE branch: [%s]", pBsonDSL_str (Else));    \
+      _bsonDSLDebug ("Taking FALSE branch: [%s]", _bsonDSL_str (Else));    \
       _bsonBuild_arrAppendValueIfElse_##Else;                              \
    }                                                                       \
    _bsonDSL_end
 #define _bsonBuild_docAppendValue_if _bsonBuild_arrAppendValue_if
 
-#define pBsonDSL_setKeyToArrayIndex(Idx)                           \
+#define _bsonDSL_setKeyToArrayIndex(Idx)                           \
    _bbCtx.key_len = sprintf (_bbCtx.strbuf64, "%d", _bbCtx.index); \
    _bbCtx.key = _bbCtx.strbuf64
 
@@ -412,43 +479,43 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 #define _bsonBuild_docElement(Elem, _nil, _count) _bsonBuild_docElement_##Elem;
 
 /// Handle an element of array()
-#define pBsonDSL_arrayAppend(Element, _nil, _count)      \
+#define _bsonDSL_arrayAppend(Element, _nil, _count)      \
    _bsonDSL_begin ("Array append [%d]: [%s]",            \
                    bsonBuildContext.index,               \
-                   pBsonDSL_str (Element));              \
+                   _bsonDSL_str (Element));              \
    /* Set the doc key to the array index as a string: */ \
-   pBsonDSL_setKeyToArrayIndex (bsonBuildContext.index); \
+   _bsonDSL_setKeyToArrayIndex (bsonBuildContext.index); \
    /* Append a value: */                                 \
    _bsonBuild_arrAppendValue_##Element;                  \
    /* Increment the array index: */                      \
    ++_bbCtx.index;                                       \
    _bsonDSL_end;
 
-#define pBsonDSL_documentBuild(...) \
-   pBsonDSL_mapMacro (_bsonBuild_docElement, ~, __VA_ARGS__)
+#define _bsonDSL_documentBuild(...) \
+   _bsonDSL_mapMacro (_bsonBuild_docElement, ~, __VA_ARGS__)
 
-#define pBsonDSL_iterType_array BSON_TYPE_ARRAY
-#define pBsonDSL_iterType_bool BSON_TYPE_BOOL
-#define pBsonDSL_iterType__Bool BSON_TYPE_BOOL
-#define pBsonDSL_iterType_doc BSON_TYPE_DOCUMENT
+#define _bsonDSL_iterType_array BSON_TYPE_ARRAY
+#define _bsonDSL_iterType_bool BSON_TYPE_BOOL
+#define _bsonDSL_iterType__Bool BSON_TYPE_BOOL
+#define _bsonDSL_iterType_doc BSON_TYPE_DOCUMENT
 
 #define _bsonVisitOneApply_ifType(T, ...)                \
    if (bson_iter_type_unsafe (&bsonVisitContext.iter) == \
-       pBsonDSL_iterType_##T) {                          \
+       _bsonDSL_iterType_##T) {                          \
       _bsonVisitOneApplyOps (__VA_ARGS__);               \
    }
 
 #define _bsonVisitOneApply_halt _bwHalt = true
 
 #define _bsonVisitOneApply_ifTruthy(...)                        \
-   _bsonDSL_begin ("ifTruthy(%s)", pBsonDSL_str (__VA_ARGS__)); \
+   _bsonDSL_begin ("ifTruthy(%s)", _bsonDSL_str (__VA_ARGS__)); \
    if (bson_iter_as_bool (&bsonVisitContext.iter)) {            \
       _bsonVisitOneApplyOps (__VA_ARGS__);                      \
    }                                                            \
    _bsonDSL_end;
 
 #define _bsonVisitOneApply_ifStrEqual(S, ...)                              \
-   _bsonDSL_begin ("ifStrEqual(%s)", pBsonDSL_str (S));                    \
+   _bsonDSL_begin ("ifStrEqual(%s)", _bsonDSL_str (S));                    \
    if (bson_iter_type_unsafe (&bsonVisitContext.iter) == BSON_TYPE_UTF8) { \
       uint32_t len;                                                        \
       const char *str = bson_iter_utf8 (&bsonVisitContext.iter, &len);     \
@@ -459,35 +526,35 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
    _bsonDSL_end
 
 #define _bsonVisitOneApply_storeBool(Dest)                 \
-   _bsonDSL_begin ("storeBool(%s)", pBsonDSL_str (Dest));  \
+   _bsonDSL_begin ("storeBool(%s)", _bsonDSL_str (Dest));  \
    if (BSON_ITER_HOLDS_BOOL (&bsonVisitContext.iter)) {    \
       (Dest) = bson_iter_as_bool (&bsonVisitContext.iter); \
    }                                                       \
    _bsonDSL_end
 
 #define _bsonVisitOneApply_found(IterDest)                \
-   _bsonDSL_begin ("found(%s)", pBsonDSL_str (IterDest)); \
+   _bsonDSL_begin ("found(%s)", _bsonDSL_str (IterDest)); \
    (IterDest) = bsonVisitContext.iter;                    \
    _bsonDSL_end
 
 #define _bsonVisitOneApply_do(...)                            \
-   _bsonDSL_begin ("do: { %s }", pBsonDSL_str (__VA_ARGS__)); \
+   _bsonDSL_begin ("do: { %s }", _bsonDSL_str (__VA_ARGS__)); \
    do {                                                       \
       __VA_ARGS__;                                            \
    } while (0);                                               \
    _bsonDSL_end
 
 #define _bsonVisitOneApply_append \
-   _bsonVisitOneApplyDeferred_append pBsonDSL_nothing
+   _bsonVisitOneApplyDeferred_append _bsonDSL_nothing ()
 #define _bsonVisitOneApplyDeferred_append(Doc, ...)                           \
    _bsonDSL_begin (                                                           \
-      "append to [%s] : %s", pBsonDSL_str (Doc), pBsonDSL_str (__VA_ARGS__)); \
+      "append to [%s] : %s", _bsonDSL_str (Doc), _bsonDSL_str (__VA_ARGS__)); \
    _bsonBuildAppend (Doc, __VA_ARGS__);                                       \
    _bsonDSL_end
 
 #define _bsonVisitEach(Doc, ...)                                            \
    _bsonDSL_begin (                                                         \
-      "visitEach(%s, %s)", pBsonDSL_str (Doc), pBsonDSL_str (__VA_ARGS__)); \
+      "visitEach(%s, %s)", _bsonDSL_str (Doc), _bsonDSL_str (__VA_ARGS__)); \
    do {                                                                     \
       /* Reset the context */                                               \
       struct _bsonVisitContext_t _bpCtx = {                                 \
@@ -509,9 +576,9 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
    _bsonDSL_end
 
 #define _bsonVisitOneApply_visitEach \
-   _bsonVisitOneApply_visitEachDeferred pBsonDSL_nothing
+   _bsonVisitOneApply_visitEachDeferred _bsonDSL_nothing ()
 #define _bsonVisitOneApply_visitEachDeferred(...)                              \
-   _bsonDSL_begin ("visitEach(%s)", pBsonDSL_str (__VA_ARGS__));               \
+   _bsonDSL_begin ("visitEach(%s)", _bsonDSL_str (__VA_ARGS__));               \
    do {                                                                        \
       const uint8_t *data;                                                     \
       uint32_t len;                                                            \
@@ -530,7 +597,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
    } while (0);                                                                \
    _bsonDSL_end
 
-#define _bsonParseDeferred _bsonParse pBsonDSL_nothing
+#define _bsonParseDeferred _bsonParse _bsonDSL_nothing ()
 
 #define _bsonVisitOneApply_nop ((void) 0)
 #define _bsonVisitOneApply_parse(...)                                   \
@@ -552,12 +619,12 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
    } while (0);
 
 #define _bsonVisitOneApply_setTrue(B)                       \
-   _bsonDSL_begin ("Set [%s] to 'true'", pBsonDSL_str (B)); \
+   _bsonDSL_begin ("Set [%s] to 'true'", _bsonDSL_str (B)); \
    (B) = true;                                              \
    _bsonDSL_end;
 
 #define _bsonVisitOneApply_setFalse(B)                       \
-   _bsonDSL_begin ("Set [%s] to 'false'", pBsonDSL_str (B)); \
+   _bsonDSL_begin ("Set [%s] to 'false'", _bsonDSL_str (B)); \
    (B) = false;                                              \
    _bsonDSL_end;
 
@@ -577,7 +644,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 /// Match an entry by its key
 #define _bsonParseDo_ifKey(Key, ...)                                    \
    _bsonDSL_begin (                                                     \
-      "Searching for key \"%s\" [%s]", (Key), pBsonDSL_str (Key));      \
+      "Searching for key \"%s\" [%s]", (Key), _bsonDSL_str (Key));      \
    if (bson_iter_init_find (&_bpCtx.iter, bsonVisitContext.doc, Key)) { \
       _bsonVisitOneApplyOps (__VA_ARGS__);                              \
    }                                                                    \
@@ -589,14 +656,14 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
  * @brief Parse each entry in the document at the given pointer.
  */
 #define _bsonParse(DocPointer, ...)                              \
-   _bsonDSL_begin ("Walking: [%s]", pBsonDSL_str (__VA_ARGS__)); \
+   _bsonDSL_begin ("Walking: [%s]", _bsonDSL_str (__VA_ARGS__)); \
    /* Reset the context */                                       \
    struct _bsonVisitContext_t _bpCtx = {                         \
       .doc = (DocPointer),                                       \
       .parent = &bsonVisitContext,                               \
    };                                                            \
    *_bsonVisitContextPtr () = &_bpCtx;                           \
-   pBsonDSL_mapMacro (_bsonParseDo, ~, __VA_ARGS__);             \
+   _bsonDSL_mapMacro (_bsonParseDo, ~, __VA_ARGS__);             \
    /* Restore the dsl context */                                 \
    *_bsonVisitContextPtr () = bsonVisitContext.parent;           \
    _bsonDSL_end
@@ -612,7 +679,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 //  * Be sure to keep these copy-pasted macros in sync.
 //  */
 // #define _bsonParseInner(DocPointer, ...)                         \
-//    _bsonDSL_begin ("Walking: [%s]", pBsonDSL_str (__VA_ARGS__)); \
+//    _bsonDSL_begin ("Walking: [%s]", _bsonDSL_str (__VA_ARGS__)); \
 //    /* Reset the context */                                       \
 //    struct _bsonVisitContext_t _bpCtx = {                         \
 //       .doc = (DocPointer),                                       \
@@ -620,15 +687,15 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
 //    };                                                            \
 //    *_bsonVisitContextPtr () = &_bpCtx;                           \
 //    bson_iter_t iter;                                             \
-//    pBsonDSL_mapMacro (_bsonParseDo, ~, __VA_ARGS__);             \
+//    _bsonDSL_mapMacro (_bsonParseDo, ~, __VA_ARGS__);             \
 //    /* Restore the dsl context */                                 \
 //    *_bsonVisitContextPtr () = bsonVisitContext.parent;           \
 //    _bsonDSL_end
 
-#define _bsonVisitOneApplyOps _bsonVisitOneApplyOpsDeferred pBsonDSL_nothing
+#define _bsonVisitOneApplyOps _bsonVisitOneApplyOpsDeferred _bsonDSL_nothing ()
 #define _bsonVisitOneApplyOpsDeferred(...)                   \
-   _bsonDSL_begin ("Walk [%s]", pBsonDSL_str (__VA_ARGS__)); \
-   pBsonDSL_mapMacro (_bsonVisitOneApply, ~, __VA_ARGS__);   \
+   _bsonDSL_begin ("Walk [%s]", _bsonDSL_str (__VA_ARGS__)); \
+   _bsonDSL_mapMacro (_bsonVisitOneApply, ~, __VA_ARGS__);   \
    _bsonDSL_end;
 
 /**
@@ -638,9 +705,9 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
  * @param ... The Document elements to append to the document
  */
 #define bsonBuildAppend(Pointer, ...) \
-   pBsonDSL_eval (_bsonBuildAppend (Pointer, __VA_ARGS__))
+   _bsonDSL_eval (_bsonBuildAppend (Pointer, __VA_ARGS__))
 #define _bsonBuildAppend(Pointer, ...)                                    \
-   _bsonDSL_begin ("Appending to document '%s'", pBsonDSL_str (Pointer)); \
+   _bsonDSL_begin ("Appending to document '%s'", _bsonDSL_str (Pointer)); \
    BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic push");)                    \
    BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic ignored \"-Wshadow\"");)    \
    /* Save the dsl context */                                             \
@@ -654,7 +721,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
    };                                                                     \
    *_bsonBuildContextPtr () = &_bbCtx;                                    \
    /* Reset the context */                                                \
-   pBsonDSL_documentBuild (__VA_ARGS__);                                  \
+   _bsonDSL_documentBuild (__VA_ARGS__);                                  \
    /* Restore the dsl context */                                          \
    *_bsonBuildContextPtr () = _bbCtx.parent;                              \
    BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic pop");)                     \
@@ -667,7 +734,7 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
  */
 #define bsonBuild(PointerDest, ...)                   \
    _bsonDSL_begin ("Build a new document for '%s'",   \
-                   pBsonDSL_str (PointerDest));       \
+                   _bsonDSL_str (PointerDest));       \
    bson_t *_bson_dsl_new_doc_ = bson_new ();          \
    bsonBuildAppend (_bson_dsl_new_doc_, __VA_ARGS__); \
    bson_destroy ((PointerDest));                      \
@@ -688,13 +755,13 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
  * @param doc A bson_t object to walk. (Not a pointer)
  */
 #define bsonParse(doc, ...)                                            \
-   _bsonDSL_begin ("bsonParse(%s)", pBsonDSL_str (doc));               \
+   _bsonDSL_begin ("bsonParse(%s)", _bsonDSL_str (doc));               \
    BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic push");)                 \
    BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic ignored \"-Wshadow\"");) \
    bool _bwHalt = false;                                               \
    const bool _bvContinue = false;                                     \
    const bool _bvBreak = false;                                        \
-   pBsonDSL_eval (_bsonParse (&(doc), __VA_ARGS__));                   \
+   _bsonDSL_eval (_bsonParse (&(doc), __VA_ARGS__));                   \
    BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic pop");)                  \
    _bsonDSL_end
 
@@ -702,11 +769,11 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
  * @brief Visit each element of a BSON document
  */
 #define bsonVisitEach(Doc, ...)                                        \
-   _bsonDSL_begin ("bsonVisitEach(%s)", pBsonDSL_str (Doc));           \
+   _bsonDSL_begin ("bsonVisitEach(%s)", _bsonDSL_str (Doc));           \
    BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic push");)                 \
    BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic ignored \"-Wshadow\"");) \
    bool _bwHalt = false;                                               \
-   pBsonDSL_eval (_bsonVisitEach ((Doc), __VA_ARGS__));                \
+   _bsonDSL_eval (_bsonVisitEach ((Doc), __VA_ARGS__));                \
    BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic pop");)                  \
    _bsonDSL_end
 
