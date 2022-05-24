@@ -520,7 +520,7 @@ _mongoc_handshake_build_doc_with_application (bson_t *doc, const char *appname)
    const mongoc_handshake_t *md = _mongoc_handshake_get ();
 
    bsonBuildAppend (
-      doc,
+      *doc,
       if (appname,
           then (kv ("application", doc (kv ("name", cstr (appname))))),
           else()),
@@ -682,12 +682,13 @@ _mongoc_handshake_parse_sasl_supported_mechs (
    memset (sasl_supported_mechs, 0, sizeof (*sasl_supported_mechs));
    bsonParse (
       *hello,
-      ifKey ("saslSupportedMechs",
-             ifType (
-                array,
-                visitEach (
-                   ifStrEqual ("SCRAM-SHA-256",
-                               setTrue (sasl_supported_mechs->scram_sha_256)),
-                   ifStrEqual ("SCRAM-SHA-1",
-                               setTrue (sasl_supported_mechs->scram_sha_1))))));
+      findKey (
+         "saslSupportedMechs",
+         ifType (
+            array,
+            visitEach (
+               ifStrEqual ("SCRAM-SHA-256",
+                           setTrue (sasl_supported_mechs->scram_sha_256)),
+               ifStrEqual ("SCRAM-SHA-1",
+                           setTrue (sasl_supported_mechs->scram_sha_1))))));
 }

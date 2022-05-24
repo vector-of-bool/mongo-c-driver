@@ -753,12 +753,12 @@ mongoc_collection_count_with_opts (
    BSON_ASSERT_PARAM (collection);
 
    bsonBuildAppend (
-      &cmd,
+      cmd,
       kv ("count",
           utf8_w_len (collection->collection, collection->collectionlen)),
       kv ("query",
           if (query, //
-              then (bson (query)),
+              then (bson (*query)),
               else(doc ()))),
       if (limit, then (kv ("limit", i64 (limit))), else()),
       if (skip, then (kv ("skip", i64 (skip))), else()));

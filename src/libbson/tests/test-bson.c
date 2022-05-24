@@ -2520,45 +2520,52 @@ test_bson_dsl (void)
             i32 (4),
             i32 (5),
             array (i32 (9), i32 (41)),
-            doc (kv ("sub1", i32 (84)),
-                 kv ("sub2",
-                     doc (kv ("item", i32 (99)),
+            doc (
+               kv ("sub1", i32 (84)),
+               kv ("sub2",
+                   if (1,
+                       then (doc (
+                          kv ("item", i32 (99)),
                           kv ("item2", i32 (42)),
                           kv ("nope",
                               doc (kv (
                                  "1", doc (kv ("2", doc (kv ("3", doc ()))))))),
                           kv ("another nested",
                               array (i32 (6), i32 (4), i32 (-9))),
-                          kv ("int64", i64 (94412))))))),
+                          kv ("int64", i64 (94412)))),
+                       else(null)))))),
       if (12, then (kv ("foo", cstr ("bar"))), else(kv ("bar", i32 (88)))));
    bson_iter_t it;
-   bson_iter_init (&it, meow);
+   bson_iter_init (&it, &meow);
    bson_iter_t found;
    BSON_ASSERT (
-      bson_iter_find_descendant (&it, "another.5.sub2.int64", &found));
+      bson_iter_find_descendant (&it, "another.6.sub2.int64", &found));
    BSON_ASSERT (BSON_ITER_HOLDS_INT64 (&found));
    ASSERT_CMPINT64 (bson_iter_as_int64 (&found), ==, 94412);
 
+   bsonBuild (meow, kv ("top", array (i32 (56), if (1, then (i32 (88))))));
+
    bsonBuildDecl (another, insert (meow, all));
-   BSON_ASSERT_BSON_EQUAL (meow, another);
+   BSON_ASSERT_BSON_EQUAL (&meow, &another);
 
    bsonParse (
-      *meow,
-      ifKey ("foo",
-             ifType (array,
-                     nop,
-                     parse (ifKey (
-                        "meow",
-                        visitEach (parse (ifKey (
-                           "bark",
-                           parse (ifKey (
-                              "foo",
-                              parse (ifKey (
-                                 "foo",
-                                 parse (ifKey (
-                                    "foo",
-                                    continue,
-                                    parse (ifKey ("nope", nop))))))))))))))));
+      meow,
+      findKey (
+         "foo",
+         ifType (array,
+                 nop,
+                 parse (findKey (
+                    "meow",
+                    visitEach (parse (find (
+                       key ("bark"),
+                       parse (findKey (
+                          "foo",
+                          parse (findKey (
+                             "foo",
+                             parse (findKey (
+                                "foo",
+                                continue,
+                                parse (findKey ("nope", nop))))))))))))))));
 
    bsonBuild (another,
               kv ("foo", cstr ("bar")),
@@ -2567,20 +2574,23 @@ test_bson_dsl (void)
                   array (i32 (1729),
                          cstr ("I am a string"),
                          doc (kv ("subdoc", null)))));
+
    bool foundfoo = false;
    bool foundbar = false;
    bool any_unmatched = false;
-   bsonParse (*another,
-              ifKey ("foo", setTrue (foundfoo)),
-              ifKey ("bar", setTrue (foundbar)));
+   bsonParse (another,
+              findKey ("foo", setTrue (foundfoo)),
+              findKey ("bar", setTrue (foundbar)));
+
+   bsonParse (another, find (anyOf (key ("meow"), key ("foo"))));
    BSON_ASSERT (foundfoo);
    BSON_ASSERT (!foundbar);
    BSON_ASSERT (any_unmatched);
 
-   bsonVisitEach (*another, ifType (doc, visitEach ()));
+   bsonVisitEach (another, ifType (doc, visitEach ()));
 
-   bson_destroy (meow);
-   bson_destroy (another);
+   bson_destroy (&meow);
+   bson_destroy (&another);
 }
 
 void

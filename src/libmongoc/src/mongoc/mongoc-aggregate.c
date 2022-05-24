@@ -103,11 +103,14 @@ _make_agg_cmd (const char *ns,
 
    dot = strstr (ns, ".");
 
-   bsonBuildAppend (command,
-                    kv ("aggregate", //
-                        if (dot,     //
-                            then (cstr (dot + 1)),
-                            else(i32 (1)))));
+   bsonBuildAppend (
+      *command,
+      kv ("aggregate",
+          if (dot,
+              // If 'ns' contains a dot, insert the string after the dot:
+              then (cstr (dot + 1)),
+              // Otherwise just an integer 1:
+              else(i32 (1)))));
 
    if (dot) {
       /* Note: we're not validating that the collection name's length is one or
@@ -122,21 +125,22 @@ _make_agg_cmd (const char *ns,
     * The following will allow @pipeline to be either an array of
     * items for the pipeline, or {"pipeline": [...]}.
     */
-   bsonParse (
-      *pipeline,
-      ifKey ("pipeline",
-             ifType (
-                array,
-                // We have a pipeline. Append a copy
-                append (command, kv ("pipeline", iter (bsonVisitContext.iter))),
-                // Visit each element of the pipeline
-                visitEach (parse (
-                   // Check if there's a "write" or "merge"
-                   ifKey ("$out", setTrue (has_write_key), break),
-                   ifKey ("$merge", setTrue (has_write_key), break))),
-                halt)),
-      // We did not find a "pipeline" array. Create a new one
-      append (command, kv ("pipeline", array ())));
+   bson_iter_t pipeline_iter;
+   bsonParse (*pipeline,
+              find (keyWithType ("pipeline", array),
+                    // There is a "pipeline" array in the document
+                    append (*command, kv ("pipeline", iter (bsonVisitIter)))),
+              else( // We did not find a "pipeline" array. copy the pipeline as
+                    // an array into the command
+                 append (*command, kv ("pipeline", bsonArray (*pipeline)))));
+
+   // Check if there is a $merge or $out in the pipeline for the command
+   bsonParse (*command,
+              find (keyWithType ("pipeline", array),
+                    visitEach (parse (
+                       findKey ("$out", setTrue (has_write_key), halt),
+                       findKey ("$merge", setTrue (has_write_key), halt)))));
+
    if (bson_iter_init_find (&iter, pipeline, "pipeline") &&
        BSON_ITER_HOLDS_ARRAY (&iter)) {
       bson_iter_recurse (&iter, &has_write_key_iter);
