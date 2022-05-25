@@ -79,24 +79,13 @@ skipped_unified_test_t SKIPPED_TESTS[] = {
    {"cursors are correctly pinned to connections for load-balanced clusters", "listIndexes pins the cursor to a connection"},
    /* libmongoc does not pin connections to cursors. It cannot force an error from waitQueueTimeoutMS by creating cursors in load balanced mode. */
    {"wait queue timeout errors include details about checked out connections", SKIP_ALL_TESTS},
-   /* CDRIVER-4199: comment option for helpers */
-   {"aggregate", "aggregate with a document comment"},
-   {"aggregate", "aggregate with a document comment - pre 4.4"},
-   {"aggregate", "aggregate with comment sets comment on getMore"},
-   {"aggregate", "aggregate with comment does not set comment on getMore - pre 4.4"},
-   {"bulkWrite-comment", SKIP_ALL_TESTS},
-   {"deleteMany-comment", SKIP_ALL_TESTS},
-   {"deleteOne-comment", SKIP_ALL_TESTS},
-   {"estimatedDocumentCount-comment", SKIP_ALL_TESTS},
-   {"find-comment", SKIP_ALL_TESTS},
-   {"findOneAndDelete-comment", SKIP_ALL_TESTS},
-   {"findOneAndReplace-comment", SKIP_ALL_TESTS},
-   {"findOneAndUpdate-comment", SKIP_ALL_TESTS},
-   {"insertMany-comment", SKIP_ALL_TESTS},
-   {"insertOne-comment", SKIP_ALL_TESTS},
-   {"replaceOne-comment", SKIP_ALL_TESTS},
-   {"updateMany-comment", SKIP_ALL_TESTS},
-   {"updateOne-comment", SKIP_ALL_TESTS},
+   /* CDRIVER-4277: Change streams support for user-facing PIT pre- and post-images */
+   {"change-streams-pre_and_post_images", SKIP_ALL_TESTS},
+   /* CDRIVER-3973, CDRIVER-4305, CDRIVER-4279, CDRIVER-4321: unified change stream tests */
+   {"change-streams", SKIP_ALL_TESTS},
+   {"change-streams-errors", SKIP_ALL_TESTS},
+   {"change-streams-resume-allowlist", SKIP_ALL_TESTS},
+   {"change-streams-resume-errorlabels", SKIP_ALL_TESTS},
    {0},
 };
 /* clang-format on */
@@ -1110,7 +1099,7 @@ test_check_event (test_t *test,
       actual_val = bson_val_from_bson (actual->command);
 
       if (!entity_map_match (
-             test->entity_map, expected_val, actual_val, true, error)) {
+             test->entity_map, expected_val, actual_val, false, error)) {
          bson_val_destroy (expected_val);
          bson_val_destroy (actual_val);
          goto done;
@@ -1141,7 +1130,7 @@ test_check_event (test_t *test,
       bson_val_t *expected_val = bson_val_from_bson (expected_reply);
       bson_val_t *actual_val = bson_val_from_bson (actual->reply);
       if (!entity_map_match (
-             test->entity_map, expected_val, actual_val, true, error)) {
+             test->entity_map, expected_val, actual_val, false, error)) {
          bson_val_destroy (expected_val);
          bson_val_destroy (actual_val);
          goto done;
@@ -1196,6 +1185,8 @@ test_check_expected_events_for_client (test_t *test,
    bson_parser_t *bp = NULL;
    char *client_id = NULL;
    bson_t *expected_events = NULL;
+   bool just_false = false;
+   bool *ignore_extra_events = &just_false;
    entity_t *entity = NULL;
    bson_iter_t iter;
    event_t *eiter = NULL;
@@ -1206,6 +1197,7 @@ test_check_expected_events_for_client (test_t *test,
    bp = bson_parser_new ();
    bson_parser_utf8 (bp, "client", &client_id);
    bson_parser_array (bp, "events", &expected_events);
+   bson_parser_bool_optional (bp, "ignoreExtraEvents", &ignore_extra_events);
    bson_parser_utf8_optional (bp, "eventType", &event_type);
    if (!bson_parser_parse (bp, expected_events_for_client, error)) {
       goto done;
@@ -1235,11 +1227,19 @@ test_check_expected_events_for_client (test_t *test,
    expected_num_events = bson_count_keys (expected_events);
    LL_COUNT (entity->events, eiter, actual_num_events);
    if (expected_num_events != actual_num_events) {
-      test_set_error (error,
-                      "expected: %" PRIu32 " events but got %" PRIu32,
-                      expected_num_events,
-                      actual_num_events);
-      goto done;
+      bool too_many_events = actual_num_events > expected_num_events;
+      if (*ignore_extra_events) {
+         // We can never have too many events
+         too_many_events = false;
+      }
+      bool too_few_events = actual_num_events < expected_num_events;
+      if (too_few_events || too_many_events) {
+         test_set_error (error,
+                         "expected: %" PRIu32 " events but got %" PRIu32,
+                         expected_num_events,
+                         actual_num_events);
+         goto done;
+      }
    }
 
    eiter = entity->events;
@@ -1748,4 +1748,6 @@ test_install_unified (TestSuite *suite)
    run_unified_tests (suite, JSON_DIR, "change_streams/unified");
 
    run_unified_tests (suite, JSON_DIR, "load_balancers");
+
+   run_unified_tests (suite, JSON_DIR, "client_side_encryption/unified");
 }

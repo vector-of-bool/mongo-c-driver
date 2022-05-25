@@ -1742,6 +1742,7 @@ _mongoc_cursor_prepare_getmore_command (mongoc_cursor_t *cursor,
    const char *collection;
    int collection_len;
    int64_t batch_size;
+   bson_iter_t iter;
    bool await_data;
    int64_t max_await_time_ms;
 
@@ -1761,6 +1762,29 @@ _mongoc_cursor_prepare_getmore_command (mongoc_cursor_t *cursor,
                          MONGOC_CURSOR_BATCH_SIZE,
                          MONGOC_CURSOR_BATCH_SIZE_LEN,
                          abs (_mongoc_n_return (cursor)));
+   }
+
+   if (bson_iter_init_find (&iter, &cursor->opts, MONGOC_CURSOR_COMMENT) &&
+       bson_iter_value (&iter)->value_type != BSON_TYPE_EOD) {
+      const bson_value_t *comment = bson_iter_value (&iter);
+      mongoc_server_stream_t *server_stream;
+
+      /* CRUD spec: If a comment is provided, drivers MUST attach this comment
+       * to all subsequent getMore commands run on the same cursor for server
+       * versions 4.4 and above. For server versions below 4.4 drivers MUST NOT
+       * attach a comment to getMore commands.
+       *
+       * Since this function has no error reporting, we also no-op if we cannot
+       * fetch a stream. */
+      server_stream = _mongoc_cursor_fetch_stream (cursor);
+
+      if (server_stream != NULL &&
+          server_stream->sd->max_wire_version >= WIRE_VERSION_4_4) {
+         bson_append_value (
+            command, MONGOC_CURSOR_COMMENT, MONGOC_CURSOR_COMMENT_LEN, comment);
+      }
+
+      mongoc_server_stream_cleanup (server_stream);
    }
 
    /* Find, getMore And killCursors Commands Spec: "In the case of a tailable

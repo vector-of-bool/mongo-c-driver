@@ -1078,11 +1078,6 @@ drop_with_opts_with_encryptedFields (mongoc_collection_t *collection,
    bool ok = false;
    const char *name = mongoc_collection_get_name (collection);
 
-   /* Drop data collection. */
-   if (!drop_with_opts (collection, opts, error)) {
-      goto fail;
-   }
-
    /* Drop ESC collection. */
    escName = _mongoc_get_encryptedField_state_collection (
       encryptedFields, name, "esc", error);
@@ -1093,7 +1088,11 @@ drop_with_opts_with_encryptedFields (mongoc_collection_t *collection,
    escCollection = mongoc_client_get_collection (
       collection->client, collection->db, escName);
    if (!drop_with_opts (escCollection, NULL /* opts */, error)) {
-      goto fail;
+      if (error->code == MONGOC_SERVER_ERR_NS_NOT_FOUND) {
+         memset (error, 0, sizeof (bson_error_t));
+      } else {
+         goto fail;
+      }
    }
 
    /* Drop ECC collection. */
@@ -1106,7 +1105,11 @@ drop_with_opts_with_encryptedFields (mongoc_collection_t *collection,
    eccCollection = mongoc_client_get_collection (
       collection->client, collection->db, eccName);
    if (!drop_with_opts (eccCollection, NULL /* opts */, error)) {
-      goto fail;
+      if (error->code == MONGOC_SERVER_ERR_NS_NOT_FOUND) {
+         memset (error, 0, sizeof (bson_error_t));
+      } else {
+         goto fail;
+      }
    }
 
    /* Drop ECOC collection. */
@@ -1119,7 +1122,20 @@ drop_with_opts_with_encryptedFields (mongoc_collection_t *collection,
    ecocCollection = mongoc_client_get_collection (
       collection->client, collection->db, ecocName);
    if (!drop_with_opts (ecocCollection, NULL /* opts */, error)) {
-      goto fail;
+      if (error->code == MONGOC_SERVER_ERR_NS_NOT_FOUND) {
+         memset (error, 0, sizeof (bson_error_t));
+      } else {
+         goto fail;
+      }
+   }
+
+   /* Drop data collection. */
+   if (!drop_with_opts (collection, opts, error)) {
+      if (error->code == MONGOC_SERVER_ERR_NS_NOT_FOUND) {
+         memset (error, 0, sizeof (bson_error_t));
+      } else {
+         goto fail;
+      }
    }
 
    ok = true;
@@ -1915,6 +1931,7 @@ mongoc_collection_insert_one (mongoc_collection_t *collection,
    mongoc_insert_one_opts_t insert_one_opts;
    mongoc_write_command_t command;
    mongoc_write_result_t result;
+   bson_t cmd_opts = BSON_INITIALIZER;
    bool ret = false;
 
    ENTRY;
@@ -1929,6 +1946,15 @@ mongoc_collection_insert_one (mongoc_collection_t *collection,
       GOTO (done);
    }
 
+   if (!bson_empty (&insert_one_opts.extra)) {
+      bson_concat (&cmd_opts, &insert_one_opts.extra);
+   }
+
+   if (insert_one_opts.crud.comment.value_type != BSON_TYPE_EOD) {
+      bson_append_value (
+         &cmd_opts, "comment", 7, &insert_one_opts.crud.comment);
+   }
+
    if (!_mongoc_validate_new_document (
           document, insert_one_opts.crud.validate, error)) {
       GOTO (done);
@@ -1938,7 +1964,7 @@ mongoc_collection_insert_one (mongoc_collection_t *collection,
    _mongoc_write_command_init_insert_idl (
       &command,
       document,
-      &insert_one_opts.extra,
+      &cmd_opts,
       ++collection->client->cluster.operation_id);
 
    command.flags.bypass_document_validation = insert_one_opts.bypass;
@@ -1959,6 +1985,8 @@ mongoc_collection_insert_one (mongoc_collection_t *collection,
 
 done:
    _mongoc_insert_one_opts_cleanup (&insert_one_opts);
+   bson_destroy (&cmd_opts);
+
    RETURN (ret);
 }
 
@@ -2000,6 +2028,7 @@ mongoc_collection_insert_many (mongoc_collection_t *collection,
    mongoc_insert_many_opts_t insert_many_opts;
    mongoc_write_command_t command;
    mongoc_write_result_t result;
+   bson_t cmd_opts = BSON_INITIALIZER;
    size_t i;
    bool ret;
 
@@ -2016,12 +2045,18 @@ mongoc_collection_insert_many (mongoc_collection_t *collection,
       return false;
    }
 
+   if (insert_many_opts.crud.comment.value_type != BSON_TYPE_EOD) {
+      bson_append_value (
+         &cmd_opts, "comment", 7, &insert_many_opts.crud.comment);
+   }
+
+   if (!bson_empty (&insert_many_opts.extra)) {
+      bson_concat (&cmd_opts, &insert_many_opts.extra);
+   }
+
    _mongoc_write_result_init (&result);
    _mongoc_write_command_init_insert_idl (
-      &command,
-      NULL,
-      &insert_many_opts.extra,
-      ++collection->client->cluster.operation_id);
+      &command, NULL, &cmd_opts, ++collection->client->cluster.operation_id);
 
    command.flags.ordered = insert_many_opts.ordered;
    command.flags.bypass_document_validation = insert_many_opts.bypass;
@@ -2052,6 +2087,7 @@ done:
    _mongoc_write_result_destroy (&result);
    _mongoc_write_command_destroy (&command);
    _mongoc_insert_many_opts_cleanup (&insert_many_opts);
+   bson_destroy (&cmd_opts);
 
    RETURN (ret);
 }
@@ -2187,6 +2223,10 @@ _mongoc_collection_update_or_replace (mongoc_collection_t *collection,
 
    if (!bson_empty (&update_opts->let)) {
       bson_append_document (&cmd_opts, "let", 3, &update_opts->let);
+   }
+
+   if (update_opts->crud.comment.value_type != BSON_TYPE_EOD) {
+      bson_append_value (&cmd_opts, "comment", 7, &update_opts->crud.comment);
    }
 
    if (update_opts->upsert) {
@@ -2654,6 +2694,10 @@ _mongoc_delete_one_or_many (mongoc_collection_t *collection,
 
    if (!bson_empty (&delete_opts->let)) {
       bson_append_document (&cmd_opts, "let", 3, &delete_opts->let);
+   }
+
+   if (delete_opts->crud.comment.value_type != BSON_TYPE_EOD) {
+      bson_append_value (&cmd_opts, "comment", 7, &delete_opts->crud.comment);
    }
 
    _mongoc_write_result_init (&result);
@@ -3296,6 +3340,10 @@ mongoc_collection_create_bulk_operation_with_opts (
       mongoc_bulk_operation_set_let (bulk, &bulk_opts.let);
    }
 
+   if (bulk_opts.comment.value_type != BSON_TYPE_EOD) {
+      mongoc_bulk_operation_set_comment (bulk, &bulk_opts.comment);
+   }
+
    bulk->session = bulk_opts.client_session;
    if (err.domain) {
       /* _mongoc_bulk_opts_parse failed, above */
@@ -3483,6 +3531,10 @@ mongoc_collection_find_and_modify_with_opts (
 
    if (!bson_empty (&appended_opts.let)) {
       bson_append_document (&parts.extra, "let", 3, &appended_opts.let);
+   }
+
+   if (appended_opts.comment.value_type != BSON_TYPE_EOD) {
+      bson_append_value (&parts.extra, "comment", 7, &appended_opts.comment);
    }
 
    /* Append any remaining unparsed options set via
