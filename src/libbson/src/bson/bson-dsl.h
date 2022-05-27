@@ -502,17 +502,17 @@ d88P"  Y8P               888
 888    888 888  888  "Y88888
 */
 
-#define _bsonParseOp_find(Predicate, ...)               \
-   _bsonDSL_begin ("find(%s)", _bsonDSL_str (Key));     \
-   _bpFoundElement = false;                             \
-   bson_iter_init (&_bpCtx.iter, bsonVisitContext.doc); \
-   while (bson_iter_next (&_bpCtx.iter)) {              \
-      if (_bsonParse_findPredicate_##Predicate) {       \
-         _bsonVisit_applyOps (__VA_ARGS__);             \
-         _bpFoundElement = true;                        \
-         break;                                         \
-      }                                                 \
-   }                                                    \
+#define _bsonParseOp_find(Predicate, ...)                 \
+   _bsonDSL_begin ("find(%s)", _bsonDSL_str (Predicate)); \
+   _bpFoundElement = false;                               \
+   bson_iter_init (&_bpCtx.iter, bsonVisitContext.doc);   \
+   while (bson_iter_next (&_bpCtx.iter)) {                \
+      if (_bsonParse_findPredicate_##Predicate) {         \
+         _bsonVisit_applyOps (__VA_ARGS__);               \
+         _bpFoundElement = true;                          \
+         break;                                           \
+      }                                                   \
+   }                                                      \
    _bsonDSL_end
 
 #define _bsonParse_findPredicate_key(Key) \
