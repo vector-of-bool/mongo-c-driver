@@ -524,59 +524,55 @@ _mongoc_cmd_parts_assemble_mongos (mongoc_cmd_parts_t *parts,
 
    requires_write_concern = !bson_empty (&parts->write_concern_document);
 
+   if (bson_iter_init_find (&dollar_query, parts->body, "$query")) {
+      /* user provided something like {$query: {key: "x"}} */
+      has_dollar_query = true;
+      _iter_concat (&query, &dollar_query);
+   } else {
+      bson_concat (&query, parts->body);
+   }
+
    if (add_read_prefs) {
       /* produce {$query: {user query, readConcern}, $readPreference: ... } */
-      bson_append_document_begin (&parts->assembled_body, "$query", 6, &query);
+      bsonBuildAppend (
+         parts->assembled_body,
+         kv ("$query",
+             doc (if (has_dollar_query,
+                      then (insertFromIter (dollar_query, all)),
+                      else(insert (*parts->body, all))),
+                  insert (parts->extra, all),
+                  if (requires_read_concern,
+                      then (kv ("readConcern",
+                                bson (parts->read_concern_document)))),
+                  if (requires_write_concern,
+                      then (kv ("writeConcern",
+                                bson (parts->write_concern_document)))))));
 
-      if (bson_iter_init_find (&dollar_query, parts->body, "$query")) {
-         /* user provided something like {$query: {key: "x"}} */
-         has_dollar_query = true;
-         _iter_concat (&query, &dollar_query);
-      } else {
-         bson_concat (&query, parts->body);
-      }
-
-      bson_concat (&query, &parts->extra);
-      if (requires_read_concern) {
-         bson_append_document (
-            &query, "readConcern", 11, &parts->read_concern_document);
-      }
-
-      if (requires_write_concern) {
-         bson_append_document (
-            &query, "writeConcern", 12, &parts->write_concern_document);
-      }
-
-      bson_append_document_end (&parts->assembled_body, &query);
       _mongoc_cmd_parts_add_read_prefs (&parts->assembled_body,
                                         parts->read_prefs);
 
       if (has_dollar_query) {
          /* copy anything that isn't in user's $query */
-         bson_copy_to_excluding_noinit (
-            parts->body, &parts->assembled_body, "$query", NULL);
+         bsonBuildAppend (parts->assembled_body,
+                          insert (*parts->body, excluding ("$query")));
       }
 
       parts->assembled.command = &parts->assembled_body;
    } else if (bson_iter_init_find (&dollar_query, parts->body, "$query")) {
       /* user provided $query, we have no read prefs */
-      bson_append_document_begin (&parts->assembled_body, "$query", 6, &query);
-      _iter_concat (&query, &dollar_query);
-      bson_concat (&query, &parts->extra);
-      if (requires_read_concern) {
-         bson_append_document (
-            &query, "readConcern", 11, &parts->read_concern_document);
-      }
-
-      if (requires_write_concern) {
-         bson_append_document (
-            &query, "writeConcern", 12, &parts->write_concern_document);
-      }
-
-      bson_append_document_end (&parts->assembled_body, &query);
-      /* copy anything that isn't in user's $query */
-      bson_copy_to_excluding_noinit (
-         parts->body, &parts->assembled_body, "$query", NULL);
+      bsonBuildAppend (
+         parts->assembled_body,
+         kv ("$query",
+             doc (insertFromIter (dollar_query, all),
+                  insert (parts->extra, all),
+                  if (requires_read_concern,
+                      then (kv ("readConcern",
+                                bson (parts->read_concern_document)))),
+                  if (requires_write_concern,
+                      then (kv ("writeConcern",
+                                bson (parts->write_concern_document)))))),
+         /* copy anything that isn't in user's $query */
+         insert (*parts->body, excluding ("$query")));
 
       parts->assembled.command = &parts->assembled_body;
    } else {

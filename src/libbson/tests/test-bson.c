@@ -2550,22 +2550,20 @@ test_bson_dsl (void)
 
    bsonParse (
       meow,
-      find (
-         key ("foo"),
-         ifType (
-            array,
-            nop,
-            parse (find (
-               key ("meow"),
-               visitEach (parse (find (
-                  key ("bark"),
-                  parse (find (
-                     key ("foo"),
-                     parse (find (key ("foo"),
-                                  parse (find (key ("foo"),
-                                               continue,
-                                               parse (find (key ("nope"),
-                                                            nop))))))))))))))));
+      find (key ("foo"),
+            if (type (array),
+                then (parse (find (
+                   key ("meow"),
+                   visitEach (parse (find (
+                      key ("bark"),
+                      parse (find (
+                         key ("foo"),
+                         parse (find (
+                            key ("foo"),
+                            parse (find (
+                               key ("foo"),
+                               continue,
+                               parse (find (key ("nope"), nop)))))))))))))))));
 
    bsonBuild (another,
               kv ("foo", cstr ("bar")),
@@ -2585,7 +2583,7 @@ test_bson_dsl (void)
    BSON_ASSERT (foundfoo);
    BSON_ASSERT (!foundbar);
 
-   bsonVisitEach (another, ifType (doc, visitEach ()));
+   bsonVisitEach (another, if (type (doc), then (visitEach ())));
 
    bson_destroy (&meow);
    bson_destroy (&another);
@@ -2692,5 +2690,3 @@ test_bson_install (TestSuite *suite)
 
    TestSuite_Add (suite, "/bson/dsl/basic", test_bson_dsl);
 }
-
-// bsonVisitEach (thing, append (other))

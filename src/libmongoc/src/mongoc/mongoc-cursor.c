@@ -321,11 +321,10 @@ _mongoc_cursor_new_with_opts (mongoc_client_t *client,
 
       bsonParse (*opts,
                  find (key ("bypassDocumentValidation"),
-                       ifTruthy (do( //
-                          bsonBuildAppend (cursor->opts,
-                                           kv ("byPassDocumentValidation",
-                                               bool (true))); //
-                          ))));
+                       if (truthy,
+                           then (append (
+                              cursor->opts,
+                              kv ("bypassDocumentValidation", bool (true)))))));
 
       /* only include bypassDocumentValidation if it's true */
       if (bson_iter_init_find (&iter, opts, "bypassDocumentValidation") &&
@@ -780,7 +779,6 @@ _mongoc_cursor_monitor_succeeded (mongoc_cursor_t *cursor,
    mongoc_apm_command_succeeded_t event;
    mongoc_client_t *client;
    bson_t reply;
-   bson_t reply_cursor;
 
    ENTRY;
 
@@ -795,7 +793,6 @@ _mongoc_cursor_monitor_succeeded (mongoc_cursor_t *cursor,
     */
    bson_init (&docs_array);
    _mongoc_cursor_append_docs_array (cursor, &docs_array, response);
-
 
    bson_init (&reply);
    bsonBuildAppend (reply,
@@ -852,7 +849,7 @@ _mongoc_cursor_monitor_failed (mongoc_cursor_t *cursor,
     * {ok: 0}
     */
    bson_init (&reply);
-   bson_append_int32 (&reply, "ok", 2, 0);
+   bsonBuildAppend (reply, kv ("ok", i32 (0)));
 
    mongoc_apm_command_failed_init (&event,
                                    duration,

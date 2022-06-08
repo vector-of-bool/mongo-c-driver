@@ -320,6 +320,8 @@ VisitOperation
    bool _bvHalt = false;                                               \
    const bool _bvContinue = false;                                     \
    const bool _bvBreak = false;                                        \
+   (void) _bvContinue;                                                 \
+   (void) _bvBreak;                                                    \
    _bsonDSL_eval (_bsonParse ((Document), __VA_ARGS__));               \
    BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic pop");)                  \
    _bsonDSL_end
@@ -489,6 +491,27 @@ bsonParse_createPathString ();
    }                                                                         \
    _bsonDSL_end
 
+#define _bsonBuild_doc_insertFromIter(Iter, ...)                               \
+   _bsonDSL_begin ("Insert document from iterator: [%s]",                      \
+                   _bsonDSL_str (Iter));                                       \
+   bson_iter_t _bbIt = Iter;                                                   \
+   uint32_t _bbLen = 0;                                                        \
+   const uint8_t *_bbData = NULL;                                              \
+   if (BSON_ITER_HOLDS_ARRAY (&_bbIt)) {                                       \
+      bson_iter_array (&_bbIt, &_bbLen, &_bbData);                             \
+   } else if (BSON_ITER_HOLDS_DOCUMENT (&_bbIt)) {                             \
+      bson_iter_document (&_bbIt, &_bbLen, &_bbData);                          \
+   } else {                                                                    \
+      _bsonDSLDebug (                                                          \
+         "NOTE: Skipping insert of non-document value from iterator");         \
+   }                                                                           \
+   if (_bbData) {                                                              \
+      bson_t _bbDocFromIter;                                                   \
+      bson_init_static (&_bbDocFromIter, _bbData, _bbLen);                     \
+      _bsonBuild_doc_insert _bsonDSL_nothing () (_bbDocFromIter, __VA_ARGS__); \
+   }                                                                           \
+   _bsonDSL_end
+
 /// Insert the given BSON document into the parent array. Keys of the given
 /// document are discarded and it is treated as an array of values.
 #define _bsonBuild_array_insert(OtherArr)                                    \
@@ -595,21 +618,34 @@ bsonParse_createPathString ();
 #define _bsonDSL_iterType__Bool BSON_TYPE_BOOL
 #define _bsonDSL_iterType_doc BSON_TYPE_DOCUMENT
 
-#define _bsonVisitOp_ifType(T, ...)                                       \
-   if (bson_iter_type_unsafe (&bsonVisitIter) == _bsonDSL_iterType_##T) { \
-      _bsonVisit_applyOps (__VA_ARGS__);                                  \
-   }
-
 #define _bsonVisitOp_halt _bvHalt = true
 
-#define _bsonVisitOp_ifTruthy(...)                              \
-   _bsonDSL_begin ("ifTruthy(%s)", _bsonDSL_str (__VA_ARGS__)); \
-   if (bson_iter_as_bool (&bsonVisitIter)) {                    \
-      _bsonVisit_applyOps (__VA_ARGS__);                        \
-   }                                                            \
-   _bsonDSL_end;
+#define _bsonVisitOp_if(Predicate, ...)                          \
+   _bsonDSL_begin ("if(%s)", _bsonDSL_str (Predicate));          \
+   _bsonDSL_ifElse (_bsonDSL_hasComma (__VA_ARGS__),             \
+                    _bsonVisit_ifThenElse,                       \
+                    _bsonVisit_ifThen) (Predicate, __VA_ARGS__); \
+   _bsonDSL_end
 
-#define _bsonVisitOp_ifStrEqual(S, ...)                            \
+#define _bsonVisit_ifThenElse(Predicate, Then, Else)                   \
+   if (bsonPredicate (Predicate)) {                                    \
+      _bsonDSLDebug ("Taking TRUE branch [%s]", _bsonDSL_str (Then));  \
+      _bsonVisit_ifThen_##Then;                                        \
+   } else {                                                            \
+      _bsonDSLDebug ("Taking FALSE branch [%s]", _bsonDSL_str (Else)); \
+      _bsonVisit_ifElse_##Else;                                        \
+   }
+
+#define _bsonVisit_ifThen(Predicate, Then)                            \
+   if (bsonPredicate (Predicate)) {                                   \
+      _bsonDSLDebug ("Taking TRUE branch [%s]", _bsonDSL_str (Then)); \
+      _bsonVisit_ifThen_##Then;                                       \
+   }
+
+#define _bsonVisit_ifThen_then _bsonVisit_applyOps
+#define _bsonVisit_ifElse_else _bsonVisit_applyOps
+
+#define _bsonVisitOp_ifStrEqual_(S, ...)                           \
    _bsonDSL_begin ("ifStrEqual(%s)", _bsonDSL_str (S));            \
    if (bson_iter_type_unsafe (&bsonVisitIter) == BSON_TYPE_UTF8) { \
       uint32_t len;                                                \
@@ -660,7 +696,9 @@ bsonParse_createPathString ();
       /* Iterate over each element of the document */                       \
       bson_iter_init (&_bpCtx.iter, &(Doc));                                \
       bool _bvBreak = false;                                                \
+      (void) _bvBreak;                                                      \
       bool _bvContinue = false;                                             \
+      (void) _bvContinue;                                                   \
       while (bson_iter_next (&_bpCtx.iter) && !_bvHalt && !_bvBreak) {      \
          _bvContinue = false;                                               \
          _bsonVisit_applyOps (__VA_ARGS__);                                 \
@@ -786,9 +824,10 @@ d88P"  Y8P               888
 #define _bsonParseOp_find(Predicate, ...)                 \
    _bsonDSL_begin ("find(%s)", _bsonDSL_str (Predicate)); \
    _bpFoundElement = false;                               \
+   (void) _bpFoundElement;                                \
    bson_iter_init (&_bpCtx.iter, bsonVisitContext.doc);   \
    while (bson_iter_next (&_bpCtx.iter)) {                \
-      if (_bsonParse_findPredicate_##Predicate) {         \
+      if (bsonPredicate (Predicate)) {                    \
          _bsonVisit_applyOps (__VA_ARGS__);               \
          _bpFoundElement = true;                          \
          break;                                           \
@@ -796,27 +835,36 @@ d88P"  Y8P               888
    }                                                      \
    _bsonDSL_end
 
-#define _bsonParse_findPredicate_key(Key) \
+#define bsonPredicate(P) _bsonPredicate _bsonDSL_nothing () (P)
+#define _bsonPredicate(P) _bsonPredicateTest_##P
+
+#define _bsonPredicateTest_not(P) (!(bsonPredicate _bsonDSL_nothing () (P)))
+#define _bsonPredicateTest_allOf(...) \
+   (1 _bsonDSL_mapMacro (_bsonPredicateAnd, ~, __VA_ARGS__))
+#define _bsonPredicateTest_anyOf(...) \
+   (0 _bsonDSL_mapMacro (_bsonPredicateOr, ~, __VA_ARGS__))
+#define _bsonPredicateAnd(Pred, _ignore, _ignore1) &&(_bsonPredicateTest_##Pred)
+#define _bsonPredicateOr(Pred, _ignore, _ignore2) || (_bsonPredicateTest_##Pred)
+
+
+#define _bsonPredicateTest_key(Key) \
    (0 == strcmp (bson_iter_key (&bsonVisitIter), (Key)))
 
-#define _bsonParse_findPredicate_type(Type) \
+#define _bsonPredicateTest_type(Type) \
    (bson_iter_type (&bsonVisitIter) == _bsonDSL_iterType_##Type)
 
-#define _bsonParse_findPredicate_keyWithType(Key, Type) \
-   (_bsonParse_findPredicate_allOf (key (Key), type (Type)))
+#define _bsonPredicateTest_keyWithType(Key, Type) \
+   (_bsonPredicateTest_allOf (key (Key), type (Type)))
 
-#define _bsonParse_findPredicate_allOf(...) \
-   (1 _bsonDSL_mapMacro (_bsonParse_findPredicateAnd, ~, __VA_ARGS__))
+#define _bsonPredicateTest_1 1
+#define _bsonPredicateTest_0 0
+#define _bsonPredicateTest_true true
+#define _bsonPredicateTest_false false
 
-#define _bsonParse_findPredicateAnd(Pred, _ignore, _ignore1) \
-   &&(_bsonParse_findPredicate_##Pred)
+#define _bsonPredicateTest_truthy (bson_iter_as_bool (&bsonVisitIter))
+#define _bsonPredicateTest_falsey (!bson_iter_as_bool (&bsonVisitIter))
 
-#define _bsonParse_findPredicate_anyOf(...) \
-   (0 _bsonDSL_mapMacro (_bsonParse_findPredicateOr, ~, __VA_ARGS__))
-
-#define _bsonParse_findPredicateOr(Pred, _ignore, _ignore2) \
-   || (_bsonParse_findPredicate_##Pred)
-
+#define _bsonPredicateTest_strEqual(S) (_bson_dsl_test_strequal (S))
 
 /*
          888
@@ -1004,6 +1052,20 @@ _bson_dsl_key_is_anyof (const char *key, const int keylen, ...)
       }
       if (memcmp (key, str, str_len) == 0) {
          va_end (va);
+         return true;
+      }
+   }
+   return false;
+}
+
+static inline bool
+_bson_dsl_test_strequal (const char *string)
+{
+   bson_iter_t it = bsonVisitIter;
+   if (bson_iter_type (&it) == BSON_TYPE_UTF8) {
+      uint32_t len;
+      const char *s = bson_iter_utf8 (&it, &len);
+      if (len == strlen (string) && (0 == memcmp (s, string, len))) {
          return true;
       }
    }
