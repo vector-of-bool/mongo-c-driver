@@ -2550,22 +2550,22 @@ test_bson_dsl (void)
 
    bsonParse (
       meow,
-      findKey (
-         "foo",
-         ifType (array,
-                 nop,
-                 parse (findKey (
-                    "meow",
-                    visitEach (parse (find (
-                       key ("bark"),
-                       parse (findKey (
-                          "foo",
-                          parse (findKey (
-                             "foo",
-                             parse (findKey (
-                                "foo",
-                                continue,
-                                parse (findKey ("nope", nop))))))))))))))));
+      find (
+         key ("foo"),
+         ifType (
+            array,
+            nop,
+            parse (find (
+               key ("meow"),
+               visitEach (parse (find (
+                  key ("bark"),
+                  parse (find (
+                     key ("foo"),
+                     parse (find (key ("foo"),
+                                  parse (find (key ("foo"),
+                                               continue,
+                                               parse (find (key ("nope"),
+                                                            nop))))))))))))))));
 
    bsonBuild (another,
               kv ("foo", cstr ("bar")),
@@ -2577,15 +2577,13 @@ test_bson_dsl (void)
 
    bool foundfoo = false;
    bool foundbar = false;
-   bool any_unmatched = false;
    bsonParse (another,
-              findKey ("foo", setTrue (foundfoo)),
-              findKey ("bar", setTrue (foundbar)));
+              find (key ("foo"), setTrue (foundfoo)),
+              find (key ("bar"), setTrue (foundbar)));
 
-   bsonParse (another, find (anyOf (key ("meow"), key ("foo"))));
+   bsonParse (another, find (anyOf (key ("meow"), key ("foo")), do()));
    BSON_ASSERT (foundfoo);
    BSON_ASSERT (!foundbar);
-   BSON_ASSERT (any_unmatched);
 
    bsonVisitEach (another, ifType (doc, visitEach ()));
 

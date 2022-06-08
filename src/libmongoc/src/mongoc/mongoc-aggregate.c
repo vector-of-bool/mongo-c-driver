@@ -138,8 +138,8 @@ _make_agg_cmd (const char *ns,
    bsonParse (*command,
               find (keyWithType ("pipeline", array),
                     visitEach (parse (
-                       findKey ("$out", setTrue (has_write_key), halt),
-                       findKey ("$merge", setTrue (has_write_key), halt)))));
+                       find (key ("$out"), setTrue (has_write_key), halt),
+                       find (key ("$merge"), setTrue (has_write_key), halt)))));
 
    if (bson_iter_init_find (&iter, pipeline, "pipeline") &&
        BSON_ITER_HOLDS_ARRAY (&iter)) {

@@ -320,12 +320,12 @@ _mongoc_cursor_new_with_opts (mongoc_client_t *client,
             excluding ("serverId", "sessionId", "bypassDocumentValidation")));
 
       bsonParse (*opts,
-                 findKey ("bypassDocumentValidation",
-                          ifTruthy (do( //
-                             bsonBuildAppend (cursor->opts,
-                                              kv ("byPassDocumentValidation",
-                                                  bool (true))); //
-                             ))));
+                 find (key ("bypassDocumentValidation"),
+                       ifTruthy (do( //
+                          bsonBuildAppend (cursor->opts,
+                                           kv ("byPassDocumentValidation",
+                                               bool (true))); //
+                          ))));
 
       /* only include bypassDocumentValidation if it's true */
       if (bson_iter_init_find (&iter, opts, "bypassDocumentValidation") &&

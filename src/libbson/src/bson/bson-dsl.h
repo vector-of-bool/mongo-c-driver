@@ -1,26 +1,310 @@
 #ifndef BSON_BSON_DSL_H_INCLUDED
 #define BSON_BSON_DSL_H_INCLUDED
 
+// clang-format off
 /**
  * @file bson-dsl.h
  * @brief Define a C-preprocessor DSL for working with BSON objects
  *
  * This file defines an embedded DSL for working with BSON objects consisely and
- * correctly. The main macros are:
- *
- * - @see bsonBuild(Ptr, ...)
- *       Construct a new document and assign the result to `Ptr`.
- *       bson_destroy(Ptr) will be called before the assignment, but after the
- *       construction.
- * - @see bsonBuildAppend(Ptr, ...)
- *       Append new items to the bson_t at `Ptr`. `Ptr` must be an initialized
- *       bson_t object.
- * - @see bsonBuildDecl(Var, ...)
- *       Declare a new bson_t `Var` and construct a new document into it.
- *
- * The remaining arguments are the same for all three macros, and the same as
- * the `doc()` element. See below.
+ * correctly.
+
+Each macro takes a set of arguments, often being invocations to other DSL
+meta-macros. The DSL is split into *building* expressions and
+_visiting_/_parsing_ expressions.
+
+########  ##     ## #### ##       ########  #### ##    ##  ######
+##     ## ##     ##  ##  ##       ##     ##  ##  ###   ## ##    ##
+##     ## ##     ##  ##  ##       ##     ##  ##  ####  ## ##
+########  ##     ##  ##  ##       ##     ##  ##  ## ## ## ##   ####
+##     ## ##     ##  ##  ##       ##     ##  ##  ##  #### ##    ##
+##     ## ##     ##  ##  ##       ##     ##  ##  ##   ### ##    ##
+########   #######  #### ######## ########  #### ##    ##  ######
+
+* @see bsonBuild(BSON, DocOperation...)
+
+Construct a new document and assign the result to. `BSON` must be a modifiable
+lvalue-expression of type `bson_t`. bson_destroy(&BSON) will be called before
+the assignment, but after the construction. The root operation list is
+equivalent to the `doc()` build operation
+
+* @see bsonBuildAppend(BSON, DocOperation...)
+
+Append new items to `BSON`. `BSON` must be a modifiable lvalue of type`bson_t`.
+This must be a valid `bson_t`. The root operation list is equivalent to the
+`doc()` build operation
+
+* @see bsonBuildDecl(Var, DocOperation...)
+
+Declare a new bson_t `Var` and construct a new document into it. The root
+operation list is equivalent to the `doc()` build operation
+
+Equivalent to:
+
+   bson_t Var = BSON_INITIALIZER;
+   bsonBuildAppend(Var, ...)
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+DocOperation
+
+   The operands of a doc() build operation. The following are supported:
+
+   kv(CString, ValueOperation)
+
+      Append an element with the given "CString" as a key. `CString` may be
+      any expression that evaluates to a null-terminated string.
+
+   kvl(CharPtr, Len, ValueOperation)
+
+      Append an element with the given string as a key, given as a
+      pointer-to-char and a length.
+
+   insert(OtherBSON, InsertFilter...)
+
+      `OtherBSON` must evaluate to an lvalue of type `bson_t`. Each element from
+      the OtherBSON document will be copied into the document being built.
+
+      `InsertFilter` is one or more filtering expressions. The following are
+      supported:
+
+      all - Allow any key
+
+      excluding(CString...) - Do not copy any elements matching any of the given
+      keys
+
+   if(Condition, then(DocOperation...))
+   if(Condition, then(DocOperation...), else(DocOperation...))
+
+      Conditionally perform additional document building operations based on
+      `Condition`, which must be a C expression that evaluates to a truthy or
+      falsey value. If the `else()` operand is omitted and `Condition` evaluates
+      to `false`, no action will be performed.
+
+ValueOperation
+
+   A building operator that specifies the value of the current document or array
+   element. They element's key is set separately.
+
+   null
+
+      Create a BSON null value
+
+   bool(CBoolExpr)
+
+      Create a boolean value. Evaluates the given C expression.
+
+   i32(Integer)
+   i64(Integer)
+
+      Create an integral value. Evaluates the given C expression.
+
+   cstr(CString)
+
+      Create a UTF-8 string from the given null-terminated C string. Evaluates
+      the given C expression.
+
+   utf8_w_len(CharPtr, Len)
+
+      Create a UTF-8 string from the given character pointer and length.
+
+   iter(bson_iter_t)
+
+      Copy the BSON value referred to by the given bson_iter_t. The given
+      argument must evaluate to a valid bson_iter_t lvalue.
+
+   bson(bson_t)
+
+      Duplicate the given bson_t as a document element.
+
+   bsonArray(bson_t)
+
+      Duplicate the given bson_t as an array element.
+
+   doc(DocOperation...)
+
+      Create a sub-document. with the given elements (may be empty).
+
+   array((ArrayValue) ...)
+
+      Create an array sub-document. Each operand generates some number of array
+      elements.
+
+   if(Condition, then(ValueOperation), else(ValueOperation))
+
+      If The given C expression `Condition` evaluates to `true`, use the
+      `then()` operation, otherwise use the `else()` operation to compute the
+      value.
+
+ArrayValue
+
+   ArrayValue includes most ValueOperation operators, to generate array values,
+   but defines the following array-specific operations:
+
+   insert(bson_t)
+
+      Copy each value from the given bson_t into the current array position.
+
+   if(Condition, then((ArrayValue) ...))
+   if(Condition, then((ArrayValue) ...), else(ValueOperationArrayValue))
+
+      If The C expression `Condition` evaluates to `true`, append elements using
+      the `then` clause, otherwise use the `else()` clause (which may be
+      omitted)
+
+
+########     ###    ########   ######  #### ##    ##  ######
+##     ##   ## ##   ##     ## ##    ##  ##  ###   ## ##    ##
+##     ##  ##   ##  ##     ## ##        ##  ####  ## ##
+########  ##     ## ########   ######   ##  ## ## ## ##   ####
+##        ######### ##   ##         ##  ##  ##  #### ##    ##
+##        ##     ## ##    ##  ##    ##  ##  ##   ### ##    ##
+##        ##     ## ##     ##  ######  #### ##    ##  ######
+
+* @see bsonParse(BSON, ParseOperation...)
+
+Parse the elements of the given bson_t document/array. Refer to `ParseOperation`
+below.
+
+* @see bsonVisitEach(BSON, VisitOperation...)
+
+Visit each element of the given bson_t document/array. Refer to `VisitOperation`
+below.
+
+--------------------------------------------------------------------------------
+
+The bsonParse()/parse() and bsonVisitEach()/visitEach() DSL functions may seem
+similar, but have two importantly different behaviors:
+
+The parse(...) DSL evaluates each of its operands one time in a definite order
+for the given BSON document, and can be used to quickly find keys by their name.
+
+The visit(...) DSL evaluates all of its operands in order for each element in
+the document being visited.
+
+During visiting and parsing, the special global name `bsonVisitIter` will refer
+to a bson_iter_t that points to the element currently being visited/parsed.
+Uttering this name outside of the evaluation of a bsonParse() or bsonVisitEach()
+will result in undefined behavior.
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+ParseOperation
+
+   An operation performed once for an entire document being visited. The
+   following are defined:
+
+   find(Predicate, VisitOperation...)
+
+      Find the first element of the document that satisfies the given Predicate
+      expression, which has an additional DSL below. When the element is found,
+      each VisitOperation will be evaluated on the element that was found. If no
+      element was found, nothing will happen.
+
+      When the element is found, the given VisitOperations will be evaluated
+      for the found element. The bsonVisitIter will point to the element that
+      was found.
+
+      The following operations are supported for Predicate:
+
+      key(CString)
+
+         Test an element's key string.
+
+      type(Type)
+
+         Test an element's value type.
+
+      keyWithType(K, T)
+
+         Equivalent to: allOf(key(K), type(T))
+
+      allOf(Predicate...)
+
+         Matches only if _all_ sub-predicates matches
+
+      anyOf(Predicate...)
+
+         Matches if _any_ sub-predicate matches.
+
+   else(ParseOperation...) [Parse operation]
+
+      If the previously executed ParseOperation did not match any key, evaluate
+      the given ParseOperations.
+
+   if(Condition, then(ParseOperation...)) [Parse operation]
+   if(Condition, then(ParseOperation...), else(ParseOperation...))
+
+      If the given C expression `Condition` evaluates to `true`, evaluate the
+      `then()` clause, otherwise evaluate the `else()` clause (which may be
+      omitted)
+
+   append(bson_t, DocOperation...) [Parse operation]
+
+      Executes bsonBuildAppend(bson_t, ...). The bsonVisitIter is unspecified.
+
+   do(...) [Parse operation]
+
+      Evaluate the given C code. The bsonVisitIter is unspecified.
+
+
+VisitOperation
+
+   The following operations are applied to a bson_iter_t given by the
+   bsonVisitIter global name.
+
+   halt
+
+      Stop the entire bsonParse/bsonVisit call immediately.
+
+   storeBool(B)
+
+      If the bsonVisitIter is a boolean value, assign that value in the C
+      lvalue-expression given as B
+
+   found(IterDest)
+
+      Assign the bsonVisitIter into the bson_iter_t lvalue-expression given as
+      IterDest.
+
+   do(...) [Visit operation]
+
+      Evaluate the given C code. The bsonVisitIter names the currently visited
+      element.
+
+   append(BSON, DocOperation...) [Visit operation]
+
+      Evaluate bsonBuild(BSON, ...). The bsonVisitIter names the currently
+      visited element.
+
+   setTrue(bool)
+   setFalse(bool)
+
+      Store 'true' or 'false' (respectively) into the bool lvalue-expression.
+
+   break
+
+      Stop the current application of VisitOperations and do not visit any more
+      elements. Only valid within a visitEach() scope.
+
+   continue
+
+      Stop the current application of VisitOperations and advance to the next
+      element. Only valid within a visitEach() scope.
+
+   visitEach(VisitOperation...)
+
+      Evaluate bsonVisitEach() for the current BSON document/array being
+      visited.
+
+   parse(ParseOperation...)
+
+      Evaluate bsonParse() for the current BSON document/array being visited.
+
  */
+// clang-format on
 
 #include "bson.h"
 
@@ -220,10 +504,8 @@ bsonParse_createPathString ();
    --_bbCtx.index;                                                           \
    _bsonDSL_end
 
-#define _bsonBuild_docIfThen_then \
-   _bsonBuildAppendWithCurrentContext _bsonDSL_nothing ()
-#define _bsonBuild_docIfElse_else \
-   _bsonBuildAppendWithCurrentContext _bsonDSL_nothing ()
+#define _bsonBuild_docIfThen_then _bsonBuildAppendWithCurrentContext
+#define _bsonBuild_docIfElse_else _bsonBuildAppendWithCurrentContext
 
 #define _bsonBuild_docIfThenElse(Condition, Then, Else)                 \
    if ((Condition)) {                                                   \
@@ -291,7 +573,7 @@ bsonParse_createPathString ();
    _bbCtx.key = _bbCtx.strbuf64
 
 /// Handle an element of array()
-#define _bsonDSL_array(Element, _nil, _count)                          \
+#define _bsonBuild_array(Element, _nil, _count)                        \
    _bsonDSL_begin (                                                    \
       "[%d] => [%s]", bsonBuildContext.index, _bsonDSL_str (Element)); \
    /* Set the doc key to the array index as a string: */               \
@@ -306,49 +588,48 @@ bsonParse_createPathString ();
    _bsonDSL_mapMacro (_bsonBuild_doc, ~, __VA_ARGS__)
 
 #define _bsonBuildArrayWithCurrentContext(...) \
-   _bsonDSL_mapMacro (_bsonDSL_array, ~, __VA_ARGS__)
+   _bsonDSL_mapMacro (_bsonBuild_array, ~, __VA_ARGS__)
 
 #define _bsonDSL_iterType_array BSON_TYPE_ARRAY
 #define _bsonDSL_iterType_bool BSON_TYPE_BOOL
 #define _bsonDSL_iterType__Bool BSON_TYPE_BOOL
 #define _bsonDSL_iterType_doc BSON_TYPE_DOCUMENT
 
-#define _bsonVisitOp_ifType(T, ...)                      \
-   if (bson_iter_type_unsafe (&bsonVisitContext.iter) == \
-       _bsonDSL_iterType_##T) {                          \
-      _bsonVisit_applyOps (__VA_ARGS__);                 \
+#define _bsonVisitOp_ifType(T, ...)                                       \
+   if (bson_iter_type_unsafe (&bsonVisitIter) == _bsonDSL_iterType_##T) { \
+      _bsonVisit_applyOps (__VA_ARGS__);                                  \
    }
 
 #define _bsonVisitOp_halt _bvHalt = true
 
 #define _bsonVisitOp_ifTruthy(...)                              \
    _bsonDSL_begin ("ifTruthy(%s)", _bsonDSL_str (__VA_ARGS__)); \
-   if (bson_iter_as_bool (&bsonVisitContext.iter)) {            \
+   if (bson_iter_as_bool (&bsonVisitIter)) {                    \
       _bsonVisit_applyOps (__VA_ARGS__);                        \
    }                                                            \
    _bsonDSL_end;
 
-#define _bsonVisitOp_ifStrEqual(S, ...)                                    \
-   _bsonDSL_begin ("ifStrEqual(%s)", _bsonDSL_str (S));                    \
-   if (bson_iter_type_unsafe (&bsonVisitContext.iter) == BSON_TYPE_UTF8) { \
-      uint32_t len;                                                        \
-      const char *str = bson_iter_utf8 (&bsonVisitContext.iter, &len);     \
-      if (len == strlen (S) && (0 == memcmp (str, S, len))) {              \
-         _bsonVisit_applyOps (__VA_ARGS__);                                \
-      }                                                                    \
-   }                                                                       \
+#define _bsonVisitOp_ifStrEqual(S, ...)                            \
+   _bsonDSL_begin ("ifStrEqual(%s)", _bsonDSL_str (S));            \
+   if (bson_iter_type_unsafe (&bsonVisitIter) == BSON_TYPE_UTF8) { \
+      uint32_t len;                                                \
+      const char *str = bson_iter_utf8 (&bsonVisitIter, &len);     \
+      if (len == strlen (S) && (0 == memcmp (str, S, len))) {      \
+         _bsonVisit_applyOps (__VA_ARGS__);                        \
+      }                                                            \
+   }                                                               \
    _bsonDSL_end
 
-#define _bsonVisitOp_storeBool(Dest)                       \
-   _bsonDSL_begin ("storeBool(%s)", _bsonDSL_str (Dest));  \
-   if (BSON_ITER_HOLDS_BOOL (&bsonVisitContext.iter)) {    \
-      (Dest) = bson_iter_as_bool (&bsonVisitContext.iter); \
-   }                                                       \
+#define _bsonVisitOp_storeBool(Dest)                      \
+   _bsonDSL_begin ("storeBool(%s)", _bsonDSL_str (Dest)); \
+   if (BSON_ITER_HOLDS_BOOL (&bsonVisitIter)) {           \
+      (Dest) = bson_iter_as_bool (&bsonVisitIter);        \
+   }                                                      \
    _bsonDSL_end
 
 #define _bsonVisitOp_found(IterDest)                      \
    _bsonDSL_begin ("found(%s)", _bsonDSL_str (IterDest)); \
-   (IterDest) = bsonVisitContext.iter;                    \
+   (IterDest) = bsonVisitIter;                            \
    _bsonDSL_end
 
 #define _bsonVisitOp_do(...)                                  \
@@ -536,13 +817,6 @@ d88P"  Y8P               888
 #define _bsonParse_findPredicateOr(Pred, _ignore, _ignore2) \
    || (_bsonParse_findPredicate_##Pred)
 
-/// Util find()s:
-
-#define _bsonParseOp_findKey(Key, ...) \
-   _bsonParseOp_find (key (Key), __VA_ARGS__)
-
-#define _bsonParseOp_findKeyWithType(Key, Type, ...) \
-   _bsonParseOp_find (keyWithType ((Key), Type))
 
 /*
          888

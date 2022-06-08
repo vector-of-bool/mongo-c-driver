@@ -851,8 +851,8 @@ _stream_run_hello (mongoc_cluster_t *cluster,
           cluster, &hello_cmd, &reply, error)) {
       if (negotiate_sasl_supported_mechs) {
          bool is_okay = false;
-         bsonParse (reply,
-                    findKey ("ok", ifType (bool, storeBool (is_okay), halt)));
+         bsonParse (
+            reply, find (key ("ok"), ifType (bool, storeBool (is_okay), halt)));
          if (!is_okay) {
             /* hello response returned ok: 0. According to auth spec: "If the
              * hello of the MongoDB Handshake fails with an error, drivers
@@ -1586,7 +1586,7 @@ _mongoc_cluster_scram_handle_reply (mongoc_scram_t *scram,
    BSON_ASSERT (scram);
 
    bool is_done = false;
-   bsonParse (*reply, findKey ("done", storeBool (is_done), halt));
+   bsonParse (*reply, find (key ("done"), storeBool (is_done), halt));
 
    if (bson_iter_init_find (&iter, reply, "done") &&
        bson_iter_as_bool (&iter)) {

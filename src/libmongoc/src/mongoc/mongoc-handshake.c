@@ -682,13 +682,12 @@ _mongoc_handshake_parse_sasl_supported_mechs (
    memset (sasl_supported_mechs, 0, sizeof (*sasl_supported_mechs));
    bsonParse (
       *hello,
-      findKey (
-         "saslSupportedMechs",
-         ifType (
-            array,
-            visitEach (
-               ifStrEqual ("SCRAM-SHA-256",
-                           setTrue (sasl_supported_mechs->scram_sha_256)),
-               ifStrEqual ("SCRAM-SHA-1",
-                           setTrue (sasl_supported_mechs->scram_sha_1))))));
+      find (key ("saslSupportedMechs"),
+            ifType (
+               array,
+               visitEach (
+                  ifStrEqual ("SCRAM-SHA-256",
+                              setTrue (sasl_supported_mechs->scram_sha_256)),
+                  ifStrEqual ("SCRAM-SHA-1",
+                              setTrue (sasl_supported_mechs->scram_sha_1))))));
 }
