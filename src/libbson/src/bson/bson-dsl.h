@@ -23,10 +23,10 @@ _visiting_/_parsing_ expressions.
 
 * @see bsonBuild(BSON, DocOperation...)
 
-Construct a new document and assign the result to. `BSON` must be a modifiable
-lvalue-expression of type `bson_t`. bson_destroy(&BSON) will be called before
-the assignment, but after the construction. The root operation list is
-equivalent to the `doc()` build operation
+Construct a new document and assign the result into `BSON`. `BSON` must be a
+modifiable lvalue-expression of type `bson_t`. bson_destroy(&BSON) will be
+called before the assignment, but after the construction. The root operation
+list is equivalent to the `doc()` build operation
 
 * @see bsonBuildAppend(BSON, DocOperation...)
 
@@ -126,7 +126,7 @@ ValueOperation
 
       Create a sub-document. with the given elements (may be empty).
 
-   array((ArrayValue) ...)
+   array(ArrayValue...)
 
       Create an array sub-document. Each operand generates some number of array
       elements.
@@ -146,8 +146,8 @@ ArrayValue
 
       Copy each value from the given bson_t into the current array position.
 
-   if(Condition, then((ArrayValue) ...))
-   if(Condition, then((ArrayValue) ...), else(ValueOperationArrayValue))
+   if(Condition, then(ArrayValue...))
+   if(Condition, then(ArrayValue...), else(ArrayValue...))
 
       If The C expression `Condition` evaluates to `true`, append elements using
       the `then` clause, otherwise use the `else()` clause (which may be
@@ -229,6 +229,10 @@ ParseOperation
 
          Matches if _any_ sub-predicate matches.
 
+      not(Predicate)
+
+         Matches if `Predicate` does not match
+
    else(ParseOperation...) [Parse operation]
 
       If the previously executed ParseOperation did not match any key, evaluate
@@ -243,11 +247,12 @@ ParseOperation
 
    append(bson_t, DocOperation...) [Parse operation]
 
-      Executes bsonBuildAppend(bson_t, ...). The bsonVisitIter is unspecified.
+      Executes bsonBuildAppend(bson_t, ...). The value of bsonVisitIter is
+      unspecified.
 
    do(...) [Parse operation]
 
-      Evaluate the given C code. The bsonVisitIter is unspecified.
+      Evaluate the given C code. The value of bsonVisitIter is unspecified.
 
 
 VisitOperation
@@ -276,7 +281,7 @@ VisitOperation
 
    append(BSON, DocOperation...) [Visit operation]
 
-      Evaluate bsonBuild(BSON, ...). The bsonVisitIter names the currently
+      Evaluate bsonBuildAppend(BSON, ...). The bsonVisitIter names the currently
       visited element.
 
    setTrue(bool)
@@ -899,7 +904,9 @@ Y88b 888 Y88..88P
 
 #define _bsonParseOp_do(...)                              \
    _bsonDSL_begin ("do(%s)", _bsonDSL_str (__VA_ARGS__)); \
-   __VA_ARGS__;                                           \
+   do {                                                   \
+      __VA_ARGS__;                                        \
+   } while (0);                                           \
    _bsonDSL_end
 
 /*
