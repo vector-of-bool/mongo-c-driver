@@ -4132,12 +4132,15 @@ _test_unique_index_on_keyaltnames_case_2 (
       bson_destroy (&key_doc);
    }
 
-   /* Step 3: Repeat Step 2 and assert the operation does not fail. */
+   /* Step 3: Repeat Step 2, assert the operation does not fail, and assert the
+    * returned key document contains the keyAltName "abc" added in Step 2. */
    {
       bson_t key_doc;
       ASSERT_OR_PRINT (mongoc_client_encryption_add_key_alt_name (
                           client_encryption, &new_key, "abc", &key_doc, &error),
                        error);
+      ASSERT (
+         match_bson (&key_doc, tmp_bson ("{'keyAltNames': ['abc']}"), false));
       bson_destroy (&key_doc);
    }
 
@@ -4156,13 +4159,16 @@ _test_unique_index_on_keyaltnames_case_2 (
    }
 
    /* Step 5: Use client_encryption to add a keyAltName "def" to the existing
-    * key and assert the operation does not fail. */
+    * key, assert the operation does not fail, and assert the returned key
+    * document contains the keyAltName "def" added during Setup. */
    {
       bson_t key_doc;
       ASSERT_OR_PRINT (
          mongoc_client_encryption_add_key_alt_name (
             client_encryption, existing_key, "def", &key_doc, &error),
          error);
+      ASSERT (
+         match_bson (&key_doc, tmp_bson ("{'keyAltNames': ['def']}"), false));
       bson_destroy (&key_doc);
    }
 
@@ -4179,6 +4185,580 @@ test_unique_index_on_keyaltnames (void *unused)
 
    _test_unique_index_on_keyaltnames_setup (
       _test_unique_index_on_keyaltnames_case_2);
+}
+
+typedef struct {
+   mongoc_client_t *setupClient;
+   mongoc_client_t *encryptedClient;
+   mongoc_collection_t *encryptedColl;
+   bson_value_t ciphertext;
+   bson_value_t malformedCiphertext;
+   /* aggEvent is the CommandSucceeded or CommandFailed event observed for the
+    * 'aggregate' command run in the test. */
+   struct {
+      const char *gotType; /* "none", "succeeded", or "failed" */
+      bson_error_t gotFailedError;
+      bson_t *gotSucceededReply;
+   } aggEvent;
+} decryption_events_fixture;
+
+static void
+decryption_events_succeeded_cb (const mongoc_apm_command_succeeded_t *event)
+{
+   decryption_events_fixture *def =
+      (decryption_events_fixture *) mongoc_apm_command_succeeded_get_context (
+         event);
+   /* Only match the 'aggregate' command. */
+   if (0 != strcmp (mongoc_apm_command_succeeded_get_command_name (event),
+                    "aggregate")) {
+      return;
+   }
+   ASSERT_CMPSTR (def->aggEvent.gotType, "none");
+   def->aggEvent.gotType = "succeeded";
+   def->aggEvent.gotSucceededReply =
+      bson_copy (mongoc_apm_command_succeeded_get_reply (event));
+}
+
+static void
+decryption_events_failed_cb (const mongoc_apm_command_failed_t *event)
+{
+   decryption_events_fixture *def =
+      (decryption_events_fixture *) mongoc_apm_command_failed_get_context (
+         event);
+
+   /* Only match the 'aggregate' command. */
+   if (0 != strcmp (mongoc_apm_command_failed_get_command_name (event),
+                    "aggregate")) {
+      return;
+   }
+   ASSERT_CMPSTR (def->aggEvent.gotType, "none");
+   def->aggEvent.gotType = "failed";
+   mongoc_apm_command_failed_get_error (event, &def->aggEvent.gotFailedError);
+}
+
+decryption_events_fixture *
+decryption_events_setup (void)
+{
+   decryption_events_fixture *def = (decryption_events_fixture *) bson_malloc0 (
+      sizeof (decryption_events_fixture));
+   mongoc_client_encryption_t *clientEncryption;
+   bson_value_t keyID;
+
+   def->setupClient = test_framework_new_default_client ();
+   def->aggEvent.gotType = "none";
+
+   /* Drop and create the collection ``db.decryption_events`` */
+   {
+      mongoc_collection_t *coll = mongoc_client_get_collection (
+         def->setupClient, "db", "decryption_events");
+      bson_error_t error;
+
+      if (!mongoc_collection_drop (coll, &error)) {
+         if (error.code != MONGOC_SERVER_ERR_NS_NOT_FOUND) {
+            test_error ("unexpected error in drop: %s", error.message);
+         }
+      }
+      mongoc_collection_destroy (coll);
+   }
+
+   /* Create a ClientEncryption object */
+   {
+      mongoc_client_encryption_opts_t *ceOpts =
+         mongoc_client_encryption_opts_new ();
+      bson_t *kms_providers = _make_local_kms_provider (NULL);
+      bson_error_t error;
+
+      mongoc_client_encryption_opts_set_keyvault_client (ceOpts,
+                                                         def->setupClient);
+      mongoc_client_encryption_opts_set_keyvault_namespace (
+         ceOpts, "keyvault", "datakeys");
+      mongoc_client_encryption_opts_set_kms_providers (ceOpts, kms_providers);
+
+      clientEncryption = mongoc_client_encryption_new (ceOpts, &error);
+      ASSERT_OR_PRINT (clientEncryption, error);
+
+      bson_destroy (kms_providers);
+      mongoc_client_encryption_opts_destroy (ceOpts);
+   }
+
+   /* Create a data key. */
+   {
+      mongoc_client_encryption_datakey_opts_t *dkOpts;
+      bson_error_t error;
+      bool res;
+
+      dkOpts = mongoc_client_encryption_datakey_opts_new ();
+
+      res = mongoc_client_encryption_create_datakey (
+         clientEncryption, "local", dkOpts, &keyID, &error);
+      ASSERT_OR_PRINT (res, error);
+
+      mongoc_client_encryption_datakey_opts_destroy (dkOpts);
+   }
+
+   /* Create a valid ciphertext. */
+   {
+      mongoc_client_encryption_encrypt_opts_t *eOpts;
+      bson_error_t error;
+      bson_value_t plaintext;
+
+      eOpts = mongoc_client_encryption_encrypt_opts_new ();
+      plaintext.value_type = BSON_TYPE_UTF8;
+      plaintext.value.v_utf8.str = "hello";
+      plaintext.value.v_utf8.len = strlen (plaintext.value.v_utf8.str);
+
+      mongoc_client_encryption_encrypt_opts_set_algorithm (
+         eOpts, MONGOC_AEAD_AES_256_CBC_HMAC_SHA_512_DETERMINISTIC);
+      mongoc_client_encryption_encrypt_opts_set_keyid (eOpts, &keyID);
+
+      ASSERT_OR_PRINT (
+         mongoc_client_encryption_encrypt (
+            clientEncryption, &plaintext, eOpts, &def->ciphertext, &error),
+         error);
+
+      mongoc_client_encryption_encrypt_opts_destroy (eOpts);
+   }
+
+   /* Create a malformed ciphertext. */
+   {
+      bson_value_copy (&def->ciphertext, &def->malformedCiphertext);
+      ASSERT (def->ciphertext.value_type == BSON_TYPE_BINARY);
+      /* Change the last data byte to make malformed. The last data byte is
+       * part of the HMAC tag. */
+      def->malformedCiphertext.value.v_binary
+         .data[def->malformedCiphertext.value.v_binary.data_len - 1]++;
+   }
+
+   /* Create a MongoClient with automatic decryption. */
+   {
+      mongoc_auto_encryption_opts_t *aeOpts =
+         mongoc_auto_encryption_opts_new ();
+      bson_t *kms_providers = _make_local_kms_provider (NULL);
+      bson_error_t error;
+      mongoc_uri_t *uri;
+
+      mongoc_auto_encryption_opts_set_keyvault_namespace (
+         aeOpts, "keyvault", "datakeys");
+      mongoc_auto_encryption_opts_set_kms_providers (aeOpts, kms_providers);
+      uri = test_framework_get_uri ();
+      /* disable retryable reads so only one event is emitted on failure. */
+      mongoc_uri_set_option_as_bool (uri, MONGOC_URI_RETRYREADS, false);
+      def->encryptedClient =
+         test_framework_client_new_from_uri (uri, NULL /* api */);
+      test_framework_set_ssl_opts (def->encryptedClient);
+
+      ASSERT (mongoc_client_set_error_api (def->encryptedClient,
+                                           MONGOC_ERROR_API_VERSION_2));
+      ASSERT_OR_PRINT (mongoc_client_enable_auto_encryption (
+                          def->encryptedClient, aeOpts, &error),
+                       error);
+
+      def->encryptedColl = mongoc_client_get_collection (
+         def->encryptedClient, "db", "decryption_events");
+
+      bson_destroy (kms_providers);
+      mongoc_auto_encryption_opts_destroy (aeOpts);
+      mongoc_uri_destroy (uri);
+   }
+
+   /* Monitor for CommandSucceeded and CommandFailed events. */
+   {
+      mongoc_apm_callbacks_t *cbs = mongoc_apm_callbacks_new ();
+      mongoc_apm_set_command_succeeded_cb (cbs, decryption_events_succeeded_cb);
+      mongoc_apm_set_command_failed_cb (cbs, decryption_events_failed_cb);
+      mongoc_client_set_apm_callbacks (def->encryptedClient, cbs, def);
+      mongoc_apm_callbacks_destroy (cbs);
+   }
+
+   mongoc_client_encryption_destroy (clientEncryption);
+   bson_value_destroy (&keyID);
+   return def;
+}
+
+static void
+decryption_events_fixture_destroy (decryption_events_fixture *def)
+{
+   mongoc_client_destroy (def->setupClient);
+   mongoc_client_destroy (def->encryptedClient);
+   mongoc_collection_destroy (def->encryptedColl);
+   bson_value_destroy (&def->ciphertext);
+   bson_value_destroy (&def->malformedCiphertext);
+   bson_destroy (def->aggEvent.gotSucceededReply);
+   bson_free (def);
+}
+
+/* Prose test 14: Case 1: Command Error */
+/* test_decryption_events_command_error is a regression test for CDRIVER-4401.
+ * Send a command on an encrypted client resulting in a { 'ok': 0 } reply.
+ * Expect an error returned and a CommandFailed event to be emitted. */
+static void
+test_decryption_events_case1 (void *unused)
+{
+   bool got;
+   bson_error_t error;
+   decryption_events_fixture *def = decryption_events_setup ();
+   const bson_t *found;
+   mongoc_cursor_t *cursor;
+
+   got = mongoc_client_command_simple (
+      def->setupClient,
+      "admin",
+      tmp_bson ("{'configureFailPoint': 'failCommand', 'mode': {'times': 1}, "
+                "'data': {'errorCode': 123, 'failCommands': ['aggregate']}}"),
+      NULL /* read prefs */,
+      NULL /* reply */,
+      &error);
+   ASSERT_OR_PRINT (got, error);
+
+   cursor = mongoc_collection_aggregate (def->encryptedColl,
+                                         MONGOC_QUERY_NONE,
+                                         tmp_bson ("{}"),
+                                         NULL /* opts */,
+                                         NULL /* read prefs */);
+
+   got = mongoc_cursor_next (cursor, &found);
+   ASSERT_WITH_MSG (!got,
+                    "Expected error in mongoc_cursor_next, but got success");
+
+   ASSERT (mongoc_cursor_error (cursor, &error));
+
+   ASSERT_ERROR_CONTAINS (error, MONGOC_ERROR_SERVER, 123, "failpoint");
+
+   ASSERT_CMPSTR (def->aggEvent.gotType, "failed");
+   ASSERT_ERROR_CONTAINS (
+      def->aggEvent.gotFailedError, MONGOC_ERROR_SERVER, 123, "failpoint");
+   ASSERT (!got);
+   mongoc_cursor_destroy (cursor);
+   decryption_events_fixture_destroy (def);
+}
+
+/* Prose test 14: Case 2: Network Error */
+/* test_decryption_events_network_error is a regression test for CDRIVER-4401.
+ * Send a command on an encrypted client resulting in a network error.
+ * Expect an error returned and a CommandFailed event to be emitted. */
+static void
+test_decryption_events_case2 (void *unused)
+
+{
+   bool got;
+   bson_error_t error;
+   decryption_events_fixture *def = decryption_events_setup ();
+   const bson_t *found;
+   mongoc_cursor_t *cursor;
+
+   got = mongoc_client_command_simple (
+      def->setupClient,
+      "admin",
+      tmp_bson ("{'configureFailPoint': 'failCommand', 'mode': {'times': 1}, "
+                "'data': {'errorCode': 123, 'closeConnection': true, "
+                "'failCommands': ['aggregate']}}"),
+      NULL /* read prefs */,
+      NULL /* reply */,
+      &error);
+   ASSERT_OR_PRINT (got, error);
+
+   cursor = mongoc_collection_aggregate (def->encryptedColl,
+                                         MONGOC_QUERY_NONE,
+                                         tmp_bson ("{}"),
+                                         NULL /* opts */,
+                                         NULL /* read prefs */);
+   got = mongoc_cursor_next (cursor, &found);
+   ASSERT_WITH_MSG (!got,
+                    "Expected error in mongoc_cursor_next, but got success");
+   ASSERT (mongoc_cursor_error (cursor, &error));
+   ASSERT_ERROR_CONTAINS (
+      error, MONGOC_ERROR_STREAM, MONGOC_ERROR_STREAM_SOCKET, "socket error");
+
+   ASSERT_CMPSTR (def->aggEvent.gotType, "failed");
+   ASSERT_ERROR_CONTAINS (def->aggEvent.gotFailedError,
+                          MONGOC_ERROR_STREAM,
+                          MONGOC_ERROR_STREAM_SOCKET,
+                          "socket error");
+   ASSERT (!got);
+   mongoc_cursor_destroy (cursor);
+   decryption_events_fixture_destroy (def);
+}
+
+/* Prose test 14: Case 3: Decrypt Error. */
+/* test_decryption_events_decrypt_error is a regression test for CDRIVER-4401.
+ * Decrypt a reply with a malformed ciphertext.
+ * Expect an error returned and a CommandSucceeded event to be emitted with
+ * ciphertext. */
+static void
+test_decryption_events_case3 (void *unused)
+{
+   bool got;
+   bson_error_t error;
+   decryption_events_fixture *def = decryption_events_setup ();
+   bson_t to_insert = BSON_INITIALIZER;
+   const bson_t *found;
+   mongoc_cursor_t *cursor;
+
+   BSON_APPEND_VALUE (&to_insert, "encrypted", &def->malformedCiphertext);
+
+   got = mongoc_collection_insert_one (def->encryptedColl,
+                                       &to_insert,
+                                       NULL /* opts */,
+                                       NULL /* reply */,
+                                       &error);
+   ASSERT_OR_PRINT (got, error);
+
+   cursor = mongoc_collection_aggregate (def->encryptedColl,
+                                         MONGOC_QUERY_NONE,
+                                         tmp_bson ("{}"),
+                                         NULL /* opts */,
+                                         NULL /* read prefs */);
+   got = mongoc_cursor_next (cursor, &found);
+   ASSERT_WITH_MSG (!got,
+                    "Expected error in mongoc_cursor_next, but got success");
+
+   ASSERT (mongoc_cursor_error (cursor, &error));
+
+   ASSERT_ERROR_CONTAINS (
+      error, MONGOC_ERROR_CLIENT_SIDE_ENCRYPTION, 1, "HMAC validation failure");
+
+   ASSERT_CMPSTR (def->aggEvent.gotType, "succeeded");
+   ASSERT_MATCH (def->aggEvent.gotSucceededReply,
+                 "{ 'cursor' : { 'firstBatch' : [ { 'encrypted': { "
+                 "'$$type': 'binData' }} ] } }");
+
+   mongoc_cursor_destroy (cursor);
+   bson_destroy (&to_insert);
+   decryption_events_fixture_destroy (def);
+}
+
+/* Prose test 14: Case 4: Decrypt Success. */
+/* test_decryption_events_decrypt_success is a regression test for CDRIVER-4401.
+ * Decrypt a reply with a valid ciphertext.
+ * Expect a successful return and a CommandSucceeded event to be emitted with
+ * ciphertext. */
+static void
+test_decryption_events_case4 (void *unused)
+{
+   bool got;
+   bson_error_t error;
+   decryption_events_fixture *def = decryption_events_setup ();
+   bson_t to_insert = BSON_INITIALIZER;
+   const bson_t *found;
+   mongoc_cursor_t *cursor;
+
+   BSON_APPEND_VALUE (&to_insert, "encrypted", &def->ciphertext);
+
+   got = mongoc_collection_insert_one (def->encryptedColl,
+                                       &to_insert,
+                                       NULL /* opts */,
+                                       NULL /* reply */,
+                                       &error);
+   ASSERT_OR_PRINT (got, error);
+
+   cursor = mongoc_collection_aggregate (def->encryptedColl,
+                                         MONGOC_QUERY_NONE,
+                                         tmp_bson ("{}"),
+                                         NULL /* opts */,
+                                         NULL /* read prefs */);
+   got = mongoc_cursor_next (cursor, &found);
+   ASSERT_OR_PRINT (!mongoc_cursor_error (cursor, &error), error);
+   ASSERT (got);
+
+   ASSERT_CMPSTR (def->aggEvent.gotType, "succeeded");
+
+   ASSERT_MATCH (def->aggEvent.gotSucceededReply,
+                 "{ 'cursor' : { 'firstBatch' : [ { 'encrypted': { "
+                 "'$$type': 'binData' }} ] } }");
+
+   mongoc_cursor_destroy (cursor);
+   bson_destroy (&to_insert);
+   decryption_events_fixture_destroy (def);
+}
+
+/* test_qe_docs_example tests the documentation example requested in
+ * CDRIVER-4379. */
+static void
+test_qe_docs_example (void *unused)
+{
+   bson_error_t error;
+   mongoc_client_t *const client = test_framework_new_default_client ();
+   bson_t *const kmsProviders =
+      _make_kms_providers (false /* with aws */, true /* with local */);
+   bson_value_t key1ID;
+   bson_value_t key2ID;
+   bson_t *encryptedFieldsMap;
+   mongoc_client_t *encryptedClient;
+   mongoc_collection_t *encryptedColl;
+
+   /* Drop data from prior test runs. */
+   {
+      mongoc_database_t *db;
+      mongoc_collection_t *coll;
+
+      coll = mongoc_client_get_collection (client, "keyvault", "datakeys");
+      if (!mongoc_collection_drop (coll, &error)) {
+         bool ignored_error = NULL != strstr (error.message, "ns not found");
+         ASSERT_OR_PRINT (ignored_error, error);
+      }
+      mongoc_collection_destroy (coll);
+
+      db = mongoc_client_get_database (client, "docsExamples");
+      ASSERT_OR_PRINT (mongoc_database_drop (db, &error), error);
+      mongoc_database_destroy (db);
+   }
+
+   /* Create two data keys. */
+   {
+      mongoc_client_encryption_opts_t *ceOpts;
+      mongoc_client_encryption_t *ce;
+      mongoc_client_encryption_datakey_opts_t *dkOpts;
+
+      ceOpts = mongoc_client_encryption_opts_new ();
+      mongoc_client_encryption_opts_set_kms_providers (ceOpts, kmsProviders);
+      mongoc_client_encryption_opts_set_keyvault_namespace (
+         ceOpts, "keyvault", "datakeys");
+      mongoc_client_encryption_opts_set_keyvault_client (ceOpts, client);
+      ce = mongoc_client_encryption_new (ceOpts, &error);
+      ASSERT_OR_PRINT (ce, error);
+
+      dkOpts = mongoc_client_encryption_datakey_opts_new ();
+      ASSERT_OR_PRINT (mongoc_client_encryption_create_key (
+                          ce, "local", dkOpts, &key1ID, &error),
+                       error);
+      ASSERT_OR_PRINT (mongoc_client_encryption_create_key (
+                          ce, "local", dkOpts, &key2ID, &error),
+                       error);
+
+      mongoc_client_encryption_datakey_opts_destroy (dkOpts);
+      mongoc_client_encryption_destroy (ce);
+      mongoc_client_encryption_opts_destroy (ceOpts);
+   }
+
+   /* Create an encryptedFieldsMap. */
+   /* clang-format off */
+   encryptedFieldsMap = BCON_NEW (
+      "docsExamples.encrypted", "{",
+         "fields", "[",
+            "{",
+               "path", "encryptedIndexed",
+               "bsonType", "string",
+               "keyId", BCON_BIN (key1ID.value.v_binary.subtype,
+                                  key1ID.value.v_binary.data,
+                                  key1ID.value.v_binary.data_len),
+               "queries", "[", "{", "queryType", "equality", "}", "]",
+            "}",
+            "{",
+               "path", "encryptedUnindexed",
+               "bsonType", "string",
+               "keyId", BCON_BIN (key2ID.value.v_binary.subtype,
+                                  key2ID.value.v_binary.data,
+                                  key2ID.value.v_binary.data_len),
+            "}",
+         "]",
+      "}"
+   );
+   /* clang-format on */
+
+   /* Create an Queryable Encryption collection. */
+   {
+      mongoc_auto_encryption_opts_t *aeOpts;
+      mongoc_database_t *db;
+
+      encryptedClient = test_framework_new_default_client ();
+      aeOpts = mongoc_auto_encryption_opts_new ();
+      mongoc_auto_encryption_opts_set_kms_providers (aeOpts, kmsProviders);
+      mongoc_auto_encryption_opts_set_keyvault_namespace (
+         aeOpts, "keyvault", "datakeys");
+      mongoc_auto_encryption_opts_set_encrypted_fields_map (aeOpts,
+                                                            encryptedFieldsMap);
+      ASSERT_OR_PRINT (
+         mongoc_client_enable_auto_encryption (encryptedClient, aeOpts, &error),
+         error);
+      /* Create the Queryable Encryption collection docsExample.encrypted. */
+      db = mongoc_client_get_database (encryptedClient, "docsExamples");
+      /* Because docsExample.encrypted is in encryptedFieldsMap, it is created
+       * with Queryable Encryption support. */
+      encryptedColl = mongoc_database_create_collection (
+         db, "encrypted", NULL /* opts */, &error);
+      ASSERT_OR_PRINT (encryptedColl, error);
+
+      mongoc_database_destroy (db);
+      mongoc_auto_encryption_opts_destroy (aeOpts);
+   }
+
+   /* Auto encrypt an insert and find. */
+   {
+      /* Encrypt an insert. */
+      bson_t *to_insert;
+      bson_t *filter;
+      const bson_t *got;
+      mongoc_cursor_t *cursor;
+      bool found;
+      bson_iter_t iter;
+
+      to_insert = BCON_NEW ("_id",
+                            BCON_INT32 (1),
+                            "encryptedIndexed",
+                            "indexedValue",
+                            "encryptedUnindexed",
+                            "unindexedValue");
+
+      ASSERT_OR_PRINT (mongoc_collection_insert_one (encryptedColl,
+                                                     to_insert,
+                                                     NULL /* opts */,
+                                                     NULL /* reply */,
+                                                     &error),
+                       error);
+
+      filter = BCON_NEW ("encryptedIndexed", "indexedValue");
+      cursor = mongoc_collection_find_with_opts (
+         encryptedColl, filter, NULL /* opts */, NULL /* read prefs */);
+      found = mongoc_cursor_next (cursor, &got);
+      ASSERT_OR_PRINT (!mongoc_cursor_error (cursor, &error), error);
+      ASSERT (found);
+      ASSERT (bson_iter_init_find (&iter, got, "encryptedIndexed"));
+      ASSERT (BSON_ITER_HOLDS_UTF8 (&iter));
+      ASSERT_CMPSTR (bson_iter_utf8 (&iter, NULL /* length */), "indexedValue");
+      ASSERT (bson_iter_init_find (&iter, got, "encryptedUnindexed"));
+      ASSERT (BSON_ITER_HOLDS_UTF8 (&iter));
+      ASSERT_CMPSTR (bson_iter_utf8 (&iter, NULL /* length */),
+                     "unindexedValue");
+
+      mongoc_cursor_destroy (cursor);
+      bson_destroy (filter);
+      bson_destroy (to_insert);
+   }
+
+   /* Find documents without decryption. */
+   {
+      mongoc_collection_t *unencryptedColl;
+      bson_t *filter;
+      const bson_t *got;
+      mongoc_cursor_t *cursor;
+      bool found;
+      bson_iter_t iter;
+
+      unencryptedColl =
+         mongoc_client_get_collection (client, "docsExamples", "encrypted");
+      filter = BCON_NEW ("_id", BCON_INT32 (1));
+      cursor = mongoc_collection_find_with_opts (
+         unencryptedColl, filter, NULL /* opts */, NULL /* read prefs */);
+      found = mongoc_cursor_next (cursor, &got);
+      ASSERT_OR_PRINT (!mongoc_cursor_error (cursor, &error), error);
+      ASSERT (found);
+      ASSERT (bson_iter_init_find (&iter, got, "encryptedIndexed"));
+      ASSERT (BSON_ITER_HOLDS_BINARY (&iter));
+      ASSERT (bson_iter_init_find (&iter, got, "encryptedUnindexed"));
+      ASSERT (BSON_ITER_HOLDS_BINARY (&iter));
+
+      mongoc_cursor_destroy (cursor);
+      bson_destroy (filter);
+      mongoc_collection_destroy (unencryptedColl);
+   }
+
+   mongoc_collection_destroy (encryptedColl);
+   mongoc_client_destroy (encryptedClient);
+   bson_destroy (encryptedFieldsMap);
+   bson_value_destroy (&key2ID);
+   bson_value_destroy (&key1ID);
+   bson_destroy (kmsProviders);
+   mongoc_client_destroy (client);
 }
 
 void
@@ -4383,6 +4963,48 @@ test_client_side_encryption_install (TestSuite *suite)
    TestSuite_AddFull (suite,
                       "/client_side_encryption/explicit_encryption/case5",
                       test_explicit_encryption_case5,
+                      NULL /* dtor */,
+                      NULL /* ctx */,
+                      test_framework_skip_if_no_client_side_encryption,
+                      test_framework_skip_if_max_wire_version_less_than_17,
+                      test_framework_skip_if_single);
+
+   TestSuite_AddFull (suite,
+                      "/client_side_encryption/decryption_events/case1",
+                      test_decryption_events_case1,
+                      NULL /* dtor */,
+                      NULL /* ctx */,
+                      test_framework_skip_if_no_client_side_encryption,
+                      test_framework_skip_if_max_wire_version_less_than_8);
+
+   TestSuite_AddFull (suite,
+                      "/client_side_encryption/decryption_events/case2",
+                      test_decryption_events_case2,
+                      NULL /* dtor */,
+                      NULL /* ctx */,
+                      test_framework_skip_if_no_client_side_encryption,
+                      test_framework_skip_if_max_wire_version_less_than_8);
+
+   TestSuite_AddFull (suite,
+                      "/client_side_encryption/decryption_events/case3",
+                      test_decryption_events_case3,
+                      NULL /* dtor */,
+                      NULL /* ctx */,
+                      test_framework_skip_if_no_client_side_encryption,
+                      test_framework_skip_if_max_wire_version_less_than_8);
+
+
+   TestSuite_AddFull (suite,
+                      "/client_side_encryption/decryption_events/case4",
+                      test_decryption_events_case4,
+                      NULL /* dtor */,
+                      NULL /* ctx */,
+                      test_framework_skip_if_no_client_side_encryption,
+                      test_framework_skip_if_max_wire_version_less_than_8);
+
+   TestSuite_AddFull (suite,
+                      "/client_side_encryption/qe_docs_example",
+                      test_qe_docs_example,
                       NULL /* dtor */,
                       NULL /* ctx */,
                       test_framework_skip_if_no_client_side_encryption,
