@@ -313,11 +313,11 @@ _mongoc_cursor_new_with_opts (mongoc_client_t *client,
          (void) mongoc_cursor_set_hint (cursor, server_id);
       }
 
-      bsonBuildAppend (
-         cursor->opts,
-         insert (
-            *opts,
-            excluding ("serverId", "sessionId", "bypassDocumentValidation")));
+      bsonBuildAppend (cursor->opts,
+                       insert (*opts,
+                               noneOf (key ("serverId"),
+                                       key ("sessionId"),
+                                       key ("bypassDocumentatValidation"))));
 
       bsonParse (*opts,
                  find (key ("bypassDocumentValidation"),

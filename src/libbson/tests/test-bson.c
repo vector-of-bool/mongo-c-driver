@@ -2545,7 +2545,7 @@ test_bson_dsl (void)
 
    bsonBuild (meow, kv ("top", array (i32 (56), if (1, then (i32 (88))))));
 
-   bsonBuildDecl (another, insert (meow, all));
+   bsonBuildDecl (another, insert (meow, true));
    BSON_ASSERT_BSON_EQUAL (&meow, &another);
 
    bsonParse (

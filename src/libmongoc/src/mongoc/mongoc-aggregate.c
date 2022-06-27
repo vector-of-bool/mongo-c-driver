@@ -126,13 +126,14 @@ _make_agg_cmd (const char *ns,
     * items for the pipeline, or {"pipeline": [...]}.
     */
    bson_iter_t pipeline_iter;
-   bsonParse (*pipeline,
-              find (keyWithType ("pipeline", array),
-                    // There is a "pipeline" array in the document
-                    append (*command, kv ("pipeline", iter (bsonVisitIter)))),
-              else( // We did not find a "pipeline" array. copy the pipeline as
-                    // an array into the command
-                 append (*command, kv ("pipeline", bsonArray (*pipeline)))));
+   bsonParse (
+      *pipeline,
+      find (keyWithType ("pipeline", array),
+            // There is a "pipeline" array in the document
+            append (*command, kv ("pipeline", iterValue (bsonVisitIter)))),
+      else( // We did not find a "pipeline" array. copy the pipeline as
+            // an array into the command
+         append (*command, kv ("pipeline", array (insert (*pipeline, true))))));
 
    // Check if there is a $merge or $out in the pipeline for the command
    bsonParse (*command,

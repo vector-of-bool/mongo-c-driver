@@ -538,9 +538,9 @@ _mongoc_cmd_parts_assemble_mongos (mongoc_cmd_parts_t *parts,
          parts->assembled_body,
          kv ("$query",
              doc (if (has_dollar_query,
-                      then (insertFromIter (dollar_query, all)),
-                      else(insert (*parts->body, all))),
-                  insert (parts->extra, all),
+                      then (insertFromIter (dollar_query, true)),
+                      else(insert (*parts->body, true))),
+                  insert (parts->extra, true),
                   if (requires_read_concern,
                       then (kv ("readConcern",
                                 bson (parts->read_concern_document)))),
@@ -554,7 +554,7 @@ _mongoc_cmd_parts_assemble_mongos (mongoc_cmd_parts_t *parts,
       if (has_dollar_query) {
          /* copy anything that isn't in user's $query */
          bsonBuildAppend (parts->assembled_body,
-                          insert (*parts->body, excluding ("$query")));
+                          insert (*parts->body, not(key ("$query"))));
       }
 
       parts->assembled.command = &parts->assembled_body;
@@ -563,8 +563,8 @@ _mongoc_cmd_parts_assemble_mongos (mongoc_cmd_parts_t *parts,
       bsonBuildAppend (
          parts->assembled_body,
          kv ("$query",
-             doc (insertFromIter (dollar_query, all),
-                  insert (parts->extra, all),
+             doc (insertFromIter (dollar_query, true),
+                  insert (parts->extra, true),
                   if (requires_read_concern,
                       then (kv ("readConcern",
                                 bson (parts->read_concern_document)))),
@@ -572,7 +572,7 @@ _mongoc_cmd_parts_assemble_mongos (mongoc_cmd_parts_t *parts,
                       then (kv ("writeConcern",
                                 bson (parts->write_concern_document)))))),
          /* copy anything that isn't in user's $query */
-         insert (*parts->body, excluding ("$query")));
+         insert (*parts->body, not(key ("$query"))));
 
       parts->assembled.command = &parts->assembled_body;
    } else {
