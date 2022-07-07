@@ -2585,6 +2585,10 @@ test_bson_dsl (void)
 
    bsonVisitEach (another, if (type (doc), then (visitEach ())));
 
+   BSON_ASSERT (!bsonBuildFailed);
+   bsonBuildAppend (meow, kvl ("f\00oo", 4, null));
+   BSON_ASSERT (bsonBuildFailed);
+
    bson_destroy (&meow);
    bson_destroy (&another);
 }

@@ -121,7 +121,7 @@ ValueOperation
 
       Create a sub-document. with the given elements (may be empty).
 
-   array(ArrayValue...)
+   array(ArrayOperation...)
 
       Create an array sub-document. Each operand generates some number of array
       elements.
@@ -132,17 +132,17 @@ ValueOperation
       `then()` operation, otherwise use the `else()` operation to compute the
       value.
 
-ArrayValue
+ArrayOperation
 
-   ArrayValue includes most ValueOperation operators, to generate array values,
-   but defines the following array-specific operations:
+   ArrayOperation includes most ValueOperation operators, to generate array
+   values, but defines the following array-specific operations:
 
    insert(bson_t)
 
       Copy each value from the given bson_t into the current array position.
 
-   if(Condition, then(ArrayValue...))
-   if(Condition, then(ArrayValue...), else(ArrayValue...))
+   if(Condition, then(ArrayOperation...))
+   if(Condition, then(ArrayOperation...), else(ArrayOperation...))
 
       If The C expression `Condition` evaluates to `true`, append elements using
       the `then` clause, otherwise use the `else()` clause (which may be
@@ -372,10 +372,11 @@ VisitOperation
    _bsonDSL_end
 
 BSON_EXPORT (char *)
-bsonParse_createPathString ();
+bsonParse_strdupPathString ();
 
 #define bsonBuildContext (**_bsonBuildContextPtr ())
 #define bsonVisitContext (**_bsonVisitContextPtr ())
+#define bsonBuildFailed (*_bsonBuildFailed ())
 
 /// An iterator pointing to the current BSON value being visited.
 #define bsonVisitIter (bsonVisitContext.iter)
@@ -405,7 +406,12 @@ bsonParse_createPathString ();
  * items, and any nested doc() items, with XYZ being the doc-building
  * subcommand.
  */
-#define _bsonDocOperation(Command, _ignore, _count) _bsonDocOperation_##Command;
+#define _bsonDocOperation(Command, _ignore, _count) \
+   if (_bbOkay) {                                   \
+      _bsonDocOperation_##Command;                  \
+   }
+
+#define _bsonValueOperation(P) _bsonValueOperation_##P
 
 /// key-value pair with explicit key length
 #define _bsonDocOperation_kvl(String, Len, Element)                   \
@@ -415,8 +421,6 @@ bsonParse_createPathString ();
    _bsonValueOperation (Element);                                     \
    _bsonDSL_end
 
-#define _bsonValueOperation(P) _bsonValueOperation_##P
-
 /// Key-value pair with a C-string
 #define _bsonDocOperation_kv(String, Element) \
    _bsonDocOperation_kvl ((String), strlen ((String)), Element)
@@ -424,75 +428,78 @@ bsonParse_createPathString ();
 /// We must defer expansion of the nested doc() to allow "recursive" evaluation
 #define _bsonValueOperation_doc \
    _bsonValueOperationDeferred_doc _bsonDSL_nothing ()
-#define _bsonArrayValue_doc _bsonValueOperation_doc
+#define _bsonArrayOperation_doc(...) _bsonArrayAppendValue (doc (__VA_ARGS__))
 
-#define _bsonValueOperationDeferred_doc(...)                        \
-   _bsonDSL_begin ("doc(%s)", _bsonDSL_str (__VA_ARGS__));          \
-   /* Write to this variable as the child: */                       \
-   bson_t _bbChildDoc = BSON_INITIALIZER;                           \
-   bson_append_document_begin (_bsonBuildAppendArgs, &_bbChildDoc); \
-   _bsonBuildAppend (_bbChildDoc, __VA_ARGS__);                     \
-   bson_append_document_end (bsonBuildContext.doc, &_bbChildDoc);   \
+#define _bsonValueOperationDeferred_doc(...)                                   \
+   _bsonDSL_begin ("doc(%s)", _bsonDSL_str (__VA_ARGS__));                     \
+   /* Write to this variable as the child: */                                  \
+   bson_t _bbChildDoc = BSON_INITIALIZER;                                      \
+   _bbOkay &= bson_append_document_begin (_bsonBuildAppendArgs, &_bbChildDoc); \
+   _bsonBuildAppend (_bbChildDoc, __VA_ARGS__);                                \
+   _bbOkay &= bson_append_document_end (bsonBuildContext.doc, &_bbChildDoc);   \
    _bsonDSL_end
 
 /// We must defer expansion of the nested array() to allow "recursive"
 /// evaluation
 #define _bsonValueOperation_array \
    _bsonValueOperationDeferred_array _bsonDSL_nothing ()
-#define _bsonArrayValue_array _bsonValueOperation_array
+#define _bsonArrayOperation_array(...) \
+   _bsonArrayAppendValue (array (__VA_ARGS__))
 
-#define _bsonValueOperationDeferred_array(...)                \
-   _bsonDSL_begin ("array(%s)", _bsonDSL_str (__VA_ARGS__));  \
-   /* Write to this variable as the child array: */           \
-   bson_t _bbArray = BSON_INITIALIZER;                        \
-   bson_append_array_begin (_bsonBuildAppendArgs, &_bbArray); \
-   _bsonBuildArray (_bbArray, __VA_ARGS__);                   \
-   bson_append_array_end (bsonBuildContext.doc, &_bbArray);   \
+#define _bsonValueOperationDeferred_array(...)                           \
+   _bsonDSL_begin ("array(%s)", _bsonDSL_str (__VA_ARGS__));             \
+   /* Write to this variable as the child array: */                      \
+   bson_t _bbArray = BSON_INITIALIZER;                                   \
+   _bbOkay &= bson_append_array_begin (_bsonBuildAppendArgs, &_bbArray); \
+   _bsonBuildArray (_bbArray, __VA_ARGS__);                              \
+   _bbOkay &= bson_append_array_end (bsonBuildContext.doc, &_bbArray);   \
    _bsonDSL_end
 
 /// Append a UTF-8 string with an explicit length
 #define _bsonValueOperation_utf8_w_len(String, Len) \
-   bson_append_utf8 (_bsonBuildAppendArgs, (String), (Len))
-#define _bsonArrayValue_utf8_w_len _bsonValueOperation_utf8_w_len
+   (_bbOkay &= bson_append_utf8 (_bsonBuildAppendArgs, (String), (Len)))
+#define _bsonArrayOperation_utf8_w_len(X) _bsonArrayAppendValue (utf8_w_len (X))
 
 /// Append a "cstr" as UTF-8
 #define _bsonValueOperation_cstr(String) \
    _bsonValueOperation_utf8_w_len ((String), strlen (String))
-#define _bsonArrayValue_cstr _bsonValueOperation_cstr
+#define _bsonArrayOperation_cstr(X) _bsonArrayAppendValue (cstr (X))
 
 /// Append an int32
 #define _bsonValueOperation_i32(Integer) \
-   bson_append_int32 (_bsonBuildAppendArgs, (Integer))
-#define _bsonArrayValue_i32 _bsonValueOperation_i32
+   (_bbOkay &= bson_append_int32 (_bsonBuildAppendArgs, (Integer)))
+#define _bsonArrayOperation_i32(X) _bsonArrayAppendValue (i32 (X))
 
 /// Append an int64
 #define _bsonValueOperation_i64(Integer) \
-   bson_append_int64 (_bsonBuildAppendArgs, (Integer))
-#define _bsonArrayValue_i64 _bsonValueOperation_i64
+   (_bbOkay &= bson_append_int64 (_bsonBuildAppendArgs, (Integer)))
+#define _bsonArrayOperation_i64(X) _bsonArrayAppendValue (i64 (X))
 
 /// Append the value referenced by a given iterator
 #define _bsonValueOperation_iterValue(Iter) \
-   bson_append_iter (_bsonBuildAppendArgs, &(Iter))
-#define _bsonArrayValue_iterValue _bsonValueOperation_iterValue
+   (_bbOkay &= bson_append_iter (_bsonBuildAppendArgs, &(Iter)))
+#define _bsonArrayOperation_iterValue(X) _bsonArrayAppendValue (iterValue (X))
 
 /// Append the BSON document referenced by the given pointer
 #define _bsonValueOperation_bson(Doc) \
-   bson_append_document (_bsonBuildAppendArgs, &(Doc))
-#define _bsonArrayValue_bson _bsonValueOperation_bson
+   (_bbOkay &= bson_append_document (_bsonBuildAppendArgs, &(Doc)))
+#define _bsonArrayOperation_bson(X) _bsonArrayAppendValue (bson (X))
 
 /// Append the BSON document referenced by the given pointer as an array
 #define _bsonValueOperation_bsonArray(Arr) \
-   bson_append_array (_bsonBuildAppendArgs, &(Arr))
-#define _bsonArrayValue_bsonArray _bsonValueOperation_bsonArray
+   (_bbOkay &= bson_append_array (_bsonBuildAppendArgs, &(Arr)))
+#define _bsonArrayOperation_bsonArray(X) _bsonArrayAppendValue (bsonArray (X))
 
-#define _bsonValueOperation_bool(b) bson_append_bool (_bsonBuildAppendArgs, (b))
-#define _bsonArrayValue_bool _bsonValueOperation_bool
+#define _bsonValueOperation_bool(b) \
+   (_bbOkay &= bson_append_bool (_bsonBuildAppendArgs, (b)))
+#define _bsonArrayOperation_bool(X) _bsonArrayAppendValue (bool (X))
 #define _bsonValueOperation__Bool(b) \
-   bson_append_bool (_bsonBuildAppendArgs, (b))
-#define _bsonArrayValue__Bool _bsonValueOperation_bool
+   (_bbOkay &= bson_append_bool (_bsonBuildAppendArgs, (b)))
+#define _bsonArrayOperation__Bool(X) _bsonArrayAppendValue (_Bool (X))
 
-#define _bsonValueOperation_null bson_append_null (_bsonBuildAppendArgs)
-#define _bsonArrayValue_null _bsonValueOperation_null
+#define _bsonValueOperation_null \
+   (_bbOkay &= bson_append_null (_bsonBuildAppendArgs))
+#define _bsonArrayOperation_null _bsonArrayOperation (null)
 
 /// Insert the given BSON document into the parent document in-place
 #define _bsonDocOperation_insert(OtherBSON, ...)                              \
@@ -522,26 +529,36 @@ bsonParse_createPathString ();
    }                                                                   \
    if (_bbData) {                                                      \
       bson_t _bbDocFromIter;                                           \
-      bson_init_static (&_bbDocFromIter, _bbData, _bbLen);             \
+      _bbOkay &= bson_init_static (&_bbDocFromIter, _bbData, _bbLen);  \
       _bsonDocOperation_insert (_bbDocFromIter, __VA_ARGS__);          \
    }                                                                   \
    _bsonDSL_end
 
 /// Insert the given BSON document into the parent array. Keys of the given
 /// document are discarded and it is treated as an array of values.
-#define _bsonArrayValue_insert(OtherArr, ...)                                \
-   _bsonDSL_begin ("Insert other array: [%s]", _bsonDSL_str (OtherArr));     \
-   _bsonVisitEach (OtherArr,                /*                    */         \
-                   if (allOf (__VA_ARGS__), /*                    */         \
-                       then (do({                                            \
-                          _bsonBuild_setKeyToArrayIndex (                    \
-                             bsonBuildContext.index);                        \
-                          _bsonArrayValue_iterValue (bsonVisitIter);         \
-                          ++_bbCtx.index;                                    \
-                       }))));                                                \
-   /* Decrement once to counter the outer increment that will be applied: */ \
-   --_bbCtx.index;                                                           \
+#define _bsonArrayOperation_insert(OtherArr, ...)                        \
+   _bsonDSL_begin ("Insert other array: [%s]", _bsonDSL_str (OtherArr)); \
+   _bsonVisitEach (OtherArr,                /*                    */     \
+                   if (allOf (__VA_ARGS__), /*                    */     \
+                       then (do({                                        \
+                          _bsonBuild_setKeyToArrayIndex (                \
+                             bsonBuildContext.index);                    \
+                          _bsonArrayOperation_iterValue (bsonVisitIter); \
+                          ++_bbCtx.index;                                \
+                       }))));                                            \
    _bsonDSL_end
+
+#define _bsonArrayAppendValue(ValueOperation)                                 \
+   _bsonDSL_begin (                                                           \
+      "[%d] => [%s]", bsonBuildContext.index, _bsonDSL_str (ValueOperation)); \
+   /* Set the doc key to the array index as a string: */                      \
+   _bsonBuild_setKeyToArrayIndex (bsonBuildContext.index);                    \
+   /* Append a value: */                                                      \
+   _bsonValueOperation_##ValueOperation;                                      \
+   /* Increment the array index: */                                           \
+   ++_bbCtx.index;                                                            \
+   _bsonDSL_end
+
 
 #define _bsonDocOperationIfThen_then _bsonBuildAppendWithCurrentContext
 #define _bsonDocOperationIfElse_else _bsonBuildAppendWithCurrentContext
@@ -569,30 +586,30 @@ bsonParse_createPathString ();
                     _bsonDocOperationIfThen) (Condition, __VA_ARGS__);      \
    _bsonDSL_end
 
-#define _bsonArrayValueIfThen_then _bsonBuildArrayWithCurrentContext
-#define _bsonArrayValueIfElse_else _bsonBuildArrayWithCurrentContext
+#define _bsonArrayOperationIfThen_then _bsonBuildArrayWithCurrentContext
+#define _bsonArrayOperationIfElse_else _bsonBuildArrayWithCurrentContext
 
-#define _bsonArrayValueIfThenElse(Condition, Then, Else)                \
+#define _bsonArrayOperationIfThenElse(Condition, Then, Else)            \
    if ((Condition)) {                                                   \
       _bsonDSLDebug ("Taking TRUE branch: [%s]", _bsonDSL_str (Then));  \
-      _bsonArrayValueIfThen_##Then;                                     \
+      _bsonArrayOperationIfThen_##Then;                                 \
    } else {                                                             \
       _bsonDSLDebug ("Taking FALSE branch: [%s]", _bsonDSL_str (Else)); \
-      _bsonArrayValueIfElse_##Else;                                     \
+      _bsonArrayOperationIfElse_##Else;                                 \
    }
 
-#define _bsonArrayValueIfThen(Condition, Then)                         \
+#define _bsonArrayOperationIfThen(Condition, Then)                     \
    if ((Condition)) {                                                  \
       _bsonDSLDebug ("Taking TRUE branch: [%s]", _bsonDSL_str (Then)); \
-      _bsonArrayValueIfThen_##Then;                                    \
+      _bsonArrayOperationIfThen_##Then;                                \
    }
 
-#define _bsonArrayValue_if(Condition, ...)                                 \
+#define _bsonArrayOperation_if(Condition, ...)                             \
    _bsonDSL_begin ("Conditional value on [%s]", _bsonDSL_str (Condition)); \
    /* Pick a sub-macro depending on if there are one or two args */        \
    _bsonDSL_ifElse (_bsonDSL_hasComma (__VA_ARGS__),                       \
-                    _bsonArrayValueIfThenElse,                             \
-                    _bsonArrayValueIfThen) (Condition, __VA_ARGS__);       \
+                    _bsonArrayOperationIfThenElse,                         \
+                    _bsonArrayOperationIfThen) (Condition, __VA_ARGS__);   \
    _bsonDSL_end
 
 #define _bsonValueOperationIf_then(X) _bsonValueOperation_##X
@@ -612,22 +629,16 @@ bsonParse_createPathString ();
    _bbCtx.key = _bbCtx.strbuf64
 
 /// Handle an element of array()
-#define _bsonArrayValue(Element, _nil, _count)                         \
-   _bsonDSL_begin (                                                    \
-      "[%d] => [%s]", bsonBuildContext.index, _bsonDSL_str (Element)); \
-   /* Set the doc key to the array index as a string: */               \
-   _bsonBuild_setKeyToArrayIndex (bsonBuildContext.index);             \
-   /* Append a value: */                                               \
-   _bsonArrayValue_##Element;                                          \
-   /* Increment the array index: */                                    \
-   ++_bbCtx.index;                                                     \
-   _bsonDSL_end;
+#define _bsonArrayOperation(Element, _nil, _count) \
+   if (_bbOkay) {                                  \
+      _bsonArrayOperation_##Element;               \
+   }
 
 #define _bsonBuildAppendWithCurrentContext(...) \
    _bsonDSL_mapMacro (_bsonDocOperation, ~, __VA_ARGS__)
 
 #define _bsonBuildArrayWithCurrentContext(...) \
-   _bsonDSL_mapMacro (_bsonArrayValue, ~, __VA_ARGS__)
+   _bsonDSL_mapMacro (_bsonArrayOperation, ~, __VA_ARGS__)
 
 #define _bsonDSL_Type_double BSON_TYPE_DOUBLE
 #define _bsonDSL_Type_utf8 BSON_TYPE_UTF8
@@ -932,7 +943,7 @@ bsonParse_createPathString ();
    do {                                                                   \
       BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic push");)                 \
       BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic ignored \"-Wshadow\"");) \
-      _bsonBuildContext_t _bbCtx = {                                      \
+      struct _bsonBuildContext_t _bbCtx = {                               \
          .doc = &(BSON),                                                  \
          .parent = *_bsonBuildContextPtr (),                              \
       };                                                                  \
@@ -954,15 +965,17 @@ bsonParse_createPathString ();
    BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic push");)                 \
    BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic ignored \"-Wshadow\"");) \
    /* Save the dsl context */                                          \
-   _bsonBuildContext_t _bbCtx = (_bsonBuildContext_t){                 \
+   struct _bsonBuildContext_t _bbCtx = {                               \
       .doc = &(BSON),                                                  \
       .parent = *_bsonBuildContextPtr (),                              \
    };                                                                  \
    *_bsonBuildContextPtr () = &_bbCtx;                                 \
+   bool _bbOkay = true;                                                \
    /* Reset the context */                                             \
    _bsonBuildAppendWithCurrentContext (__VA_ARGS__);                   \
    /* Restore the dsl context */                                       \
    *_bsonBuildContextPtr () = _bbCtx.parent;                           \
+   bsonBuildFailed = !_bbOkay;                                         \
    BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic pop");)                  \
    _bsonDSL_end
 
@@ -989,14 +1002,14 @@ bsonParse_createPathString ();
 
 enum { BSON_DSL_DEBUG = 1 };
 
-typedef struct _bsonBuildContext_t {
+struct _bsonBuildContext_t {
    bson_t *doc;
    const char *key;
    int key_len;
    int index;
    char strbuf64[64];
    struct _bsonBuildContext_t *parent;
-} _bsonBuildContext_t;
+};
 
 struct _bsonVisitContext_t {
    const bson_t *doc;
@@ -1004,11 +1017,14 @@ struct _bsonVisitContext_t {
    const struct _bsonVisitContext_t *parent;
 };
 
-BSON_EXPORT (_bsonBuildContext_t **)
+extern struct _bsonBuildContext_t **
 _bsonBuildContextPtr ();
 
-BSON_EXPORT (struct _bsonVisitContext_t const **)
+extern struct _bsonVisitContext_t const **
 _bsonVisitContextPtr ();
+
+extern bool *
+_bsonBuildFailed ();
 
 #define _bsonDSLDebug(...) \
    _bson_dsl_debug (__FILE__, __LINE__, __func__, __VA_ARGS__)
