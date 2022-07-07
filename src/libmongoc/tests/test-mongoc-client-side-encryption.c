@@ -687,7 +687,7 @@ test_datakey_and_double_encryption_creating_and_using (
 
 /* Prose Test 1: Custom Key Material Test */
 static void
-test_create_key_with_custom_key_material (void *unused)
+test_create_datakey_with_custom_key_material (void *unused)
 {
    mongoc_client_t *client = NULL;
    mongoc_client_encryption_t *client_encryption = NULL;
@@ -750,7 +750,7 @@ test_create_key_with_custom_key_material (void *unused)
          datakey_opts, data, sizeof (data));
 
       ASSERT_OR_PRINT (
-         mongoc_client_encryption_create_key (
+         mongoc_client_encryption_create_datakey (
             client_encryption, "local", datakey_opts, &keyid, &error),
          error);
 
@@ -3572,6 +3572,7 @@ test_explicit_encryption_case1 (void *unused)
       mongoc_client_encryption_encrypt_opts_set_keyid (eopts, &eef->key1ID);
       mongoc_client_encryption_encrypt_opts_set_algorithm (
          eopts, MONGOC_ENCRYPT_ALGORITHM_INDEXED);
+      mongoc_client_encryption_encrypt_opts_set_contention_factor (eopts, 0);
 
       ok = mongoc_client_encryption_encrypt (
          eef->clientEncryption, &plaintext, eopts, &insertPayload, &error);
@@ -3607,6 +3608,7 @@ test_explicit_encryption_case1 (void *unused)
          eopts, MONGOC_ENCRYPT_ALGORITHM_INDEXED);
       mongoc_client_encryption_encrypt_opts_set_query_type (
          eopts, MONGOC_ENCRYPT_QUERY_TYPE_EQUALITY);
+      mongoc_client_encryption_encrypt_opts_set_contention_factor (eopts, 0);
 
       ok = mongoc_client_encryption_encrypt (
          eef->clientEncryption, &plaintext, eopts, &findPayload, &error);
@@ -3677,7 +3679,7 @@ test_explicit_encryption_case2 (void *unused)
       mongoc_client_encryption_encrypt_opts_destroy (eopts);
    }
 
-   /* Find with default contention factor of 0. Expect < 10 documents returned.
+   /* Find with contention factor of 0. Expect < 10 documents returned.
     */
    {
       bson_value_t findPayload;
@@ -3692,6 +3694,7 @@ test_explicit_encryption_case2 (void *unused)
          eopts, MONGOC_ENCRYPT_ALGORITHM_INDEXED);
       mongoc_client_encryption_encrypt_opts_set_query_type (
          eopts, MONGOC_ENCRYPT_QUERY_TYPE_EQUALITY);
+      mongoc_client_encryption_encrypt_opts_set_contention_factor (eopts, 0);
 
       ok = mongoc_client_encryption_encrypt (
          eef->clientEncryption, &plaintext, eopts, &findPayload, &error);
@@ -3850,6 +3853,7 @@ test_explicit_encryption_case4 (void *unused)
       mongoc_client_encryption_encrypt_opts_set_keyid (eopts, &eef->key1ID);
       mongoc_client_encryption_encrypt_opts_set_algorithm (
          eopts, MONGOC_ENCRYPT_ALGORITHM_INDEXED);
+      mongoc_client_encryption_encrypt_opts_set_contention_factor (eopts, 0);
 
       ok = mongoc_client_encryption_encrypt (
          eef->clientEncryption, &plaintext, eopts, &payload, &error);
@@ -4019,7 +4023,7 @@ _test_unique_index_on_keyaltnames_setup (
          opts, (char **) keyaltname, 1u);
 
       ASSERT_OR_PRINT (
-         mongoc_client_encryption_create_key (
+         mongoc_client_encryption_create_datakey (
             client_encryption, "local", opts, &existing_key, &error),
          error);
 
@@ -4052,7 +4056,7 @@ _test_unique_index_on_keyaltnames_case_1 (
       mongoc_client_encryption_datakey_opts_set_keyaltnames (
          opts, (char **) keyaltname, 1u);
 
-      ASSERT_OR_PRINT (mongoc_client_encryption_create_key (
+      ASSERT_OR_PRINT (mongoc_client_encryption_create_datakey (
                           client_encryption, "local", opts, &keyid, &error),
                        error);
 
@@ -4071,7 +4075,7 @@ _test_unique_index_on_keyaltnames_case_1 (
       mongoc_client_encryption_datakey_opts_set_keyaltnames (
          opts, (char **) keyaltname, 1u);
 
-      ASSERT (!mongoc_client_encryption_create_key (
+      ASSERT (!mongoc_client_encryption_create_datakey (
          client_encryption, "local", opts, &keyid, &error));
       ASSERT_ERROR_CONTAINS (error,
                              MONGOC_ERROR_COLLECTION,
@@ -4094,7 +4098,7 @@ _test_unique_index_on_keyaltnames_case_1 (
       mongoc_client_encryption_datakey_opts_set_keyaltnames (
          opts, (char **) keyaltname, 1u);
 
-      ASSERT (!mongoc_client_encryption_create_key (
+      ASSERT (!mongoc_client_encryption_create_datakey (
          client_encryption, "local", opts, &keyid, &error));
       ASSERT_ERROR_CONTAINS (error,
                              MONGOC_ERROR_COLLECTION,
@@ -4118,7 +4122,7 @@ _test_unique_index_on_keyaltnames_case_2 (
 
    /* Step 1: Use client_encryption to create a new local data key and assert
     * the operation does not fail. */
-   ASSERT_OR_PRINT (mongoc_client_encryption_create_key (
+   ASSERT_OR_PRINT (mongoc_client_encryption_create_datakey (
                        client_encryption, "local", opts, &new_key, &error),
                     error);
 
@@ -4618,10 +4622,10 @@ test_qe_docs_example (void *unused)
       ASSERT_OR_PRINT (ce, error);
 
       dkOpts = mongoc_client_encryption_datakey_opts_new ();
-      ASSERT_OR_PRINT (mongoc_client_encryption_create_key (
+      ASSERT_OR_PRINT (mongoc_client_encryption_create_datakey (
                           ce, "local", dkOpts, &key1ID, &error),
                        error);
-      ASSERT_OR_PRINT (mongoc_client_encryption_create_key (
+      ASSERT_OR_PRINT (mongoc_client_encryption_create_datakey (
                           ce, "local", dkOpts, &key2ID, &error),
                        error);
 
@@ -4761,6 +4765,145 @@ test_qe_docs_example (void *unused)
    mongoc_client_destroy (client);
 }
 
+struct kms_callback_data {
+   int value;
+   const char *set_error;
+   bool provide_creds;
+};
+
+static bool
+_kms_callback (void *userdata,
+               const bson_t *params,
+               bson_t *out,
+               bson_error_t *error)
+{
+   struct kms_callback_data *ctx = userdata;
+   ctx->value = 42;
+   if (ctx->set_error) {
+      bson_set_error (error,
+                      MONGOC_ERROR_CLIENT_SIDE_ENCRYPTION,
+                      1729,
+                      "%s",
+                      ctx->set_error);
+      return false;
+   }
+   if (ctx->provide_creds) {
+      uint8_t keydata[96] = {0};
+      BCON_APPEND (out,
+                   "local",
+                   "{",
+                   "key",
+                   BCON_BIN (BSON_SUBTYPE_BINARY, keydata, sizeof keydata),
+                   "}");
+   }
+   return true;
+}
+
+static void
+test_kms_callback (void *unused)
+{
+   // No interesting datakey options
+   mongoc_client_encryption_datakey_opts_t *dk_opts =
+      mongoc_client_encryption_datakey_opts_new ();
+
+   // Create a client encryption object
+   mongoc_client_encryption_opts_t *opts = mongoc_client_encryption_opts_new ();
+   mongoc_client_t *cl = test_framework_new_default_client ();
+   mongoc_client_encryption_opts_set_keyvault_client (opts, cl);
+
+   // Given it an on-demand 'local' provider
+   bson_t *empty_local = tmp_bson ("{'local': {}}");
+   mongoc_client_encryption_opts_set_kms_providers (opts, empty_local);
+   mongoc_client_encryption_opts_set_keyvault_namespace (
+      opts, "testing", "testing");
+
+   {
+      // Attempting to create a key from 'local' will fail immediately
+      // Create a client encryption object for it.
+      bson_error_t error;
+      mongoc_client_encryption_t *enc =
+         mongoc_client_encryption_new (opts, &error);
+      ASSERT_OR_PRINT (enc, error);
+
+      bson_value_t keyid;
+      mongoc_client_encryption_create_datakey (
+         enc, "local", dk_opts, &keyid, &error);
+      mongoc_client_encryption_destroy (enc);
+
+      ASSERT_ERROR_CONTAINS (error,
+                             MONGOC_ERROR_CLIENT_SIDE_ENCRYPTION,
+                             1,
+                             "Requested kms provider not configured");
+   }
+
+
+   {
+      // Now attach a callback
+      struct kms_callback_data callback_data = {0};
+      mongoc_client_encryption_opts_set_kms_credential_provider_callback (
+         opts, _kms_callback, &callback_data);
+      BSON_ASSERT (callback_data.value == 0);
+
+      bson_error_t error;
+      mongoc_client_encryption_t *enc =
+         mongoc_client_encryption_new (opts, &error);
+      ASSERT_OR_PRINT (enc, error);
+
+      bson_value_t keyid;
+
+      {
+         mongoc_client_encryption_create_datakey (
+            enc, "local", dk_opts, &keyid, &error);
+
+         // The callback will have set a value when it was called
+         BSON_ASSERT (callback_data.value == 42);
+
+         // But we still get an error, because we didn't fill in 'local'
+         ASSERT_ERROR_CONTAINS (error,
+                                MONGOC_ERROR_CLIENT_SIDE_ENCRYPTION,
+                                1,
+                                "no kms provider set");
+      }
+
+      {
+         // Now actually provide a key
+         callback_data.provide_creds = true;
+         ASSERT_OR_PRINT (mongoc_client_encryption_create_datakey (
+                             enc, "local", dk_opts, &keyid, &error),
+                          error);
+
+         // The callback will have set a value when it was called
+         BSON_ASSERT (callback_data.value == 42);
+         bson_value_destroy (&keyid);
+      }
+
+      // Clear the value and tell the callback to set its own error
+      callback_data.value = 0;
+      callback_data.set_error =
+         "This is the error that should appear from the callback";
+
+      {
+         mongoc_client_encryption_create_datakey (
+            enc, "local", dk_opts, &keyid, &error);
+         // It was called again:
+         BSON_ASSERT (callback_data.value == 42);
+
+         // This time the callback provided an error
+         ASSERT_ERROR_CONTAINS (
+            error,
+            MONGOC_ERROR_CLIENT_SIDE_ENCRYPTION,
+            1729,
+            "This is the error that should appear from the callback");
+      }
+
+      mongoc_client_encryption_destroy (enc);
+   }
+
+   mongoc_client_encryption_datakey_opts_destroy (dk_opts);
+   mongoc_client_encryption_opts_destroy (opts);
+   mongoc_client_destroy (cl);
+}
+
 void
 test_client_side_encryption_install (TestSuite *suite)
 {
@@ -4773,8 +4916,8 @@ test_client_side_encryption_install (TestSuite *suite)
    /* Prose tests from the spec. */
    TestSuite_AddFull (
       suite,
-      "/client_side_encryption/create_key_with_custom_key_material",
-      test_create_key_with_custom_key_material,
+      "/client_side_encryption/create_datakey_with_custom_key_material",
+      test_create_datakey_with_custom_key_material,
       NULL,
       NULL,
       test_framework_skip_if_no_client_side_encryption,
@@ -5010,4 +5153,12 @@ test_client_side_encryption_install (TestSuite *suite)
                       test_framework_skip_if_no_client_side_encryption,
                       test_framework_skip_if_max_wire_version_less_than_17,
                       test_framework_skip_if_single);
+
+   TestSuite_AddFull (suite,
+                      "/client_side_encryption/kms/callback",
+                      test_kms_callback,
+                      NULL, // dtor
+                      NULL, // ctx
+                      test_framework_skip_if_no_client_side_encryption,
+                      test_framework_skip_if_max_wire_version_less_than_8);
 }
