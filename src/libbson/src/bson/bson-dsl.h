@@ -374,8 +374,8 @@ VisitOperation
 BSON_EXPORT (char *)
 bsonParse_strdupPathString ();
 
-#define bsonBuildContext (**_bsonBuildContextPtr ())
-#define bsonVisitContext (**_bsonVisitContextPtr ())
+#define bsonBuildContext (*_bsonBuildContextThreadLocalPtr)
+#define bsonVisitContext (*_bsonVisitContextThreadLocalPtr)
 #define bsonBuildFailed (*_bsonBuildFailed ())
 
 /// An iterator pointing to the current BSON value being visited.
@@ -720,9 +720,9 @@ bsonParse_strdupPathString ();
       /* Reset the context */                                               \
       struct _bsonVisitContext_t _bpCtx = {                                 \
          .doc = &(Doc),                                                     \
-         .parent = *_bsonVisitContextPtr (),                                \
+         .parent = _bsonVisitContextThreadLocalPtr,                         \
       };                                                                    \
-      *_bsonVisitContextPtr () = &_bpCtx;                                   \
+      _bsonVisitContextThreadLocalPtr = &_bpCtx;                            \
       /* Iterate over each element of the document */                       \
       bson_iter_init (&_bpCtx.iter, &(Doc));                                \
       bool _bvBreak = false;                                                \
@@ -734,7 +734,7 @@ bsonParse_strdupPathString ();
          _bsonVisit_applyOps (__VA_ARGS__);                                 \
       }                                                                     \
       /* Restore the dsl context */                                         \
-      *_bsonVisitContextPtr () = bsonVisitContext.parent;                   \
+      _bsonVisitContextThreadLocalPtr = bsonVisitContext.parent;            \
    } while (0);                                                             \
    _bsonDSL_end
 
@@ -804,18 +804,18 @@ bsonParse_strdupPathString ();
       }                                       \
    } while (0);
 
-#define _bsonParse(Doc, ...)                              \
-   do {                                                   \
-      /* Reset the context */                             \
-      struct _bsonVisitContext_t _bpCtx = {               \
-         .doc = &(Doc),                                   \
-         .parent = &bsonVisitContext,                     \
-      };                                                  \
-      *_bsonVisitContextPtr () = &_bpCtx;                 \
-      bool _bpFoundElement = false;                       \
-      _bsonParse_applyOps (__VA_ARGS__);                  \
-      /* Restore the dsl context */                       \
-      *_bsonVisitContextPtr () = bsonVisitContext.parent; \
+#define _bsonParse(Doc, ...)                                     \
+   do {                                                          \
+      /* Reset the context */                                    \
+      struct _bsonVisitContext_t _bpCtx = {                      \
+         .doc = &(Doc),                                          \
+         .parent = &bsonVisitContext,                            \
+      };                                                         \
+      _bsonVisitContextThreadLocalPtr = &_bpCtx;                 \
+      bool _bpFoundElement = false;                              \
+      _bsonParse_applyOps (__VA_ARGS__);                         \
+      /* Restore the dsl context */                              \
+      _bsonVisitContextThreadLocalPtr = bsonVisitContext.parent; \
    } while (0)
 
 #define _bsonParse_applyOps(...) \
@@ -945,11 +945,11 @@ bsonParse_strdupPathString ();
       BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic ignored \"-Wshadow\"");) \
       struct _bsonBuildContext_t _bbCtx = {                               \
          .doc = &(BSON),                                                  \
-         .parent = *_bsonBuildContextPtr (),                              \
+         .parent = _bsonBuildContextThreadLocalPtr,                       \
       };                                                                  \
-      *_bsonBuildContextPtr () = &_bbCtx;                                 \
+      _bsonBuildContextThreadLocalPtr = &_bbCtx;                          \
       _bsonBuildArrayWithCurrentContext (__VA_ARGS__);                    \
-      *_bsonBuildContextPtr () = _bbCtx.parent;                           \
+      _bsonBuildContextThreadLocalPtr = _bbCtx.parent;                    \
    } while (0)
 
 /**
@@ -967,15 +967,13 @@ bsonParse_strdupPathString ();
    /* Save the dsl context */                                          \
    struct _bsonBuildContext_t _bbCtx = {                               \
       .doc = &(BSON),                                                  \
-      .parent = *_bsonBuildContextPtr (),                              \
+      .parent = _bsonBuildContextThreadLocalPtr,                       \
    };                                                                  \
-   *_bsonBuildContextPtr () = &_bbCtx;                                 \
-   bool _bbOkay = true;                                                \
+   _bsonBuildContextThreadLocalPtr = &_bbCtx;                          \
    /* Reset the context */                                             \
    _bsonBuildAppendWithCurrentContext (__VA_ARGS__);                   \
    /* Restore the dsl context */                                       \
-   *_bsonBuildContextPtr () = _bbCtx.parent;                           \
-   bsonBuildFailed = !_bbOkay;                                         \
+   _bsonBuildContextThreadLocalPtr = _bbCtx.parent;                    \
    BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic pop");)                  \
    _bsonDSL_end
 
@@ -1002,14 +1000,30 @@ bsonParse_strdupPathString ();
 
 enum { BSON_DSL_DEBUG = 1 };
 
+#ifdef _MSC_VER
+#define _bsonDSL_thread_local __declspec(thread)
+#else
+#define _bsonDSL_thread_local __thread
+#endif
+
 struct _bsonBuildContext_t {
+   /// The document that is being built
    bson_t *doc;
+   /// The key that is pending an append
    const char *key;
+   /// The length of the string given in 'key'
    int key_len;
+   /// The index of the array being built (if applicable)
    int index;
+   /// A buffer for short strings
    char strbuf64[64];
+   /// The parent context (if building a sub-document)
    struct _bsonBuildContext_t *parent;
 };
+
+/// A pointer to the current thread's bsonBuild context
+extern _bsonDSL_thread_local struct _bsonBuildContext_t
+   *_bsonBuildContextThreadLocalPtr;
 
 struct _bsonVisitContext_t {
    const bson_t *doc;
@@ -1017,11 +1031,9 @@ struct _bsonVisitContext_t {
    const struct _bsonVisitContext_t *parent;
 };
 
-extern struct _bsonBuildContext_t **
-_bsonBuildContextPtr ();
-
-extern struct _bsonVisitContext_t const **
-_bsonVisitContextPtr ();
+/// A pointer to the current thread's bsonVisit/bsonParse context
+extern _bsonDSL_thread_local struct _bsonVisitContext_t const
+   *_bsonVisitContextThreadLocalPtr;
 
 extern bool *
 _bsonBuildFailed ();

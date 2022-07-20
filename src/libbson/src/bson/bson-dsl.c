@@ -3,34 +3,18 @@
 static struct _bsonBuildContext_t _null_build_context;
 static struct _bsonVisitContext_t _null_visit_context;
 
-#ifdef _MSC_VER
-#define bson_thread_local __declspec(thread)
-#else
-#define bson_thread_local __thread
-#endif
+_bsonDSL_thread_local struct _bsonBuildContext_t
+   *_bsonBuildContextThreadLocalPtr = &_null_build_context;
 
-bson_thread_local struct _bsonBuildContext_t *_tl_bsonBuildContextPtr =
-   &_null_build_context;
+_bsonDSL_thread_local struct _bsonVisitContext_t const
+   *_bsonVisitContextThreadLocalPtr = &_null_visit_context;
 
-struct _bsonBuildContext_t **
-_bsonBuildContextPtr ()
+
+_bsonDSL_thread_local bool _tl_bsonBuildFailed = false;
+
+bool *
+_bsonBuildFailed ()
 {
-   return &_tl_bsonBuildContextPtr;
-}
-
-bson_thread_local struct _bsonVisitContext_t const *_tl_bsonVisitContextPtr =
-   &_null_visit_context;
-
-
-struct _bsonVisitContext_t const **
-_bsonVisitContextPtr ()
-{
-   return &_tl_bsonVisitContextPtr;
-}
-
-bson_thread_local bool _tl_bsonBuildFailed = false;
-
-bool* _bsonBuildFailed() {
    return &_tl_bsonBuildFailed;
 }
 
