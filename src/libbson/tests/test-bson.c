@@ -2576,8 +2576,8 @@ test_bson_dsl (void)
    bool foundfoo = false;
    bool foundbar = false;
    bsonParse (another,
-              find (key ("foo"), setTrue (foundfoo)),
-              find (key ("bar"), setTrue (foundbar)));
+              find (key ("foo"), do(foundfoo = true)),
+              find (key ("bar"), do(foundbar = true)));
 
    bsonParse (another, find (anyOf (key ("meow"), key ("foo")), do()));
    BSON_ASSERT (foundfoo);

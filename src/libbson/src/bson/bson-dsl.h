@@ -779,16 +779,6 @@ bsonParse_strdupPathString ();
       _bsonParse (inner, __VA_ARGS__);                                  \
    } while (0);
 
-#define _bsonVisitOperation_setTrue(B)                      \
-   _bsonDSL_begin ("Set [%s] to 'true'", _bsonDSL_str (B)); \
-   (B) = true;                                              \
-   _bsonDSL_end;
-
-#define _bsonVisitOperation_setFalse(B)                      \
-   _bsonDSL_begin ("Set [%s] to 'false'", _bsonDSL_str (B)); \
-   (B) = false;                                              \
-   _bsonDSL_end;
-
 #define _bsonVisitOperation_continue _bvContinue = true
 #define _bsonVisitOperation_break _bvBreak = _bvContinue = true
 #define _bsonVisitOperation_require(Cond) \

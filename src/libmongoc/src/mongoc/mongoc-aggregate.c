@@ -136,11 +136,12 @@ _make_agg_cmd (const char *ns,
          append (*command, kv ("pipeline", array (insert (*pipeline, true))))));
 
    // Check if there is a $merge or $out in the pipeline for the command
-   bsonParse (*command,
-              find (keyWithType ("pipeline", array),
-                    visitEach (parse (
-                       find (key ("$out"), setTrue (has_write_key), halt),
-                       find (key ("$merge"), setTrue (has_write_key), halt)))));
+   bsonParse (
+      *command,
+      find (keyWithType ("pipeline", array),
+            visitEach (
+               parse (find (key ("$out"), do(has_write_key = true), halt),
+                      find (key ("$merge"), do(has_write_key = true), halt)))));
 
    if (bson_iter_init_find (&iter, pipeline, "pipeline") &&
        BSON_ITER_HOLDS_ARRAY (&iter)) {

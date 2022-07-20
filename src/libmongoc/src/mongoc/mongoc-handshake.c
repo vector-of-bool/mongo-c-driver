@@ -685,7 +685,7 @@ _mongoc_handshake_parse_sasl_supported_mechs (
       find (
          keyWithType ("saslSupportedMechs", array),
          visitEach (if (strEqual ("SCRAM-SHA-256"),
-                        then (setTrue (sasl_supported_mechs->scram_sha_256))),
+                        then (do(sasl_supported_mechs->scram_sha_256 = true))),
                     if (strEqual ("SCRAM-SHA-1"),
-                        then (setTrue (sasl_supported_mechs->scram_sha_1))))));
+                        then (do(sasl_supported_mechs->scram_sha_1 = true))))));
 }
