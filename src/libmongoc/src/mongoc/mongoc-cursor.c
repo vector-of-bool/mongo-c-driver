@@ -313,11 +313,11 @@ _mongoc_cursor_new_with_opts (mongoc_client_t *client,
          (void) mongoc_cursor_set_hint (cursor, server_id);
       }
 
-      bsonBuildAppend (cursor->opts,
-                       insert (*opts,
-                               noneOf (key ("serverId"),
-                                       key ("sessionId"),
-                                       key ("bypassDocumentatValidation"))));
+      bsonBuildAppend (
+         cursor->opts,
+         insert (
+            *opts,
+            not(key ("serverId", "sessionId", "bypassDocumentatValidation"))));
 
       bsonParse (*opts,
                  find (key ("bypassDocumentValidation"),
@@ -1604,14 +1604,12 @@ mongoc_cursor_new_from_command_reply (mongoc_client_t *client,
    BSON_ASSERT (client);
    BSON_ASSERT (reply);
    /* options are passed through by adding them to reply. */
-   bson_copy_to_excluding_noinit (reply,
-                                  &opts,
-                                  "cursor",
-                                  "ok",
-                                  "operationTime",
-                                  "$clusterTime",
-                                  "$gleStats",
-                                  NULL);
+   bsonBuildAppend (
+      *reply,
+      insert (
+         opts,
+         not(key (
+            "cursor", "ok", "operationTime", "$clusterTime", "$gleStats"))));
 
    if (server_id) {
       bson_append_int64 (&opts, "serverId", 8, server_id);

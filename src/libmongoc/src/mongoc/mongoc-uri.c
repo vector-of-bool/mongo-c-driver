@@ -37,6 +37,8 @@
 #include "mongoc-compression-private.h"
 #include "utlist.h"
 
+#include <bson/bson-dsl.h>
+
 struct _mongoc_uri_t {
    char *str;
    bool is_srv;
@@ -1730,71 +1732,65 @@ bool
 mongoc_uri_set_mechanism_properties (mongoc_uri_t *uri,
                                      const bson_t *properties)
 {
-   bson_iter_t iter;
-   bson_t tmp = BSON_INITIALIZER;
-   bool r;
-
    BSON_ASSERT (uri);
    BSON_ASSERT (properties);
 
-   if (bson_iter_init_find (
-          &iter, &uri->credentials, MONGOC_URI_AUTHMECHANISMPROPERTIES)) {
-      /* copy all elements to tmp besides authMechanismProperties */
-      bson_copy_to_excluding_noinit (&uri->credentials,
-                                     &tmp,
-                                     MONGOC_URI_AUTHMECHANISMPROPERTIES,
-                                     (char *) NULL);
-
-      r = BSON_APPEND_DOCUMENT (
-         &tmp, MONGOC_URI_AUTHMECHANISMPROPERTIES, properties);
-      if (!r) {
-         bson_destroy (&tmp);
-         return false;
-      }
-
-      bson_destroy (&uri->credentials);
-      bson_copy_to (&tmp, &uri->credentials);
-      bson_destroy (&tmp);
-
-      return true;
-   } else {
-      bson_destroy (&tmp);
-      return BSON_APPEND_DOCUMENT (
-         &uri->credentials, MONGOC_URI_AUTHMECHANISMPROPERTIES, properties);
+   bsonBuildDecl (
+      new_credentials,
+      // Copy the existing credentials, dropping the existing properties if
+      // present
+      insert (uri->credentials, not(key (MONGOC_URI_AUTHMECHANISMPROPERTIES))),
+      // Append the new properties
+      kv (MONGOC_URI_AUTHMECHANISMPROPERTIES, bson (*properties)));
+   if (bsonBuildError) {
+      return false;
    }
+   bson_destroy (&uri->credentials);
+   uri->credentials = new_credentials;
+
+   return true;
 }
 
 
 static bool
 _mongoc_uri_assign_read_prefs_mode (mongoc_uri_t *uri, bson_error_t *error)
 {
-   const char *str;
-   bson_iter_t iter;
-
    BSON_ASSERT (uri);
 
-   if (bson_iter_init_find_case (
-          &iter, &uri->options, MONGOC_URI_READPREFERENCE) &&
-       BSON_ITER_HOLDS_UTF8 (&iter)) {
-      str = bson_iter_utf8 (&iter, NULL);
+   mongoc_read_mode_t mode = 0;
+   const char *pref = NULL;
+   bsonParse (uri->options,
+              find ( //
+                 iKeyWithType (MONGOC_URI_READPREFERENCE, utf8),
+                 cond ( //
+                    (iStrEqual ("primary"), do(mode = MONGOC_READ_PRIMARY)),
+                    (iStrEqual ("primaryPreferred"),
+                     do(mode = MONGOC_READ_PRIMARY_PREFERRED)),
+                    (iStrEqual ("secondary"), do(mode = MONGOC_READ_SECONDARY)),
+                    (iStrEqual ("secondaryPreferred"),
+                     do(mode = MONGOC_READ_SECONDARY_PREFERRED)),
+                    (iStrEqual ("nearest"), do(mode = MONGOC_READ_NEAREST)),
+                    (true, do({
+                        pref = bson_iter_utf8 (&bsonVisitIter, NULL);
+                        bsonParseError = "Unsupported read preference";
+                     })))));
 
-      if (0 == strcasecmp ("primary", str)) {
-         mongoc_read_prefs_set_mode (uri->read_prefs, MONGOC_READ_PRIMARY);
-      } else if (0 == strcasecmp ("primarypreferred", str)) {
-         mongoc_read_prefs_set_mode (uri->read_prefs,
-                                     MONGOC_READ_PRIMARY_PREFERRED);
-      } else if (0 == strcasecmp ("secondary", str)) {
-         mongoc_read_prefs_set_mode (uri->read_prefs, MONGOC_READ_SECONDARY);
-      } else if (0 == strcasecmp ("secondarypreferred", str)) {
-         mongoc_read_prefs_set_mode (uri->read_prefs,
-                                     MONGOC_READ_SECONDARY_PREFERRED);
-      } else if (0 == strcasecmp ("nearest", str)) {
-         mongoc_read_prefs_set_mode (uri->read_prefs, MONGOC_READ_NEAREST);
+   if (bsonParseError) {
+      const char *prefix = "Error while assigning URI read preference";
+      if (pref) {
+         MONGOC_URI_ERROR (error,
+                           "%s: %s [readPreference=\"%s\"",
+                           prefix,
+                           bsonParseError,
+                           pref);
       } else {
-         MONGOC_URI_ERROR (
-            error, "Unsupported readPreference value [readPreference=%s]", str);
-         return false;
+         MONGOC_URI_ERROR (error, "%s: %s", prefix, bsonParseError);
       }
+      return false;
+   }
+
+   if (mode != 0) {
+      mongoc_read_prefs_set_mode (uri->read_prefs, mode);
    }
    return true;
 }
@@ -1814,11 +1810,17 @@ _mongoc_uri_build_write_concern (mongoc_uri_t *uri, bson_error_t *error)
    write_concern = mongoc_write_concern_new ();
    uri->write_concern = write_concern;
 
-   if (bson_iter_init_find_case (&iter, &uri->options, MONGOC_URI_SAFE) &&
-       BSON_ITER_HOLDS_BOOL (&iter)) {
-      mongoc_write_concern_set_w (
-         write_concern,
-         bson_iter_bool (&iter) ? 1 : MONGOC_WRITE_CONCERN_W_UNACKNOWLEDGED);
+   bsonParse (
+      uri->options,
+      find (iKeyWithType (MONGOC_URI_SAFE, bool),
+            do(mongoc_write_concern_set_w (
+               write_concern,
+               bsonAs (bool) ? 1 : MONGOC_WRITE_CONCERN_W_UNACKNOWLEDGED))));
+
+   if (bsonParseError) {
+      MONGOC_URI_ERROR (
+         error, "Error while parsing 'safe' URI option: %s", bsonParseError);
+      return false;
    }
 
    wtimeoutms = mongoc_uri_get_option_as_int64 (uri, MONGOC_URI_WTIMEOUTMS, 0);
@@ -1830,10 +1832,48 @@ _mongoc_uri_build_write_concern (mongoc_uri_t *uri, bson_error_t *error)
       mongoc_write_concern_set_wtimeout_int64 (write_concern, wtimeoutms);
    }
 
-   if (bson_iter_init_find_case (&iter, &uri->options, MONGOC_URI_JOURNAL) &&
-       BSON_ITER_HOLDS_BOOL (&iter)) {
-      mongoc_write_concern_set_journal (write_concern, bson_iter_bool (&iter));
+   bsonParse (uri->options,
+              find (iKeyWithType (MONGOC_URI_JOURNAL, bool),
+                    do(mongoc_write_concern_set_journal (write_concern,
+                                                         bsonAs (bool)))));
+   if (bsonParseError) {
+      MONGOC_URI_ERROR (
+         error, "Error while parsing 'journal' URI option: %s", bsonParseError);
+      return false;
    }
+
+   bsonParse (
+      uri->options,
+      find (
+         iKey ("w"), //
+         cond (
+            // Special W options:
+            (anyOf (eq (int32, MONGOC_WRITE_CONCERN_W_ERRORS_IGNORED),
+                    eq (int32, MONGOC_WRITE_CONCERN_W_UNACKNOWLEDGED)),
+             // These conflict with journalling:
+             if (eval (mongoc_write_concern_get_journal (write_concern)),
+                 then (error ("Journal option conflicts with special 'w' "
+                              "integer value"))),
+             do(mongoc_write_concern_set_w (write_concern, bsonAs (int32)))),
+            // Other positive 'w' value:
+            (allOf (type (int32), eval (bsonAs (int32) > 0)),
+             do(mongoc_write_concern_set_w (write_concern, bsonAs (int32)))),
+            // Special "majority" string:
+            (iStrEqual ("majority"),
+             do(mongoc_write_concern_set_w (write_concern,
+                                            MONGOC_WRITE_CONCERN_W_MAJORITY))),
+            // Other string:
+            (type (utf8),
+             do(mongoc_write_concern_set_wtag (write_concern, bsonAs (str)))),
+            // Invalid value:
+            (true, error ("Unsupported 'w' value (Must be UTF-8 or Int32)")))));
+
+   if (bsonParseError) {
+      MONGOC_URI_ERROR (
+         error, "Error while parsing the 'w' URI option: %s", bsonParseError);
+      return false;
+   }
+   return true;
 
    if (bson_iter_init_find_case (&iter, &uri->options, MONGOC_URI_W)) {
       if (BSON_ITER_HOLDS_INT32 (&iter)) {

@@ -522,20 +522,17 @@ _mongoc_handshake_build_doc_with_application (bson_t *doc, const char *appname)
    bsonBuildAppend (
       *doc,
       if (appname,
-          then (kv ("application", doc (kv ("name", cstr (appname))))),
-          else()),
+          then (kv ("application", doc (kv ("name", cstr (appname)))))),
       kv ("driver",
           doc (kv ("name", cstr (md->driver_name)),
                kv ("version", cstr (md->driver_version)))),
       kv ("os",
           doc (kv ("type", cstr (md->os_type)),
-               if (md->os_name, then (kv ("name", cstr (md->os_name))), else()),
+               if (md->os_name, then (kv ("name", cstr (md->os_name)))),
                if (md->os_version,
-                   then (kv ("version", cstr (md->os_version))),
-                   else()),
+                   then (kv ("version", cstr (md->os_version)))),
                if (md->os_architecture,
-                   then (kv ("architecture", cstr (md->os_architecture))),
-                   else()))));
+                   then (kv ("architecture", cstr (md->os_architecture)))))));
 
    if (doc->len > HANDSHAKE_MAX_SIZE) {
       /* We've done all we can possibly do to ensure the current

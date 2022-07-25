@@ -9,14 +9,8 @@ _bsonDSL_thread_local struct _bsonBuildContext_t
 _bsonDSL_thread_local struct _bsonVisitContext_t const
    *_bsonVisitContextThreadLocalPtr = &_null_visit_context;
 
-
-_bsonDSL_thread_local bool _tl_bsonBuildFailed = false;
-
-bool *
-_bsonBuildFailed ()
-{
-   return &_tl_bsonBuildFailed;
-}
+_bsonDSL_thread_local const char *bsonBuildError = NULL;
+_bsonDSL_thread_local const char *bsonParseError = NULL;
 
 char *
 bsonParse_strdupPathString ()

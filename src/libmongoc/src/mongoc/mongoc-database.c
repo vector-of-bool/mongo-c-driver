@@ -30,6 +30,8 @@
 #include "mongoc-write-concern-private.h"
 #include "mongoc-change-stream-private.h"
 
+#include <bson/bson-dsl.h>
+
 #undef MONGOC_LOG_DOMAIN
 #define MONGOC_LOG_DOMAIN "database"
 
@@ -1249,8 +1251,20 @@ mongoc_database_create_collection (mongoc_database_t *database,
    bson_iter_t iter;
    bson_t encryptedFields = BSON_INITIALIZER;
 
-   if (opts && bson_iter_init_find (&iter, opts, "encryptedFields")) {
-      if (!_mongoc_iter_document_as_bson (&iter, &encryptedFields, error)) {
+   if (opts) {
+      bsonParse (
+         *opts,
+         find (
+            key ("encryptedFields"),
+            if (not(type (doc)),
+                then (error ("'encryptedFields' should be a document object"))),
+            storeDocRef (encryptedFields)));
+      if (bsonParseError) {
+         bson_set_error (error,
+                         MONGOC_ERROR_COMMAND,
+                         MONGOC_ERROR_COMMAND_INVALID_ARG,
+                         "Invalid createCollection command: %s",
+                         bsonParseError);
          return NULL;
       }
    }
@@ -1267,12 +1281,9 @@ mongoc_database_create_collection (mongoc_database_t *database,
    }
 
    if (!bson_empty (&encryptedFields)) {
-      bson_t opts_without_encryptedFields = BSON_INITIALIZER;
-
-      if (opts) {
-         bson_copy_to_excluding_noinit (
-            opts, &opts_without_encryptedFields, "encryptedFields", NULL);
-      }
+      bsonBuildDecl (
+         opts_without_encryptedFields,
+         if (opts, then (insert (*opts, not(key ("encryptedFields"))))));
 
       mongoc_collection_t *ret =
          create_collection_with_encryptedFields (database,
@@ -1282,7 +1293,6 @@ mongoc_database_create_collection (mongoc_database_t *database,
                                                  error);
 
       bson_destroy (&opts_without_encryptedFields);
-      bson_destroy (&encryptedFields);
       return ret;
    }
 

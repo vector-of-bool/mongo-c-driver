@@ -964,8 +964,8 @@ mongoc_collection_count_documents (mongoc_collection_t *coll,
    _make_aggregate_for_count (coll, filter, opts, &aggregate_cmd);
    bson_init (&aggregate_opts);
    if (opts) {
-      bson_copy_to_excluding_noinit (
-         opts, &aggregate_opts, "skip", "limit", NULL);
+      bsonBuildAppend (aggregate_opts,
+                       insert (*opts, not(key ("skip", "limit"))));
    }
 
    ret = mongoc_collection_read_command_with_opts (
@@ -1187,12 +1187,9 @@ mongoc_collection_drop_with_opts (mongoc_collection_t *collection,
    }
 
    if (!bson_empty (&encryptedFields)) {
-      bson_t opts_without_encryptedFields = BSON_INITIALIZER;
-
-      if (opts) {
-         bson_copy_to_excluding_noinit (
-            opts, &opts_without_encryptedFields, "encryptedFields", NULL);
-      }
+      bsonBuildDecl (
+         opts_without_encryptedFields,
+         if (opts, then (insert (*opts, not(key ("encryptedFields"))))));
 
       bool ret = drop_with_opts_with_encryptedFields (
          collection, &opts_without_encryptedFields, &encryptedFields, error);

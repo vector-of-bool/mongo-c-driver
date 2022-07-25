@@ -2543,6 +2543,11 @@ test_bson_dsl (void)
    BSON_ASSERT (BSON_ITER_HOLDS_INT64 (&found));
    ASSERT_CMPINT64 (bson_iter_as_int64 (&found), ==, 94412);
 
+   ASSERT (bsonParseError == NULL);
+   bsonParse (meow, require (keyWithType ("foo", int32), nop), do(abort ()));
+   ASSERT (bsonParseError != NULL);
+
+   bson_destroy (&meow);
    bsonBuild (meow, kv ("top", array (i32 (56), if (1, then (i32 (88))))));
 
    bsonBuildDecl (another, insert (meow, true));
@@ -2565,6 +2570,8 @@ test_bson_dsl (void)
                                continue,
                                parse (find (key ("nope"), nop)))))))))))))))));
 
+   ASSERT (bsonParseError == NULL);
+
    bsonBuild (another,
               kv ("foo", cstr ("bar")),
               kv ("baz", null),
@@ -2585,9 +2592,17 @@ test_bson_dsl (void)
 
    bsonVisitEach (another, if (type (doc), then (visitEach ())));
 
-   BSON_ASSERT (!bsonBuildFailed);
+   BSON_ASSERT (!bsonBuildError);
    bsonBuildAppend (meow, kvl ("f\00oo", 4, null));
-   BSON_ASSERT (bsonBuildFailed);
+   BSON_ASSERT (bsonBuildError);
+
+   bson_destroy (&meow);
+   bsonBuild (meow, do(bsonBuildError = "I am an error"), do(abort ()));
+   ASSERT_CMPSTR (bsonBuildError, "I am an error");
+
+   bsonBuild (meow, do({ bson_append_null (bsonBuildContext.doc, "yo", -1); }));
+   ASSERT (!bsonBuildError);
+   ASSERT (!bson_empty (&meow));
 
    bson_destroy (&meow);
    bson_destroy (&another);

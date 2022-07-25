@@ -421,14 +421,11 @@ _mongoc_cmd_parts_add_read_prefs (bson_t *query,
                     kv ("$readPreference",
                         doc (kv ("mode", cstr (mode_str)),
                              if (!bson_empty (tags), //
-                                 then (kv ("tags", bsonArray (*tags))),
-                                 else()),
+                                 then (kv ("tags", bsonArray (*tags)))),
                              if (stale != MONGOC_NO_MAX_STALENESS,
-                                 then (kv ("maxStalenessSeconds", i32 (stale))),
-                                 else()),
+                                 then (kv ("maxStalenessSeconds", i32 (stale)))),
                              if (!bson_empty (hedge), //
-                                 then (kv ("hedge", bson (*hedge))),
-                                 else()))));
+                                 then (kv ("hedge", bson (*hedge)))))));
 }
 
 
