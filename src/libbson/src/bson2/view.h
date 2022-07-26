@@ -3,6 +3,10 @@
 
 #include <bson/bson.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief A type that is the size of a byte, but does not alias with other types
  * (except char)
@@ -13,6 +17,7 @@ typedef struct bson_byte {
 } bson_byte;
 
 typedef struct bson_view_untrusted {
+   /// The pointed-to data of the document
    bson_byte const *data;
 } bson_view_untrusted;
 
@@ -49,14 +54,28 @@ typedef struct bson_view {
 static inline uint32_t
 bson_view_len (bson_view v)
 {
+   // A null document has length=0
    if (!v.data) {
       return 0;
    }
+   // The length of a document is contained in a four-bytes little-endian
+   // encoded integer. This size includes the header, the document body, and the
+   // null terminator byte on the document.
    uint32_t len;
    memcpy (&len, v.data, sizeof len);
    return BSON_UINT32_FROM_LE (len);
 }
 
+/**
+ * @brief Obtain the byte-size of the untrusted BSON document referred to by the
+ * given bson_view_untrusted.
+ *
+ * @see bson_view_len
+ *
+ * @see bson_view_from_untrusted_data() will validate that the root document at
+ * least has the correct size and null terminator. The contents of the document
+ * are not validated.
+ */
 static inline uint32_t
 bson_view_ut_len (bson_view_untrusted v)
 {
@@ -70,7 +89,7 @@ bson_view_ut_len (bson_view_untrusted v)
 
 /**
  * @brief The reason that we may have failed to create a bson_view object in
- * bson_view_from_data()
+ * @see bson_view_from_trusted_data() or @see bson_view_from_untrusted_data
  */
 enum bson_view_invalid_reason {
    /**
@@ -103,17 +122,18 @@ enum bson_view_invalid_reason {
  * @param len The length of the pointed-to data buffer.
  * @param[out] error An out-param to determine why view creation may have
  * failed.
- * @return bson_view A view, or BSON_VIEW_NULL if the length is invalid.
+ * @return bson_view_untrusted A view, or BSON_VIEW_UNTRUSTED_NULL if the length
+ * is invalid.
  *
  * @note IMPORTANT: This function does not error if 'data_len' is longer than
  * the document. This allows support of buffered reads of unknown sizes. The
  * actual length of the resulting document can be obtained with
- * @ref bson_view_len.
+ * @ref bson_view_ut_len.
  */
 static inline bson_view_untrusted
-bson_view_from_untrusted_data (const bson_byte *data,
-                               size_t data_len,
-                               enum bson_view_invalid_reason *error)
+bson_view_from_untrusted_data (const bson_byte *const data,
+                               const size_t data_len,
+                               enum bson_view_invalid_reason *const error)
 {
    bson_view_untrusted ret = BSON_VIEW_UNTRUSTED_NULL;
    uint32_t len = 0;
@@ -132,7 +152,7 @@ bson_view_from_untrusted_data (const bson_byte *data,
       err = BSON_VIEW_INVALID_HEADER;
       goto done;
    }
-   // Check that the buffer is large enough to hold the document
+   // Check that the buffer is large enough to hold expected the document
    if (len > data_len) {
       // Not enough data to do the read
       err = BSON_VIEW_SHORT_READ;
@@ -305,6 +325,21 @@ _bson_view_iterator_at (bson_byte const *const data, uint32_t bytes_remaining)
       keyptr, ptr, bytes_remaining, (uint8_t) next_type, 0};
 }
 
+static inline bson_byte const *
+_bson_find_after_cstring (bson_byte const *cstring,
+                          bson_byte const *const end,
+                          bool *okay)
+{
+   *okay = true;
+   ssize_t dist = end - cstring;
+   cstring += strnlen ((const char *) cstring, dist);
+   if (cstring == end) {
+      *okay = false;
+      return NULL;
+   }
+   return cstring + 1;
+}
+
 /**
  * @brief Obtain an iterator pointing to the next element of the BSON document
  * after the given iterator's position
@@ -388,19 +423,17 @@ bson_view_next (const bson_view_iterator it)
       case BSON_TYPE_REGEX: {
          uint32_t remain = it.bytes_remaining;
          // Consume the first regex
-         while (remain && it.dataptr[jump].v != 0) {
-            --remain;
-            ++jump;
-         }
+         int l1 = strnlen ((const char *) it.dataptr, remain);
+         remain -= l1;
+         jump += l1;
          // Consume the option string
          if (remain) {
             ++jump;
             --remain;
          }
-         while (remain && it.dataptr[jump].v != 0) {
-            --remain;
-            ++jump;
-         }
+         int l2 = strnlen ((const char *) (it.dataptr + jump), remain);
+         jump += l2;
+         remain -= l2;
          // "jump" now jumps over the two strings
          break;
       }
@@ -473,5 +506,9 @@ typedef struct bson_validation_result {
 } bson_validation_result;
 
 bson_validation_result bson_validate_untrusted (bson_view_untrusted);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif // BSON_BSON_VIEW_H_INCLUDED

@@ -168,9 +168,9 @@ set (SOURCES
    ${PROJECT_SOURCE_DIR}/src/bson/bson-utf8.c
    ${PROJECT_SOURCE_DIR}/src/bson/bson-value.c
    ${PROJECT_SOURCE_DIR}/src/bson/bson-version-functions.c
-   ${PROJECT_SOURCE_DIR}/src/bson/bson-view.c
    ${PROJECT_SOURCE_DIR}/src/bson/bson-writer.c
    ${PROJECT_SOURCE_DIR}/src/jsonsl/jsonsl.c
+   ${PROJECT_SOURCE_DIR}/src/bson2/view.c
    ${PROJECT_SOURCE_DIR}/../../src/common/common-b64.c
    ${PROJECT_SOURCE_DIR}/../../src/common/common-md5.c
    ${PROJECT_SOURCE_DIR}/../../src/common/common-thread.c
@@ -200,11 +200,11 @@ set (HEADERS
    ${PROJECT_SOURCE_DIR}/src/bson/bson-reader.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-string.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-types.h
-   ${PROJECT_SOURCE_DIR}/src/bson/bson-view.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-utf8.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-value.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-version-functions.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-writer.h
+   ${PROJECT_SOURCE_DIR}/src/bson2/view.h
 )
 
 set (HEADERS_FORWARDING

@@ -21,7 +21,7 @@
 #include <fcntl.h>
 #include <time.h>
 
-#include <bson/bson-view.h>
+#include <bson2/view.h>
 
 #include "TestSuite.h"
 #include "test-conveniences.h"

@@ -1,4 +1,5 @@
 #include <bson/bson.h>
+#include <bson2/view.h>
 
 #include <stdint.h>
 
@@ -11,5 +12,13 @@ LLVMFuzzerTestOneInput (const uint8_t *data, size_t len)
    }
    bson_validate (b, 0xffffff, NULL);
    bson_destroy (b);
+
+   bson_view_untrusted utv =
+      bson_view_from_untrusted_data ((const bson_byte *) data, len, NULL);
+   if (!utv.data) {
+      return 0;
+   }
+   (void) bson_validate_untrusted (utv);
+
    return 0;
 }

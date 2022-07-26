@@ -22,7 +22,7 @@ set (src_libbson_src_bson_DIST_hs
    bson-utf8.h
    bson-value.h
    bson-version-functions.h
-   bson-view.h
+   bson2/view.h
    bson-writer.h
    bson-prelude.h
    bson-private.h
@@ -59,6 +59,7 @@ set (src_libbson_src_bson_DIST_cs
    bson-version-functions.c
    bson-view.c
    bson-writer.c
+   bson2/view.c
 )
 
 set_dist_list (src_libbson_src_bson_DIST

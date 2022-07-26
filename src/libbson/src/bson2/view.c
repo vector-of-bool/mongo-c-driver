@@ -1,25 +1,12 @@
-#include "./bson-view.h"
+#include "./view.h"
+
+#include "string.h"
 
 typedef struct validation_iterator {
    const bson_byte *dataptr;
    size_t bytes_remaining;
 } validation_iterator;
 
-static bson_byte const *
-_find_after_cstring (bson_byte const *cstring,
-                     bson_byte const *const end,
-                     bool *okay)
-{
-   *okay = true;
-   while (cstring != end && cstring->v) {
-      ++cstring;
-   }
-   if (cstring == end) {
-      *okay = false;
-      return NULL;
-   }
-   return cstring + 1;
-}
 
 enum bson_view_iterator_stop_reason
 _validate_document (bson_byte const *iter, bson_byte const *const end)
@@ -69,7 +56,7 @@ _validate_document (bson_byte const *iter, bson_byte const *const end)
       }
 
       // Scan for the null-terminator after the key string
-      iter = _find_after_cstring (iter, end, &cstring_okay);
+      iter = _bson_find_after_cstring (iter, end, &cstring_okay);
       if (!cstring_okay) {
          return BSONV_ITER_STOP_INVALID;
       }
@@ -139,10 +126,10 @@ _validate_document (bson_byte const *iter, bson_byte const *const end)
          case BSON_TYPE_REGEX: {
             // Find the end of the first string
             const bson_byte *scan =
-               _find_after_cstring (iter, end, &cstring_okay);
+               _bson_find_after_cstring (iter, end, &cstring_okay);
             if (cstring_okay) {
                // Find the end of the second string
-               scan = _find_after_cstring (scan, end, &cstring_okay);
+               scan = _bson_find_after_cstring (scan, end, &cstring_okay);
             }
             // We okay?
             if (!cstring_okay) {
