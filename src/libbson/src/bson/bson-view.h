@@ -6,6 +6,11 @@
 /**
  * @brief A type specifically representing a nullable read-only view of a BSON
  * document.
+ *
+ * @note This structure should not be created manually. Prefer instead to use
+ * @ref bson_view_from data or @ref bson_view_from_bson_t or
+ * @ref bson_view_from_iter, which will validate content of the pointed-to data.
+ * Use @ref BSON_VIEW_NULL to initialize a view to a "null" value.
  */
 typedef struct bson_view {
    /**
@@ -38,11 +43,31 @@ bson_view_len (bson_view v)
    return BSON_UINT32_FROM_LE (len);
 }
 
+/**
+ * @brief The reason that we may have failed to create a bson_view object in
+ * bson_view_from_data()
+ */
 enum bson_view_invalid_reason {
+   /**
+    * @brief There is no error creating the view, and the view is ready.
+    * Equivalent to zero.
+    */
    BSON_VIEW_OKAY,
+   /**
+    * @brief The given data buffer is too short to possibly hold the document.
+    *
+    * If the buffer is less than five bytes, it is impossible to be a valid
+    * document. If the buffer is more than five bytes and this error occurs, the
+    * document header declares a length that is longer than the buffer.
+    */
    BSON_VIEW_SHORT_READ,
-   BSON_VIEW_OVERFLOW,
+   /**
+    * @brief The document header declares an invalid length.
+    */
    BSON_VIEW_INVALID_HEADER,
+   /**
+    * @brief The document does not have a null terminator
+    */
    BSON_VIEW_INVALID_TERMINATOR,
 };
 
@@ -51,7 +76,14 @@ enum bson_view_invalid_reason {
  *
  * @param data A pointer to the beginning of a BSON document.
  * @param len The length of the pointed-to data buffer.
+ * @param[out] error An out-param to determine why view creation may have
+ * failed.
  * @return bson_view A view, or BSON_VIEW_NULL if the length is invalid.
+ *
+ * @note IMPORTANT: This function does not error if 'data_len' is longer than
+ * the document. This allows support of buffered reads of unknown sizes. The
+ * actual length of the resulting document can be obtained with
+ * @ref bson_view_len.
  */
 static inline bson_view
 bson_view_from_data (const void *data,
@@ -65,14 +97,17 @@ bson_view_from_data (const void *data,
       err = BSON_VIEW_SHORT_READ;
       goto done;
    }
-   // Read the length header
+   // Read the length header. This includes the header's four bytes, the
+   // document's element data, and the null terminator byte.
    uint32_t len = 0;
    memcpy (&len, data, sizeof len);
    len = BSON_UINT32_FROM_LE (len);
+   // Check that the size is in-bounds
    if (len > BSON_MAX_SIZE || len < 5) {
       err = BSON_VIEW_INVALID_HEADER;
       goto done;
    }
+   // Check that the buffer is large enough to hold the document
    if (len > data_len) {
       // Not enough data to do the read
       err = BSON_VIEW_SHORT_READ;
@@ -80,10 +115,12 @@ bson_view_from_data (const void *data,
    }
    // Get the view
    bson_view r = {.data = data};
+   // The document must have a zero-byte at the end.
    if (r.data[len - 1] != 0) {
       err = BSON_VIEW_INVALID_TERMINATOR;
       goto done;
    }
+   // Okay!
    ret = r;
 done:
    if (error) {
@@ -96,7 +133,7 @@ done:
  * @brief Obtain a bson_t from a given bson_view.
  *
  * @param view The view to convert to a bson_t value.
- * @return bson_t A new non-owning bson_t. Should not be destroyed.
+ * @return bson_t A non-owning bson_t value. Should not be destroyed.
  */
 static inline bson_t
 bson_view_as_viewing_bson_t (bson_view view)
@@ -134,13 +171,20 @@ bson_view_from_bson_t (const bson_t *b)
 static inline bson_view
 bson_view_from_iter (bson_iter_t it)
 {
-   const bson_type_t type = bson_iter_type (&it);
+   const bson_type_t type = (it.raw + it.type)[0];
    if (type == BSON_TYPE_DOCUMENT || type == BSON_TYPE_ARRAY) {
       return bson_view_from_data (it.raw + it.d1, it.len, NULL);
    }
    return BSON_VIEW_NULL;
 }
 
+/**
+ * @brief Create a bson_t that copies the given bson_view's data
+ *
+ * @param v A bson_view. If null, returns a NULL bson_t*
+ * @return bson_t* A new pointer-to-bson_t. Must be destroyed with
+ * bson_destroy()
+ */
 static inline bson_t *
 bson_view_copy (bson_view v)
 {
@@ -151,7 +195,9 @@ bson_view_copy (bson_view v)
    }
 }
 
-/// The reason that a bson_view_iterator might stop
+/**
+ * @brief The stop-state of a bson_view_iterator
+ */
 enum bson_view_iterator_stop_reason {
    BSONV_ITER_STOP_NOT_DONE,
    BSONV_ITER_STOP_DONE,
@@ -169,16 +215,30 @@ typedef struct bson_view_iterator {
    const char *keyptr;
    /// A pointer to the beginning of the element value.
    const char *dataptr;
-   /// The remaining bytes in the document
+   /// The number of bytes remaining in the document
    uint32_t bytes_remaining;
-   /// The type of the element value
+   /// The type of the current element value. One of @ref bson_type_t
    uint8_t type;
-   /// Whether this iterator has reached the end, and a reason why it reached
-   /// the end.
+   /**
+    * @brief The stop-state of the iterator.
+    *
+    * If non-zero, the iterator is stopped, and attempting to advance it is
+    * illegal. If non-zero, the value is one of the
+    * @ref bson_view_iterator_stop_reason values to indicate the stopping
+    * reason.
+    */
    uint8_t stop;
 } bson_view_iterator;
 
-
+/**
+ * @brief Obtain an iterator pointing to the given 'data', which must be the
+ * beginning of a document element.
+ *
+ * @param data A pointer to the type tag that starts a document element
+ * @param bytes_remaining The number of bytes that are available following
+ * `data`
+ * @return bson_view_iterator A new iterator, which may be stopped.
+ */
 extern inline bson_view_iterator
 _bson_view_iterator_at (const char *const data, uint32_t bytes_remaining)
 {
@@ -215,10 +275,20 @@ _bson_view_iterator_at (const char *const data, uint32_t bytes_remaining)
    };
 }
 
+/**
+ * @brief Obtain an iterator pointing to the next element of the BSON document
+ * after the given iterator's position
+ *
+ * @param it A valid iterator to a bson document element.
+ * @return bson_view_iterator A new iterator. Check the `stop` member to see if
+ * it is done.
+ */
 extern inline bson_view_iterator
 bson_view_next (const bson_view_iterator it)
 {
    bson_type_t type = (bson_type_t) it.type;
+   // For some types, we know their size in the document, and we will be able to
+   // just jump over them without any switching.
    int8_t jumpsize_table[] = {
       0,  // BSON_TYPE_EOD
       8,  // double
@@ -247,9 +317,7 @@ bson_view_next (const bson_view_iterator it)
    }
    int32_t jump = jumpsize_table[it.type];
    if (jump >= 0) {
-      if (jump > it.bytes_remaining) {
-         return (bson_view_iterator){.stop = BSONV_ITER_STOP_SHORT_READ};
-      }
+      // We have a known jump size
    } else if (jump == -1) {
       // The next object is a simple length-prefixed object, and we can jump by
       // reading and int32
@@ -304,6 +372,7 @@ bson_view_next (const bson_view_iterator it)
             ++jump;
          }
          // "jump" now jumps over the two strings
+         break;
       }
       case BSON_TYPE_DBPOINTER: {
          uint32_t len;
@@ -320,8 +389,13 @@ bson_view_next (const bson_view_iterator it)
             return (bson_view_iterator){.stop = BSONV_ITER_STOP_SHORT_READ};
          }
          jump = ujump;
+         break;
       }
       }
+   }
+
+   if (jump > it.bytes_remaining) {
+      return (bson_view_iterator){.stop = BSONV_ITER_STOP_SHORT_READ};
    }
 
    return _bson_view_iterator_at (it.dataptr + jump, it.bytes_remaining - jump);
