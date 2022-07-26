@@ -51,7 +51,11 @@ _validate_document (bson_byte const *iter, bson_byte const *const end)
    bool cstring_okay = true;
 
    while (iter != end) {
+      size_t remain = end - iter;
+      (void) remain;
       const uint8_t type = iter->v;
+      bson_type_t type_ = type;
+      (void) type_;
       if (type == 0) {
          // We should have found the end of the document here
          if (iter + 1 != end) {
@@ -86,15 +90,20 @@ _validate_document (bson_byte const *iter, bson_byte const *const end)
          }
          memcpy (&len, iter, sizeof len);
          len = BSON_UINT32_FROM_LE (len);
+         if (len > INT32_MAX || (INT32_MAX - len < sizeof len)) {
+            return BSONV_ITER_STOP_INVALID;
+         }
          jump = len;
          if (type != BSON_TYPE_DOCUMENT && type != BSON_TYPE_ARRAY) {
+            // We need to jump over the length header too
+            jump += sizeof len;
+         } else {
+            // This is a sub-document
             if (len > (end - iter)) {
                // There's not enough data remaining for the document of the
                // given size
                return BSONV_ITER_STOP_SHORT_READ;
             }
-            // We need to jump over the length header too
-            jump += sizeof len;
             // Before jumping, validate the sub-document
             enum bson_view_iterator_stop_reason v =
                _validate_document (iter, iter + len);
@@ -152,7 +161,7 @@ _validate_document (bson_byte const *iter, bson_byte const *const end)
             memcpy (&len, iter, sizeof len);
             len = BSON_UINT32_FROM_LE (len);
             // Avoid overflowing on the addition:
-            if (UINT32_MAX - len < 12) {
+            if (len > INT32_MAX || INT32_MAX - len < 12) {
                return BSONV_ITER_STOP_SHORT_READ;
             }
             // +Twelve bytes for the OID
