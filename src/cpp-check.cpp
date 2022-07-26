@@ -4,3 +4,5 @@
  */
 #include <bson/bson.h>
 #include <mongoc/mongoc.h>
+
+#include <bson/bson-view.h>

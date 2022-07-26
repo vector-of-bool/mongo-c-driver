@@ -4,6 +4,19 @@
 #include <bson/bson.h>
 
 /**
+ * @brief A type that is the size of a byte, but does not alias with other types
+ * (except char)
+ */
+typedef struct bson_byte {
+   /// The 8-bit value of the byte
+   uint8_t v;
+} bson_byte;
+
+typedef struct bson_view_untrusted {
+   bson_byte const *data;
+} bson_view_untrusted;
+
+/**
  * @brief A type specifically representing a nullable read-only view of a BSON
  * document.
  *
@@ -18,11 +31,12 @@ typedef struct bson_view {
     *
     * If NULL, the view refers to nothing.
     */
-   const char *data;
+   const bson_byte *data;
 } bson_view;
 
-/// A "null" constant expression for bson_view objectss
-#define BSON_VIEW_NULL ((bson_view){.data = NULL})
+/// A "null" constant expression for bson_view objects
+#define BSON_VIEW_NULL ((bson_view){NULL})
+#define BSON_VIEW_UNTRUSTED_NULL ((bson_view_untrusted){NULL})
 
 /**
  * @brief Obtain the byte-size of the BSON document referred to by the given
@@ -34,6 +48,17 @@ typedef struct bson_view {
  */
 static inline uint32_t
 bson_view_len (bson_view v)
+{
+   if (!v.data) {
+      return 0;
+   }
+   uint32_t len;
+   memcpy (&len, v.data, sizeof len);
+   return BSON_UINT32_FROM_LE (len);
+}
+
+static inline uint32_t
+bson_view_ut_len (bson_view_untrusted v)
 {
    if (!v.data) {
       return 0;
@@ -85,12 +110,13 @@ enum bson_view_invalid_reason {
  * actual length of the resulting document can be obtained with
  * @ref bson_view_len.
  */
-static inline bson_view
-bson_view_from_data (const void *data,
-                     size_t data_len,
-                     enum bson_view_invalid_reason *error)
+static inline bson_view_untrusted
+bson_view_from_untrusted_data (const bson_byte *data,
+                               size_t data_len,
+                               enum bson_view_invalid_reason *error)
 {
-   bson_view ret = BSON_VIEW_NULL;
+   bson_view_untrusted ret = BSON_VIEW_UNTRUSTED_NULL;
+   uint32_t len = 0;
    enum bson_view_invalid_reason err = BSON_VIEW_OKAY;
    // All BSON data must be at least five bytes long
    if (data_len < 5) {
@@ -99,7 +125,6 @@ bson_view_from_data (const void *data,
    }
    // Read the length header. This includes the header's four bytes, the
    // document's element data, and the null terminator byte.
-   uint32_t len = 0;
    memcpy (&len, data, sizeof len);
    len = BSON_UINT32_FROM_LE (len);
    // Check that the size is in-bounds
@@ -113,20 +138,28 @@ bson_view_from_data (const void *data,
       err = BSON_VIEW_SHORT_READ;
       goto done;
    }
-   // Get the view
-   bson_view r = {.data = data};
    // The document must have a zero-byte at the end.
-   if (r.data[len - 1] != 0) {
+   if (data[len - 1].v != 0) {
       err = BSON_VIEW_INVALID_TERMINATOR;
       goto done;
    }
    // Okay!
-   ret = r;
+   ret.data = data;
 done:
    if (error) {
       *error = err;
    }
    return ret;
+}
+
+static inline bson_view
+bson_view_from_trusted_data (const bson_byte *data, size_t data_len)
+{
+   bson_view_untrusted ut =
+      bson_view_from_untrusted_data (data, data_len, NULL);
+   bson_view r;
+   r.data = ut.data;
+   return r;
 }
 
 /**
@@ -149,13 +182,14 @@ bson_view_as_viewing_bson_t (bson_view view)
  * @param b A pointer to a bson_t, or NULL
  * @return bson_view A view of `b`. If `b` is NULL, returns BSON_VIEW_NULL
  */
-static inline bson_view
+static inline bson_view_untrusted
 bson_view_from_bson_t (const bson_t *b)
 {
    if (b == NULL) {
-      return BSON_VIEW_NULL;
+      return BSON_VIEW_UNTRUSTED_NULL;
    } else {
-      return bson_view_from_data (bson_get_data (b), b->len, NULL);
+      return bson_view_from_untrusted_data (
+         (bson_byte const *) bson_get_data (b), b->len, NULL);
    }
 }
 
@@ -171,9 +205,10 @@ bson_view_from_bson_t (const bson_t *b)
 static inline bson_view
 bson_view_from_iter (bson_iter_t it)
 {
-   const bson_type_t type = (it.raw + it.type)[0];
+   const bson_type_t type = (bson_type_t) (it.raw + it.type)[0];
    if (type == BSON_TYPE_DOCUMENT || type == BSON_TYPE_ARRAY) {
-      return bson_view_from_data (it.raw + it.d1, it.len, NULL);
+      return bson_view_from_trusted_data ((bson_byte const *) (it.raw + it.d1),
+                                          it.len);
    }
    return BSON_VIEW_NULL;
 }
@@ -212,9 +247,9 @@ enum bson_view_iterator_stop_reason {
  */
 typedef struct bson_view_iterator {
    /// A pointer to the beginning of the element key.
-   const char *keyptr;
+   bson_byte const *keyptr;
    /// A pointer to the beginning of the element value.
-   const char *dataptr;
+   bson_byte const *dataptr;
    /// The number of bytes remaining in the document
    uint32_t bytes_remaining;
    /// The type of the current element value. One of @ref bson_type_t
@@ -239,24 +274,24 @@ typedef struct bson_view_iterator {
  * `data`
  * @return bson_view_iterator A new iterator, which may be stopped.
  */
-extern inline bson_view_iterator
-_bson_view_iterator_at (const char *const data, uint32_t bytes_remaining)
+static inline bson_view_iterator
+_bson_view_iterator_at (bson_byte const *const data, uint32_t bytes_remaining)
 {
    if (bytes_remaining == 0) {
       return (bson_view_iterator){.stop = BSONV_ITER_STOP_INVALID};
    }
-   bson_type_t next_type = (bson_type_t) (*data);
+   bson_type_t next_type = (bson_type_t) (data->v);
    --bytes_remaining;
    if (bytes_remaining == 0 && next_type == BSON_TYPE_EOD) {
       return (bson_view_iterator){.stop = BSONV_ITER_STOP_DONE};
    }
    // Point at the byte after the type tag
-   const char *ptr = data + 1;
+   bson_byte const *ptr = data + 1;
    // If the type tag is zero, we've hit the end of the document
    // 'keyptr' points to the first byte after the type tag
-   const char *const keyptr = ptr;
+   bson_byte const *const keyptr = ptr;
    // Advance until we run out of data or we find a null terminator
-   while (bytes_remaining && *ptr != 0) {
+   while (bytes_remaining && ptr->v != 0) {
       ++ptr;
       --bytes_remaining;
    }
@@ -267,12 +302,7 @@ _bson_view_iterator_at (const char *const data, uint32_t bytes_remaining)
    ++ptr;
    // We've found the element
    return (bson_view_iterator){
-      .keyptr = keyptr,
-      .dataptr = ptr,
-      .bytes_remaining = bytes_remaining,
-      .type = next_type,
-      .stop = 0,
-   };
+      keyptr, ptr, bytes_remaining, (uint8_t) next_type, 0};
 }
 
 /**
@@ -283,7 +313,7 @@ _bson_view_iterator_at (const char *const data, uint32_t bytes_remaining)
  * @return bson_view_iterator A new iterator. Check the `stop` member to see if
  * it is done.
  */
-extern inline bson_view_iterator
+static inline bson_view_iterator
 bson_view_next (const bson_view_iterator it)
 {
    bson_type_t type = (bson_type_t) it.type;
@@ -358,7 +388,7 @@ bson_view_next (const bson_view_iterator it)
       case BSON_TYPE_REGEX: {
          uint32_t remain = it.bytes_remaining;
          // Consume the first regex
-         while (remain && it.dataptr[jump] != 0) {
+         while (remain && it.dataptr[jump].v != 0) {
             --remain;
             ++jump;
          }
@@ -367,7 +397,7 @@ bson_view_next (const bson_view_iterator it)
             ++jump;
             --remain;
          }
-         while (remain && it.dataptr[jump] != 0) {
+         while (remain && it.dataptr[jump].v != 0) {
             --remain;
             ++jump;
          }
@@ -405,12 +435,18 @@ static inline bson_view_iterator
 bson_view_begin (bson_view v)
 {
    bson_view_iterator it = {
-      .keyptr = v.data + sizeof (int32_t),
-      .dataptr = v.data + sizeof (int32_t),
-      .bytes_remaining = bson_view_len (v) - sizeof (int32_t),
-      .type = 0x0a,
+      v.data + sizeof (int32_t),                       // keyptr
+      v.data + sizeof (int32_t),                       // dataptr
+      bson_view_len (v) - (uint32_t) sizeof (int32_t), // bytes_remaining
+      0x0a,                                            // type
    };
    return bson_view_next (it);
+}
+
+static inline const char *
+bson_view_iter_key (bson_view_iterator it)
+{
+   return (const char *) it.keyptr;
 }
 
 typedef struct bson_view_utf8 {
@@ -427,7 +463,15 @@ bson_view_iter_as_utf8 (bson_view_iterator it)
    if (len > it.bytes_remaining) {
       return (bson_view_utf8){.data = NULL};
    }
-   return (bson_view_utf8){.data = it.dataptr + sizeof len, .len = len};
+   return (bson_view_utf8){(const char *) (it.dataptr + sizeof len),
+                           (int32_t) len};
 }
+
+typedef struct bson_validation_result {
+   enum bson_view_iterator_stop_reason error;
+   bson_view view;
+} bson_validation_result;
+
+bson_validation_result bson_validate_untrusted (bson_view_untrusted);
 
 #endif // BSON_BSON_VIEW_H_INCLUDED

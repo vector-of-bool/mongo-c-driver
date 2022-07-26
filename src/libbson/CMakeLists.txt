@@ -168,6 +168,7 @@ set (SOURCES
    ${PROJECT_SOURCE_DIR}/src/bson/bson-utf8.c
    ${PROJECT_SOURCE_DIR}/src/bson/bson-value.c
    ${PROJECT_SOURCE_DIR}/src/bson/bson-version-functions.c
+   ${PROJECT_SOURCE_DIR}/src/bson/bson-view.c
    ${PROJECT_SOURCE_DIR}/src/bson/bson-writer.c
    ${PROJECT_SOURCE_DIR}/src/jsonsl/jsonsl.c
    ${PROJECT_SOURCE_DIR}/../../src/common/common-b64.c

@@ -2515,14 +2515,15 @@ test_bson_view (void)
 {
    bson_t *b =
       tmp_bson ("{'foo': 'bar', 'baz': [1, 2, 3, 4, 5, {}, []], 'quux': null}");
-   bson_view v = bson_view_from_bson_t (b);
+   bson_view_untrusted v = bson_view_from_bson_t (b);
    BSON_ASSERT (v.data != NULL);
-   ASSERT_CMPINT (bson_view_len (v), ==, b->len);
+   ASSERT_CMPINT (bson_view_ut_len (v), ==, b->len);
    enum bson_view_invalid_reason error = 0;
 
    {
       const char buf[] = "\x10\0\0\0";
-      v = bson_view_from_data (buf, sizeof buf, &error);
+      v = bson_view_from_untrusted_data (
+         (bson_byte const *) buf, sizeof buf, &error);
       BSON_ASSERT (v.data == NULL);
       ASSERT_CMPINT (error, ==, BSON_VIEW_SHORT_READ);
    }
@@ -2533,11 +2534,12 @@ test_bson_view (void)
                          "boolval\0"
                          "\x01"
                          "\x00"; // EOD
-      v = bson_view_from_data (buf, sizeof buf, NULL);
-      BSON_ASSERT (v.data);
+      bson_view tv =
+         bson_view_from_trusted_data ((bson_byte const *) buf, sizeof buf);
+      BSON_ASSERT (tv.data);
 
       bson_iter_t it;
-      bson_t bs = bson_view_as_viewing_bson_t (v);
+      bson_t bs = bson_view_as_viewing_bson_t (tv);
       bson_iter_init (&it, &bs);
       BSON_ASSERT (bson_iter_next (&it));
       BSON_ASSERT (BSON_ITER_HOLDS_BOOL (&it));
@@ -2548,10 +2550,12 @@ test_bson_view (void)
 
    {
       v = bson_view_from_bson_t (b);
-      bson_view_iterator it = bson_view_begin (v);
+      bson_validation_result vr = bson_validate_untrusted (v);
+      BSON_ASSERT (vr.error == 0);
+      bson_view_iterator it = bson_view_begin (vr.view);
       BSON_ASSERT (it.stop == 0);
       ASSERT_CMPINT (it.type, ==, BSON_TYPE_UTF8);
-      ASSERT_CMPSTR (it.keyptr, "foo");
+      ASSERT_CMPSTR (bson_view_iter_key (it), "foo");
       ASSERT_CMPSTR (bson_view_iter_as_utf8 (it).data, "bar");
       BSON_ASSERT ((it = bson_view_next (it)).stop == 0);
       BSON_ASSERT ((it = bson_view_next (it)).stop == 0);

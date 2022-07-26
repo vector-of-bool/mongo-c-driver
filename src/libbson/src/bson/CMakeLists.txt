@@ -19,10 +19,10 @@ set (src_libbson_src_bson_DIST_hs
    bson-cmp.h
    bson-string.h
    bson-types.h
-   bson-view.h
    bson-utf8.h
    bson-value.h
    bson-version-functions.h
+   bson-view.h
    bson-writer.h
    bson-prelude.h
    bson-private.h
@@ -57,6 +57,7 @@ set (src_libbson_src_bson_DIST_cs
    bson-utf8.c
    bson-value.c
    bson-version-functions.c
+   bson-view.c
    bson-writer.c
 )
 
