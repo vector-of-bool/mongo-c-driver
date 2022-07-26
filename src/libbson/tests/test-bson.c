@@ -21,6 +21,8 @@
 #include <fcntl.h>
 #include <time.h>
 
+#include <bson/bson-view.h>
+
 #include "TestSuite.h"
 #include "test-conveniences.h"
 
@@ -2508,6 +2510,55 @@ test_bson_as_json_string (void)
    bson_free (actual);
 }
 
+static void
+test_bson_view (void)
+{
+   bson_t *b =
+      tmp_bson ("{'foo': 'bar', 'baz': [1, 2, 3, 4, 5, {}, []], 'quux': null}");
+   bson_view v = bson_view_from_bson_t (b);
+   BSON_ASSERT (v.data != NULL);
+   ASSERT_CMPINT (bson_view_len (v), ==, b->len);
+   enum bson_view_invalid_reason error = 0;
+
+   {
+      const char buf[] = "\x10\0\0\0";
+      v = bson_view_from_data (buf, sizeof buf, &error);
+      BSON_ASSERT (v.data == NULL);
+      ASSERT_CMPINT (error, ==, BSON_VIEW_SHORT_READ);
+   }
+
+   {
+      const char buf[] = "\x0f\0\0\0" // Header
+                         "\x08"       // A bool
+                         "boolval\0"
+                         "\x01"
+                         "\x00"; // EOD
+      v = bson_view_from_data (buf, sizeof buf, NULL);
+      BSON_ASSERT (v.data);
+
+      bson_iter_t it;
+      bson_t bs = bson_view_as_viewing_bson_t (v);
+      bson_iter_init (&it, &bs);
+      BSON_ASSERT (bson_iter_next (&it));
+      BSON_ASSERT (BSON_ITER_HOLDS_BOOL (&it));
+      ASSERT_CMPSTR (bson_iter_key (&it), "boolval");
+      BSON_ASSERT (bson_iter_as_bool (&it));
+      BSON_ASSERT (!bson_iter_next (&it));
+   }
+
+   {
+      v = bson_view_from_bson_t (b);
+      bson_view_iterator it = bson_view_begin (v);
+      BSON_ASSERT (it.stop == 0);
+      ASSERT_CMPINT (it.type, ==, BSON_TYPE_UTF8);
+      ASSERT_CMPSTR (it.keyptr, "foo");
+      ASSERT_CMPSTR (bson_view_iter_as_utf8 (it).data, "bar");
+      BSON_ASSERT ((it = bson_view_next (it)).stop == 0);
+      BSON_ASSERT ((it = bson_view_next (it)).stop == 0);
+      BSON_ASSERT ((it = bson_view_next (it)).stop == BSONV_ITER_STOP_DONE);
+   }
+}
+
 void
 test_bson_install (TestSuite *suite)
 {
@@ -2606,4 +2657,6 @@ test_bson_install (TestSuite *suite)
                   "/bson/append_null_from_utf8_or_symbol",
                   test_bson_append_null_from_utf8_or_symbol);
    TestSuite_Add (suite, "/bson/as_json_string", test_bson_as_json_string);
+
+   TestSuite_Add (suite, "/bson/view", test_bson_view);
 }

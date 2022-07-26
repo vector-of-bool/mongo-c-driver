@@ -199,6 +199,7 @@ set (HEADERS
    ${PROJECT_SOURCE_DIR}/src/bson/bson-reader.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-string.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-types.h
+   ${PROJECT_SOURCE_DIR}/src/bson/bson-view.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-utf8.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-value.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-version-functions.h

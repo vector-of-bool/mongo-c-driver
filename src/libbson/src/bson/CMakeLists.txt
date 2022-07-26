@@ -19,6 +19,7 @@ set (src_libbson_src_bson_DIST_hs
    bson-cmp.h
    bson-string.h
    bson-types.h
+   bson-view.h
    bson-utf8.h
    bson-value.h
    bson-version-functions.h
