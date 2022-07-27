@@ -2515,15 +2515,14 @@ test_bson_view (void)
 {
    bson_t *b =
       tmp_bson ("{'foo': 'bar', 'baz': [1, 2, 3, 4, 5, {}, []], 'quux': null}");
-   bson_view_untrusted v = bson_view_from_bson_t (b);
+   bson_view v = bson_view_from_bson_t (b);
    BSON_ASSERT (v.data != NULL);
-   ASSERT_CMPINT (bson_view_ut_len (v), ==, b->len);
+   ASSERT_CMPINT (bson_view_len (v), ==, b->len);
    enum bson_view_invalid_reason error = 0;
 
    {
       const char buf[] = "\x10\0\0\0";
-      v = bson_view_from_untrusted_data (
-         (bson_byte const *) buf, sizeof buf, &error);
+      v = bson_view_from_data ((bson_byte const *) buf, sizeof buf, &error);
       BSON_ASSERT (v.data == NULL);
       ASSERT_CMPINT (error, ==, BSON_VIEW_SHORT_READ);
    }
@@ -2535,7 +2534,7 @@ test_bson_view (void)
                          "\x01"
                          "\x00"; // EOD
       bson_view tv =
-         bson_view_from_trusted_data ((bson_byte const *) buf, sizeof buf);
+         bson_view_from_data ((bson_byte const *) buf, sizeof buf, NULL);
       BSON_ASSERT (tv.data);
 
       bson_iter_t it;
@@ -2550,16 +2549,20 @@ test_bson_view (void)
 
    {
       v = bson_view_from_bson_t (b);
-      bson_validation_result vr = bson_validate_untrusted (v);
-      BSON_ASSERT (vr.error == 0);
-      bson_view_iterator it = bson_view_begin (vr.view);
+      enum bson_view_iterator_stop_reason error2 = bson_validate_untrusted (v);
+      ASSERT_CMPINT (error2, ==, 0);
+      bson_iterator it = bson_begin (v);
       BSON_ASSERT (it.stop == 0);
-      ASSERT_CMPINT (it.type, ==, BSON_TYPE_UTF8);
-      ASSERT_CMPSTR (bson_view_iter_key (it), "foo");
-      ASSERT_CMPSTR (bson_view_iter_as_utf8 (it).data, "bar");
-      BSON_ASSERT ((it = bson_view_next (it)).stop == 0);
-      BSON_ASSERT ((it = bson_view_next (it)).stop == 0);
-      BSON_ASSERT ((it = bson_view_next (it)).stop == BSONV_ITER_STOP_DONE);
+      ASSERT_CMPINT (bson_iterator_type (it), ==, BSON_TYPE_UTF8);
+      ASSERT_CMPSTR (bson_iterator_key (it).data, "foo");
+      ASSERT_CMPSTR (bson_iterator_utf8 (it).data, "bar");
+      BSON_ASSERT ((it = bson_next (it)).stop == 0);
+      ASSERT_CMPSTR (bson_iterator_key (it).data, "baz");
+      BSON_ASSERT ((it = bson_next (it)).stop == 0);
+      ASSERT_CMPSTR (bson_iterator_key (it).data, "quux");
+      BSON_ASSERT (bson_iterator_type (it) == BSON_TYPE_NULL);
+      BSON_ASSERT ((it = bson_next (it)).stop == BSONV_ITER_STOP_DONE);
+      BSON_ASSERT (it.ptr == bson_end (v).ptr);
    }
 }
 

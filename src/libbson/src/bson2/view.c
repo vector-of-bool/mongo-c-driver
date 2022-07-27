@@ -1,6 +1,56 @@
 #include "./view.h"
 
-#include "string.h"
+#include <string.h>
+
+#include <bson/bson.h>
+
+extern inline uint32_t
+bson_read_uint32_le (const uint8_t *bytes);
+
+extern inline uint32_t bson_view_len (bson_view);
+
+extern inline bson_view
+bson_view_from_data (const bson_byte *const data,
+                     const size_t len,
+                     enum bson_view_invalid_reason *const error);
+
+extern inline bson_iterator
+_bson_iterator_at (bson_byte const *const data, uint32_t bytes_remaining);
+
+extern inline bson_byte const *
+_bson_safe_addptr (const bson_byte *const from,
+                   uint32_t dist,
+                   const bson_byte *const end);
+
+extern inline bson_iterator
+bson_next (const bson_iterator it);
+
+extern inline bson_view_utf8
+bson_iterator_key (bson_iterator it);
+
+extern inline bson_type
+bson_iterator_type (bson_iterator it);
+
+extern inline bson_byte const *
+_bson_iterator_value_ptr (bson_iterator it);
+
+extern inline bson_iterator
+bson_begin (bson_view v);
+
+extern inline bson_iterator
+bson_end (bson_view v);
+
+extern inline bson_view_utf8
+bson_iterator_utf8 (bson_iterator it);
+
+extern inline bool
+bson_key_eq (const bson_iterator, const char *key);
+
+extern inline bson_iterator
+bson_find_key (bson_view v, const char *key);
+
+extern inline bson_view
+bson_iterator_document (bson_iterator it);
 
 typedef struct validation_iterator {
    const bson_byte *dataptr;
@@ -9,174 +59,47 @@ typedef struct validation_iterator {
 
 
 enum bson_view_iterator_stop_reason
-_validate_document (bson_byte const *iter, bson_byte const *const end)
+bson_validate_untrusted (bson_view view)
 {
-   const int8_t jumpsize_table[] = {
-      0,  // BSON_TYPE_EOD
-      8,  // double
-      -1, // utf8
-      -1, // document,
-      -1, // array
-      -1, // binary,
-      0,  // undefined
-      12, // OID (twelve bytes)
-      1,  // bool
-      8,  // datetime
-      0,  // null
-      -2, // regex
-      -2, // dbpointer
-      -1, // JS code
-      -1, // Symbol
-      -1, // Code with scope
-      4,  // int32
-      8,  // int64
-      16, // decimal128
-      0,  // minkey
-      0,  // maxkey
-   };
-
-   bool cstring_okay = true;
-
-   while (iter != end) {
-      size_t remain = end - iter;
-      (void) remain;
-      const uint8_t type = iter->v;
-      bson_type_t type_ = type;
-      (void) type_;
-      if (type == 0) {
-         // We should have found the end of the document here
-         if (iter + 1 != end) {
-            return BSONV_ITER_STOP_INVALID_TYPE;
-         }
-         return 0;
-      }
-      // Check that the type is in-bounds
-      if (type >= sizeof jumpsize_table) {
-         return BSONV_ITER_STOP_INVALID_TYPE;
-      }
-
-      // Scan for the null-terminator after the key string
-      iter = _bson_find_after_cstring (iter, end, &cstring_okay);
-      if (!cstring_okay) {
-         return BSONV_ITER_STOP_INVALID;
-      }
-
-      // 'iter' now points to the beginning of the element data after the
-      // cstring key
-
-      // Prepare to jump
-      int32_t jump = jumpsize_table[type];
-      if (jump >= 0) {
-         // A known size of jump
-      } else if (jump == -1) {
-         // The next object is a length-prefixed object, and we can jump
-         // by reading an int32
-         uint32_t len;
-         if ((end - iter) < sizeof len) {
-            return BSONV_ITER_STOP_SHORT_READ;
-         }
-         memcpy (&len, iter, sizeof len);
-         len = BSON_UINT32_FROM_LE (len);
-         if (len > INT32_MAX || (INT32_MAX - len < sizeof len)) {
-            return BSONV_ITER_STOP_INVALID;
-         }
-         jump = len;
-         if (type != BSON_TYPE_DOCUMENT && type != BSON_TYPE_ARRAY) {
-            // We need to jump over the length header too
-            jump += sizeof len;
-         } else {
-            // This is a sub-document
-            if (len > (end - iter)) {
-               // There's not enough data remaining for the document of the
-               // given size
-               return BSONV_ITER_STOP_SHORT_READ;
-            }
-            // Before jumping, validate the sub-document
-            enum bson_view_iterator_stop_reason v =
-               _validate_document (iter, iter + len);
-            if (v) {
-               return v;
-            }
-            // Sub-document validated okay. We can jump over it
-         }
-      } else if (jump == -2) {
-         // The object is special and needs special rules to validate it
-         switch (type) {
-         case BSON_TYPE_EOD:
-         case BSON_TYPE_DOUBLE:
-         case BSON_TYPE_UTF8:
-         case BSON_TYPE_DOCUMENT:
-         case BSON_TYPE_ARRAY:
-         case BSON_TYPE_BINARY:
-         case BSON_TYPE_UNDEFINED:
-         case BSON_TYPE_OID:
-         case BSON_TYPE_BOOL:
-         case BSON_TYPE_DATE_TIME:
-         case BSON_TYPE_NULL:
-         case BSON_TYPE_CODE:
-         case BSON_TYPE_SYMBOL:
-         case BSON_TYPE_CODEWSCOPE:
-         case BSON_TYPE_INT32:
-         case BSON_TYPE_INT64:
-         case BSON_TYPE_TIMESTAMP:
-         case BSON_TYPE_DECIMAL128:
-         case BSON_TYPE_MINKEY:
-         case BSON_TYPE_MAXKEY:
-            BSON_UNREACHABLE ("Invalid type jump");
-         case BSON_TYPE_REGEX: {
-            // Find the end of the first string
-            const bson_byte *scan =
-               _bson_find_after_cstring (iter, end, &cstring_okay);
-            if (cstring_okay) {
-               // Find the end of the second string
-               scan = _bson_find_after_cstring (scan, end, &cstring_okay);
-            }
-            // We okay?
-            if (!cstring_okay) {
-               return BSONV_ITER_STOP_INVALID;
-            }
-            // Jump however much we read
-            jump = scan - iter;
-            break;
-         }
-         case BSON_TYPE_DBPOINTER: {
-            // Read a int32 length prefix
-            uint32_t len;
-            if ((end - iter) < sizeof len) {
-               return BSONV_ITER_STOP_SHORT_READ;
-            }
-            memcpy (&len, iter, sizeof len);
-            len = BSON_UINT32_FROM_LE (len);
-            // Avoid overflowing on the addition:
-            if (len > INT32_MAX || INT32_MAX - len < 12) {
-               return BSONV_ITER_STOP_SHORT_READ;
-            }
-            // +Twelve bytes for the OID
-            jump = len + 12u;
-            break;
-         }
-         }
-      }
-
-      // We're ready to jump
-      if ((end - iter) < jump) {
-         // There's not enough data!
-         return BSONV_ITER_STOP_SHORT_READ;
-      }
-      iter += jump;
-   }
-
-   return BSONV_ITER_STOP_SHORT_READ;
+   // return _validate_document (view.data, view.data + bson_view_len (view));
+   return 0;
 }
 
-bson_validation_result
-bson_validate_untrusted (bson_view_untrusted view)
+
+bson_t *
+bson_view_copy_as_bson_t (bson_view v)
 {
-   enum bson_view_iterator_stop_reason error =
-      _validate_document (view.data, view.data + bson_view_ut_len (view));
-   if (error) {
-      return (bson_validation_result){.error = error};
+   if (!v.data) {
+      return NULL;
    }
-   return (bson_validation_result){
-      .view = bson_view_from_trusted_data (view.data, bson_view_ut_len (view))};
+   return bson_new_from_data ((const uint8_t *) v.data, bson_view_len (v));
+}
+
+bson_view
+bson_view_from_bson_iter_t (bson_iter_t it)
+{
+   const bson_type_t type = (bson_type_t) (it.raw + it.type)[0];
+   if (type == BSON_TYPE_DOCUMENT || type == BSON_TYPE_ARRAY) {
+      return bson_view_from_data (
+         (bson_byte const *) (it.raw + it.d1), it.len, NULL);
+   }
+   return BSON_VIEW_NULL;
+}
+
+bson_view
+bson_view_from_bson_t (const bson_t *b)
+{
+   if (!b) {
+      return BSON_VIEW_NULL;
+   }
+   return bson_view_from_data (
+      (const bson_byte *) bson_get_data (b), b->len, NULL);
+}
+
+bson_t
+bson_view_as_viewing_bson_t (bson_view v)
+{
+   bson_t r;
+   bson_init_static (&r, (const uint8_t *) v.data, bson_view_len (v));
+   return r;
 }

@@ -13,8 +13,7 @@ LLVMFuzzerTestOneInput (const uint8_t *data, size_t len)
    bson_validate (b, 0xffffff, NULL);
    bson_destroy (b);
 
-   bson_view_untrusted utv =
-      bson_view_from_untrusted_data ((const bson_byte *) data, len, NULL);
+   bson_view utv = bson_view_from_data ((const bson_byte *) data, len, NULL);
    if (!utv.data) {
       return 0;
    }
