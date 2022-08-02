@@ -2510,6 +2510,7 @@ test_bson_as_json_string (void)
    bson_free (actual);
 }
 
+
 static void
 test_bson_view (void)
 {
@@ -2549,19 +2550,17 @@ test_bson_view (void)
 
    {
       v = bson_view_from_bson_t (b);
-      enum bson_view_iterator_stop_reason error2 = bson_validate_untrusted (v);
-      ASSERT_CMPINT (error2, ==, 0);
       bson_iterator it = bson_begin (v);
-      BSON_ASSERT (it.stop == 0);
+      BSON_ASSERT (!bson_iterator_eq (it, bson_end (v)));
       ASSERT_CMPINT (bson_iterator_type (it), ==, BSON_TYPE_UTF8);
       ASSERT_CMPSTR (bson_iterator_key (it).data, "foo");
       ASSERT_CMPSTR (bson_iterator_utf8 (it).data, "bar");
-      BSON_ASSERT ((it = bson_next (it)).stop == 0);
+      BSON_ASSERT (!bson_iterator_done ((it = bson_next (it))));
       ASSERT_CMPSTR (bson_iterator_key (it).data, "baz");
-      BSON_ASSERT ((it = bson_next (it)).stop == 0);
+      BSON_ASSERT (!bson_iterator_done (it = bson_next (it)));
       ASSERT_CMPSTR (bson_iterator_key (it).data, "quux");
       BSON_ASSERT (bson_iterator_type (it) == BSON_TYPE_NULL);
-      BSON_ASSERT ((it = bson_next (it)).stop == BSONV_ITER_STOP_DONE);
+      BSON_ASSERT (bson_iterator_done (it = bson_next (it)));
       BSON_ASSERT (it.ptr == bson_end (v).ptr);
    }
 }

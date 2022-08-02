@@ -15,7 +15,7 @@ bson_view_from_data (const bson_byte *const data,
                      enum bson_view_invalid_reason *const error);
 
 extern inline bson_iterator
-_bson_iterator_at (bson_byte const *const data, uint32_t bytes_remaining);
+_bson_iterator_at (bson_byte const *const data, int32_t bytes_remaining);
 
 extern inline bson_byte const *
 _bson_safe_addptr (const bson_byte *const from,
@@ -40,6 +40,12 @@ bson_begin (bson_view v);
 extern inline bson_iterator
 bson_end (bson_view v);
 
+extern inline bool
+bson_iterator_eq (bson_iterator left, bson_iterator right);
+
+extern inline bool
+bson_iterator_done (bson_iterator it);
+
 extern inline bson_view_utf8
 bson_iterator_utf8 (bson_iterator it);
 
@@ -52,17 +58,41 @@ bson_find_key (bson_view v, const char *key);
 extern inline bson_view
 bson_iterator_document (bson_iterator it);
 
-typedef struct validation_iterator {
-   const bson_byte *dataptr;
-   size_t bytes_remaining;
-} validation_iterator;
+extern inline void
+_bson_view_assert (bool b, const char *expr, const char *file, int line);
 
+extern inline int32_t
+_bson_value_re_len (const char *valptr, int32_t maxlen);
 
-enum bson_view_iterator_stop_reason
-bson_validate_untrusted (bson_view view)
+extern inline int32_t
+_bson_value_var_size_unsafe (bson_type t, bson_byte const *const valptr);
+
+extern inline int32_t
+_bson_value_var_size_checked (bson_type t,
+                              bson_byte const *const valptr,
+                              int32_t maxlen);
+
+extern inline int
+_bson_value_const_size (bson_type t);
+
+extern inline int32_t
+_bson_valsize (bson_type tag,
+               bson_byte const *const valptr,
+               int32_t val_maxlen);
+
+extern inline bson_iterator
+_bson_iterator_error (enum bson_iterator_error_cond err);
+
+void
+_bson_assert_fail (const char *expr, const char *file, int line)
 {
-   // return _validate_document (view.data, view.data + bson_view_len (view));
-   return 0;
+   fprintf (stderr,
+            "bson/view ASSERTION FAILED at %s:%d: Expression [%s] evaluated to "
+            "false\n",
+            file,
+            line,
+            expr);
+   abort ();
 }
 
 
