@@ -17,7 +17,6 @@ LLVMFuzzerTestOneInput (const uint8_t *data, size_t len)
    if (!utv.data) {
       return 0;
    }
-   (void) bson_validate_untrusted (utv);
 
    return 0;
 }
