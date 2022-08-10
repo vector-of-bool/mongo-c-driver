@@ -65,17 +65,6 @@ extern inline int32_t
 _bson_value_re_len (const char *valptr, int32_t maxlen);
 
 extern inline int32_t
-_bson_value_var_size_unsafe (bson_type t, bson_byte const *const valptr);
-
-extern inline int32_t
-_bson_value_var_size_checked (bson_type t,
-                              bson_byte const *const valptr,
-                              int32_t maxlen);
-
-extern inline int
-_bson_value_const_size (bson_type t);
-
-extern inline int32_t
 _bson_valsize (bson_type tag,
                bson_byte const *const valptr,
                int32_t val_maxlen);

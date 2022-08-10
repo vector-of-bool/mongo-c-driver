@@ -15,6 +15,14 @@
 #define BSON2_INIT(X) (X)
 #endif
 
+#ifndef _MSC_VER
+#define BV_LIKELY(X) __builtin_expect ((X), 1)
+#define BV_UNLIKELY(X) __builtin_expect ((X), 0)
+#else
+#define BV_LIKELY(X) (X)
+#define BV_UNLIKELY(X) (X)
+#endif
+
 #include <bson/types.h>
 
 #include <inttypes.h>
@@ -27,7 +35,7 @@ BSON2_EXTERN_C_BEGIN
 struct _bson_t;
 struct _bson_iter_t;
 
-enum { BSON_VIEW_CHECKED = 1 };
+enum { BSON_VIEW_CHECKED = 0 };
 
 inline uint32_t
 bson_read_uint32_le (const uint8_t *bytes) BSON2_NOEXCEPT
@@ -50,6 +58,8 @@ _bson_assert_fail (const char *, const char *file, int line);
    if (BSON_VIEW_CHECKED && !(Cond)) {               \
       _bson_assert_fail (#Cond, __FILE__, __LINE__); \
       abort ();                                      \
+   } else if (!(Cond)) {                             \
+      __builtin_unreachable ();                      \
    } else                                            \
       ((void) 0)
 
@@ -432,7 +442,13 @@ _bson_valsize (bson_type tag, bson_byte const *const valptr, int32_t val_maxlen)
    /// docs/arrays are also length-prefixed, but this length prefix accounts for
    /// itself as part of its value, so it will be taken care of automatically
    /// when we jump based on that value.
-   static const int32_t const_sizes[20] = {
+   ///
+   /// The table has 256 entries to consider ever possible value of an octet
+   /// type tag. Most of these are INT32_MAX, which will trigger an overflow
+   /// guard that checks the type tag again. Note the special minkey and maxkey
+   /// tags, which are zero-length and valid, but not contiguous with the
+   /// lower 20 type tags.
+   static const int32_t const_sizes[256] = {
       0,         // 0x0 BSON_TYPE_EOD
       8,         // 0x1 double
       4,         // 0x2 utf8
@@ -455,22 +471,58 @@ _bson_valsize (bson_type tag, bson_byte const *const valptr, int32_t val_maxlen)
       8,         // 0x11 MongoDB timestamp
       8,         // 0x12 int64
       16,        // 0x13 decimal128
+      // clang-format off
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, 0 /* 0x7f maxkey */,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,
+      INT32_MAX, 0 /* 0xff minkey */
+      // clang-format on
    };
 
-   if (tag < 0 || tag > 0x13) {
-      if (tag == 0xff || tag == 0x7f) {
-         // Minkey / Maxkey
-         return 0;
-      }
-      // The tag itself is out-of-range.
-      return -(int) BSON_ITER_INVALID_TYPE;
-   }
+   const uint32_t tag_idx = (uint32_t) tag;
+   BV_ASSERT (tag_idx < 256);
 
-   const int32_t const_size = const_sizes[tag];
+   const int32_t const_size = const_sizes[tag_idx];
 
    /// "varsize_pick" encodes whether a type tag contains a length prefix
    /// before its value.
-   static const bool varsize_pick[] = {
+   static const bool varsize_pick[256] = {
       false, // 0x0 BSON_TYPE_EOD
       false, // 0x1 double
       true,  // 0x2 utf8
@@ -491,59 +543,46 @@ _bson_valsize (bson_type tag, bson_byte const *const valptr, int32_t val_maxlen)
       false, // 0x11 MongoDB timestamp
       false, // 0x12 int64
       false, // 0x13 decimal128
+      // Remainder of array elements are zero-initialized to "false"
    };
 
-   /// Whether we have enough data in the buffer to read four bytes.
-   const bool have_enough = val_maxlen >= 4;
    const bool has_varsize_prefix = varsize_pick[tag];
-   const int buf_picker = (have_enough << 1) | (int) has_varsize_prefix;
-   static const uint32_t zero = 0;
-   static const uint32_t n1 = INT32_MAX;
-   const void *bufs[] = {
-      &zero,  // 0b00 -> !have_enough & !has_varsize_prefix
-      &n1,    // 0b01 -> !have_enough &  has_varsize_prefix
-      &zero,  // 0b10 ->  have_enough & !has_varsize_prefix
-      valptr, // 0b11 ->  have_enough &  has_varsize_prefix
-   };
-   // If the type is length-prefixed, and we have enough to read that prefix,
-   // this points to the beginning of that prefix, otherwise points to a
-   // constant: If we expect a length prefix but do not have enough data, this
-   // points to an INT32_MAX. Otherwise, this points to a zero.
-   const uint8_t *const varsize_source = (const uint8_t *) bufs[buf_picker];
-   // The length of the value given by the length prefix, if applicable and we
-   // have enough data. If we expect a length prefix and do not have enough
-   // data, INT32_MAX. Otherwise zero.
-   const int32_t varlen = (int32_t) bson_read_uint32_le (varsize_source);
-   // The number of integers we have beyond `const_size` before overflowing
-   // int32_t.
-   const int32_t headroom = INT32_MAX - const_size;
-   // Whether adding `varlen` and `const_size` will overflow int32_t
-   const bool add_would_overload = headroom < varlen;
-   // Either the `const_size`, or `headroom`
-   const int32_t add_pick[] = {const_size, headroom};
-   // An integer that is safe to add to `varlen`. If addition would overflow,
-   // this addend will sum to INT32_MAX and indicate a buffer overflow.
-   // Otherwise, this addend will sum to the actual value length successfully.
-   const int32_t safe_addend = add_pick[(int) add_would_overload];
-   // Calculate the actual size of the value. If varlen is too large to add to
-   // `const_size` or type is a regex, will add to INT32_MAX and definitively
-   // trigger the overrun guard below. Otherwise, calculates the length of value
-   // that we expect.
-   const int32_t full_len = varlen + safe_addend;
-   // Check whether there is enough room to hold the value's required size.
-   if (full_len >= val_maxlen) {
-      if (tag == BSON_TYPE_REGEX) {
-         // Oops! We're actually reading a regular expression, which is designed
-         // above to trigger the overrun check so that we can do something
-         // different to calculate its size:
-         return _bson_value_re_len ((const char *) valptr, val_maxlen);
+
+   int64_t full_len = const_size;
+   if (has_varsize_prefix) {
+      const bool have_enough = val_maxlen > 4;
+      if (BV_UNLIKELY (!have_enough)) {
+         // We require at least four bytes to read the int32_t length prefix of
+         // the value.
+         return -BSON_ITER_INVALID_LENGTH;
       }
-      // Indicate an overrun by returning -1
-      return -(int) BSON_ITER_INVALID_LENGTH;
-   } else {
-      // We have a good size:
-      return full_len;
+      // The length of the value given by the length prefix:
+      const uint32_t varlen = bson_read_uint32_le ((const uint8_t *) valptr);
+      full_len += varlen;
    }
+   // Check whether there is enough room to hold the value's required size.
+   BV_ASSERT (full_len >= 0);
+   if (BV_LIKELY (full_len < val_maxlen)) {
+      // We have a good value size
+      BV_ASSERT (full_len < INT32_MAX);
+      return (int32_t) full_len;
+   }
+
+   // full_len was computed to be larger than val_maxlen.
+   if (BV_LIKELY (tag == BSON_TYPE_REGEX)) {
+      // Oops! We're actually reading a regular expression, which is designed
+      // above to trigger the overrun check so that we can do something
+      // different to calculate its size:
+      return _bson_value_re_len ((const char *) valptr, val_maxlen);
+   }
+   if (const_size == INT32_MAX) {
+      // We indexed into the const_sizes table at some other invalid type
+      return -BSON_ITER_INVALID_TYPE;
+   }
+   // We indexed into a valid type and know the length that it should be, but we
+   // do not have enough in val_maxlen to hold the value that was requested.
+   // Indicate an overrun by returning an error
+   return -BSON_ITER_INVALID_LENGTH;
 }
 
 /**
@@ -587,7 +626,7 @@ _bson_iterator_at (bson_byte const *const data, int32_t maxlen) BSON2_NOEXCEPT
    /// The type of the next data element
    const bson_type type = (bson_type) data[0].v;
 
-   if (maxlen == 1) {
+   if (BV_UNLIKELY (maxlen == 1)) {
       // There's only the last byte remaining. Creation of the original
       // bson_view validated that the data ended with a nullbyte, so we may
       // assume that the only remaining byte is a nul.
@@ -615,6 +654,7 @@ _bson_iterator_at (bson_byte const *const data, int32_t maxlen) BSON2_NOEXCEPT
    // Given : key_maxlen = maxlen - 1
    //       ⋀ maxlen - 1 >= 1
    //*      ⊢ key_maxlen >= 1
+   BV_ASSERT (key_maxlen >= 1);
 
    //? Prove: key_maxlen = last_index
    // Subst : key_maxlen = maxlen - 1
@@ -666,7 +706,12 @@ _bson_iterator_at (bson_byte const *const data, int32_t maxlen) BSON2_NOEXCEPT
    //*      ⊢ HasNul(keyptr, key_maxlen)
 
    // Define:
-   const int keylen = strnlen (keyptr, key_maxlen);
+   const int keylen = strlen (keyptr);
+   // const int keylen = strnlen (keyptr, key_maxlen);
+   // int keylen = 0;
+   // while (keyptr[keylen]) {
+   //    ++keylen;
+   // }
 
    // Derive: HasNul(keyptr, key_maxlen)
    //       ⋀ R.keylen = strnlen(S.keyptr, M.key_maxlen)
@@ -674,6 +719,9 @@ _bson_iterator_at (bson_byte const *const data, int32_t maxlen) BSON2_NOEXCEPT
    //*      ⊢ (keylen >= 0)
    //*      ⋀ (keylen < key_maxlen)
    //*      ⋀ (keyptr[keylen] = 0)
+   BV_ASSERT (keylen >= 0);
+   BV_ASSERT (keylen < key_maxlen);
+   BV_ASSERT (keyptr[keylen] == 0);
 
    // Define:
    const int32_t p1 = key_maxlen - keylen;
@@ -694,8 +742,9 @@ _bson_iterator_at (bson_byte const *const data, int32_t maxlen) BSON2_NOEXCEPT
    // Derive: ValMaxLen = p1 - 1
    //       ⋀ (p1-1 >= 0)
    //       ⊢ ValMaxLen >= 0
+   BV_ASSERT (val_maxlen >= 0);
 
-   if (val_maxlen < 1) {
+   if (BV_UNLIKELY (val_maxlen < 1)) {
       // We require at least one byte for the document's own nul terminator
       return _bson_iterator_error (BSON_ITER_SHORT_READ);
    }
@@ -703,12 +752,27 @@ _bson_iterator_at (bson_byte const *const data, int32_t maxlen) BSON2_NOEXCEPT
    // Assume: ValMaxLen > 0
    BV_ASSERT (val_maxlen > 0);
 
-   const char *const valptr = keyptr + (keylen + 1);
+   bool need_check_size = true;
+   if (val_maxlen > 16) {
+      // val_maxlen is larger than all fixed-sized BSON value objects. If we are
+      // parsing a fixed-size object, we can skip size checking
+      need_check_size =
+         !(type == BSON_TYPE_NULL || type == BSON_TYPE_UNDEFINED ||
+           type == BSON_TYPE_TIMESTAMP || type == BSON_TYPE_DATE_TIME ||
+           type == BSON_TYPE_DOUBLE || type == BSON_TYPE_BOOL ||
+           type == BSON_TYPE_DECIMAL128 || type == BSON_TYPE_INT32 ||
+           type == BSON_TYPE_INT64);
+   }
 
-   const int32_t vallen =
-      _bson_valsize (type, (const bson_byte *) valptr, val_maxlen);
-   if (vallen < 0) {
-      return _bson_iterator_error ((enum bson_iterator_error_cond) (-vallen));
+   if (need_check_size) {
+      const char *const valptr = keyptr + (keylen + 1);
+
+      const int32_t vallen =
+         _bson_valsize (type, (const bson_byte *) valptr, val_maxlen);
+      if (BV_UNLIKELY (vallen < 0)) {
+         return _bson_iterator_error (
+            (enum bson_iterator_error_cond) (-vallen));
+      }
    }
    return BSON2_INIT (bson_iterator){
       .ptr = data, ._rlen = maxlen, ._keylen = keylen};
@@ -887,6 +951,8 @@ bson_find_key (bson_view v, const char *key) BSON2_NOEXCEPT
 }
 
 #undef BV_ASSERT
+#undef BV_LIKELY
+#undef BV_UNLIKELY
 
 BSON2_EXTERN_C_END
 
