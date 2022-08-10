@@ -501,6 +501,10 @@ set_target_properties(bson2json json2bson PROPERTIES
    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
    )
 
+add_executable (bson-perf tools/perf.cpp)
+target_link_libraries (bson-perf PRIVATE bson_static catch2::main)
+set_target_properties (bson-perf PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+
 set (src_libbson_DIST
    ${src_libbson_DIST_local}
    ${src_libbson_build_DIST}
