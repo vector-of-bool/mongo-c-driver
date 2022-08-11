@@ -42,7 +42,7 @@ operation list is equivalent to the `doc()` build operation
 Equivalent to:
 
    bson_t Var = BSON_INITIALIZER;
-   bsonBuildAppend(Var, ...)
+   bsonBuildAppend(Var, DocOperation...)
 
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -125,7 +125,7 @@ ValueOperation
 
    doc(DocOperation...)
 
-      Create a sub-document. with the given elements (may be empty).
+      Create a sub-document with the given elements (may be empty).
 
    array(ArrayOperation...)
 
@@ -228,19 +228,15 @@ ParseOperation
 
       allOf(Predicate...)
 
-         Matches only if _all_ sub-predicates matches
+         Matches only if _all_ sub-predicates match (conjunction)
 
       anyOf(Predicate...)
 
-         Matches if _any_ sub-predicate matches.
+         Matches if _any_ sub-predicate matches (disjunction)
 
-      not(Predicate)
+      not(Predicate...)
 
-         Matches if `Predicate` does not match
-
-      noneOf(Predicate...)
-
-         Matches if none of the given predicates match
+         Matches if none of the given predicates match (negation)
 
       true
 
@@ -311,7 +307,7 @@ VisitOperation
    The following operations are applied to a bson_iter_t given by the
    bsonVisitIter global name.
 
-   The `store-` operations will check that the element as the appropriate type,
+   The `store-` operations will check that the element has the appropriate type,
    otherwise they will assign a default zero-ish value into the destination.
 
    storeBool(B)
