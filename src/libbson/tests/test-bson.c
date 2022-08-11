@@ -2544,7 +2544,7 @@ test_bson_dsl (void)
    ASSERT_CMPINT64 (bson_iter_as_int64 (&found), ==, 94412);
 
    ASSERT (bsonParseError == NULL);
-   bsonParse (meow, require (keyWithType ("foo", int32), nop), do(abort ()));
+   bsonParse (meow, require (keyWithType ("missing-key", int32), nop), do(abort ()));
    ASSERT (bsonParseError != NULL);
 
    bson_destroy (&meow);
@@ -2582,11 +2582,7 @@ test_bson_dsl (void)
 
    bool foundfoo = false;
    bool foundbar = false;
-   bsonParse (another,
-              find (key ("foo"), do(foundfoo = true)),
-              find (key ("bar"), do(foundbar = true)));
-
-   bsonParse (another, find (anyOf (key ("meow"), key ("foo")), do()));
+   bsonParse (another, find (anyOf (key ("meow"), key ("foo")), do(foundfoo=true)));
    BSON_ASSERT (foundfoo);
    BSON_ASSERT (!foundbar);
 

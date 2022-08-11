@@ -383,6 +383,12 @@ VisitOperation
 
 enum { BSON_DSL_DEBUG = 1 };
 
+#ifdef _WIN32
+#define _bson_thread_local_comdat __declspec(thread) __declspec(selectany)
+#else
+#define _bson_thread_local_comdat __attribute__ ((weak)) __thread
+#endif
+
 /**
  * @brief Parse the given BSON document.
  *
@@ -622,7 +628,7 @@ extern bson_iter_t bsonVisitIter, bsonParseIter;
 #define _bsonDocOperation_insertFromIter(Iter, ...)                    \
    _bsonDSL_begin ("Insert document from iterator: [%s]",              \
                    _bsonDSL_str (Iter));                               \
-   bson_t _bbDocFromIter = _bson_dsl_iter_as_doc ((Iter));             \
+   bson_t _bbDocFromIter = _bson_dsl_iter_as_doc (&(Iter));            \
    if (_bbDocFromIter.len == 0) {                                      \
       _bsonDSLDebug (                                                  \
          "NOTE: Skipping insert of non-document value from iterator"); \
@@ -804,7 +810,7 @@ extern bson_iter_t bsonVisitIter, bsonParseIter;
 
 #define _bsonVisitOperation_storeDocDup(Dest)               \
    _bsonDSL_begin ("storeDocDup(%s)", _bsonDSL_str (Dest)); \
-   bson_t _bvDoc = _bson_dsl_iter_as_doc (bsonVisitIter);   \
+   bson_t _bvDoc = _bson_dsl_iter_as_doc (&bsonVisitIter);  \
    if (_bvDoc.len) {                                        \
       bson_copy_to (&_bvDoc, &(Dest));                      \
    }                                                        \
@@ -812,12 +818,12 @@ extern bson_iter_t bsonVisitIter, bsonParseIter;
 
 #define _bsonVisitOperation_storeDocRef(Dest)               \
    _bsonDSL_begin ("storeDocRef(%s)", _bsonDSL_str (Dest)); \
-   (Dest) = _bson_dsl_iter_as_doc (bsonVisitIter);          \
+   (Dest) = _bson_dsl_iter_as_doc (&bsonVisitIter);         \
    _bsonDSL_end
 
 #define _bsonVisitOperation_storeDocDupPtr(Dest)               \
    _bsonDSL_begin ("storeDocDupPtr(%s)", _bsonDSL_str (Dest)); \
-   bson_t _bvDoc = _bson_dsl_iter_as_doc (bsonVisitIter);      \
+   bson_t _bvDoc = _bson_dsl_iter_as_doc (&bsonVisitIter);     \
    if (_bvDoc.len) {                                           \
       (Dest) = bson_copy (&_bvDoc);                            \
    }                                                           \
@@ -1234,8 +1240,8 @@ struct _bsonBuildContext_t {
 };
 
 /// A pointer to the current thread's bsonBuild context
-extern _bsonDSL_thread_local struct _bsonBuildContext_t
-   *_bsonBuildContextThreadLocalPtr;
+extern _bson_thread_local_comdat struct _bsonBuildContext_t
+   *_bsonBuildContextThreadLocalPtr = NULL;
 
 struct _bsonVisitContext_t {
    const bson_t *doc;
@@ -1244,8 +1250,8 @@ struct _bsonVisitContext_t {
 };
 
 /// A pointer to the current thread's bsonVisit/bsonParse context
-extern _bsonDSL_thread_local struct _bsonVisitContext_t const
-   *_bsonVisitContextThreadLocalPtr;
+extern _bson_thread_local_comdat struct _bsonVisitContext_t const
+   *_bsonVisitContextThreadLocalPtr = NULL;
 
 /**
  * @brief The most recent error from a bsonBuild() DSL command.
@@ -1253,7 +1259,7 @@ extern _bsonDSL_thread_local struct _bsonVisitContext_t const
  * If NULL, no error occurred. Users can assign a value to this string to
  * indicate failure.
  */
-extern _bsonDSL_thread_local const char *bsonBuildError;
+extern _bson_thread_local_comdat const char *bsonBuildError = NULL;
 
 /**
  * @brief The most recent error from a buildVisit() or bsonParse() DSL command.
@@ -1266,10 +1272,30 @@ extern _bsonDSL_thread_local const char *bsonBuildError;
  *
  * Upon entering a new bsonVisit()/bsonParse(), this will be reset to NULL.
  */
-extern _bsonDSL_thread_local const char *bsonParseError;
+extern _bson_thread_local_comdat const char *bsonParseError = NULL;
 
 #define _bsonDSLDebug(...) \
    _bson_dsl_debug (__FILE__, __LINE__, __func__, __VA_ARGS__)
+
+
+static inline bool
+_bson_dsl_test_strequal (const char *string, bool case_sensitive)
+{
+   bson_iter_t it = bsonVisitIter;
+   if (bson_iter_type (&it) == BSON_TYPE_UTF8) {
+      uint32_t len;
+      const char *s = bson_iter_utf8 (&it, &len);
+      if (len != strlen (string)) {
+         return false;
+      }
+      if (case_sensitive) {
+         return memcmp (string, s, len) == 0;
+      } else {
+         return bson_strcasecmp (string, s) == 0;
+      }
+   }
+   return false;
+}
 
 static inline bool
 _bson_dsl_key_is_anyof (const char *key,
@@ -1286,12 +1312,12 @@ _bson_dsl_key_is_anyof (const char *key,
          continue;
       }
       if (case_sensitive) {
-         if (memcmp (key, str, str_len) == 0) {
+         if (memcmp (str, key, str_len) == 0) {
             va_end (va);
             return true;
          }
       } else {
-         if (strncasecmp (key, str, str_len) == 0) {
+         if (bson_strcasecmp (str, key) == 0) {
             va_end (va);
             return true;
          }
@@ -1301,34 +1327,15 @@ _bson_dsl_key_is_anyof (const char *key,
    return false;
 }
 
-static inline bool
-_bson_dsl_test_strequal (const char *string, bool case_sensitive)
-{
-   bson_iter_t it = bsonVisitIter;
-   if (bson_iter_type (&it) == BSON_TYPE_UTF8) {
-      uint32_t len;
-      const char *s = bson_iter_utf8 (&it, &len);
-      if (len != strlen (string)) {
-         return false;
-      }
-      if (case_sensitive) {
-         return memcmp (string, s, len) == 0;
-      } else {
-         return strncasecmp (string, s, len) == 0;
-      }
-   }
-   return false;
-}
-
 static inline bson_t
-_bson_dsl_iter_as_doc (const bson_iter_t it)
+_bson_dsl_iter_as_doc (const bson_iter_t *it)
 {
    uint32_t len = 0;
    const uint8_t *dataptr = NULL;
-   if (BSON_ITER_HOLDS_ARRAY (&it)) {
-      bson_iter_array (&it, &len, &dataptr);
-   } else if (BSON_ITER_HOLDS_DOCUMENT (&it)) {
-      bson_iter_document (&it, &len, &dataptr);
+   if (BSON_ITER_HOLDS_ARRAY (it)) {
+      bson_iter_array (it, &len, &dataptr);
+   } else if (BSON_ITER_HOLDS_DOCUMENT (it)) {
+      bson_iter_document (it, &len, &dataptr);
    }
    bson_t ret = {0};
    if (dataptr) {
@@ -1338,16 +1345,17 @@ _bson_dsl_iter_as_doc (const bson_iter_t it)
 }
 
 static inline bool
-_bson_dsl_is_empty_bson (const bson_iter_t it)
+_bson_dsl_is_empty_bson (const bson_iter_t *it)
 {
    bson_t b = _bson_dsl_iter_as_doc (it);
    return b.len == 5; // Empty documents/arrays have byte-size of five
 }
 
 static inline bool
-_bson_dsl_iter_is_last_element (bson_iter_t it)
+_bson_dsl_iter_is_last_element (const bson_iter_t *it)
 {
-   return !bson_iter_next (&it) && it.err_off == 0;
+   bson_iter_t dup = *it;
+   return !bson_iter_next (&dup) && dup.err_off == 0;
 }
 
 static int _bson_dsl_indent = 0;
