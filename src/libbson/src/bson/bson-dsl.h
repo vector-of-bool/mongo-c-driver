@@ -1240,7 +1240,7 @@ struct _bsonBuildContext_t {
 };
 
 /// A pointer to the current thread's bsonBuild context
-extern _bson_thread_local_comdat struct _bsonBuildContext_t
+_bson_thread_local_comdat struct _bsonBuildContext_t
    *_bsonBuildContextThreadLocalPtr = NULL;
 
 struct _bsonVisitContext_t {
@@ -1250,7 +1250,7 @@ struct _bsonVisitContext_t {
 };
 
 /// A pointer to the current thread's bsonVisit/bsonParse context
-extern _bson_thread_local_comdat struct _bsonVisitContext_t const
+_bson_thread_local_comdat struct _bsonVisitContext_t const
    *_bsonVisitContextThreadLocalPtr = NULL;
 
 /**
@@ -1259,7 +1259,7 @@ extern _bson_thread_local_comdat struct _bsonVisitContext_t const
  * If NULL, no error occurred. Users can assign a value to this string to
  * indicate failure.
  */
-extern _bson_thread_local_comdat const char *bsonBuildError = NULL;
+_bson_thread_local_comdat const char *bsonBuildError = NULL;
 
 /**
  * @brief The most recent error from a buildVisit() or bsonParse() DSL command.
@@ -1272,7 +1272,7 @@ extern _bson_thread_local_comdat const char *bsonBuildError = NULL;
  *
  * Upon entering a new bsonVisit()/bsonParse(), this will be reset to NULL.
  */
-extern _bson_thread_local_comdat const char *bsonParseError = NULL;
+_bson_thread_local_comdat const char *bsonParseError = NULL;
 
 #define _bsonDSLDebug(...) \
    _bson_dsl_debug (__FILE__, __LINE__, __func__, __VA_ARGS__)
