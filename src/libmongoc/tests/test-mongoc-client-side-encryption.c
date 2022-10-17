@@ -116,17 +116,33 @@ test_client_side_encryption_cb (bson_t *scenario)
    "\x4f\x69\x37\x36\x36\x4a\x7a\x58\x5a\x42\x64\x42\x64\x62\x64\x4d\x75\x72" \
    "\x64\x6f\x6e\x4a\x31\x64"
 
+static void
+_set_extra_bypass (bson_t *extra)
+{
+   if (test_framework_getenv_bool ("MONGOC_TEST_MONGOCRYPTD_BYPASS_SPAWN")) {
+      BSON_APPEND_BOOL (extra, "mongocryptdBypassSpawn", true);
+   }
+}
+
+static void
+_set_extra_crypt_shared (bson_t *extra)
+{
+   char *const path =
+      test_framework_getenv ("MONGOC_TEST_CRYPT_SHARED_LIB_PATH");
+   if (path) {
+      BSON_APPEND_UTF8 (extra, "cryptSharedLibPath", path);
+      bson_free (path);
+   }
+}
+
 /* Convenience helper to check if spawning mongocryptd should be bypassed */
 static void
 _check_bypass (mongoc_auto_encryption_opts_t *opts)
 {
-   if (test_framework_getenv_bool ("MONGOC_TEST_MONGOCRYPTD_BYPASS_SPAWN")) {
-      bson_t *extra;
-
-      extra = BCON_NEW ("mongocryptdBypassSpawn", BCON_BOOL (true));
-      mongoc_auto_encryption_opts_set_extra (opts, extra);
-      bson_destroy (extra);
-   }
+   bson_t extra = BSON_INITIALIZER;
+   _set_extra_bypass (&extra);
+   mongoc_auto_encryption_opts_set_extra (opts, &extra);
+   bson_destroy (&extra);
 }
 
 static bson_t *
@@ -2115,16 +2131,11 @@ _reset (mongoc_client_pool_t **pool,
    mongoc_auto_encryption_opts_destroy (*opts);
    *opts = mongoc_auto_encryption_opts_new ();
    {
-      bson_t *const extra =
-         BCON_NEW ("mongocryptdBypassSpawn", BCON_BOOL (true));
-      char *env_cryptSharedLibPath =
-         test_framework_getenv ("MONGOC_TEST_CRYPT_SHARED_LIB_PATH");
-      if (env_cryptSharedLibPath) {
-         BSON_APPEND_UTF8 (extra, "cryptSharedLibPath", env_cryptSharedLibPath);
-         bson_free (env_cryptSharedLibPath);
-      }
-      mongoc_auto_encryption_opts_set_extra (*opts, extra);
-      bson_destroy (extra);
+      bson_t extra = BSON_INITIALIZER;
+      _set_extra_bypass (&extra);
+      _set_extra_crypt_shared (&extra);
+      mongoc_auto_encryption_opts_set_extra (*opts, &extra);
+      bson_destroy (&extra);
    }
    mongoc_auto_encryption_opts_set_keyvault_namespace (*opts, "db", "keyvault");
    kms_providers = _make_kms_providers (false /* aws */, true /* local */);
@@ -2641,9 +2652,10 @@ test_bypass_spawning_via_helper (const char *auto_encryption_opt)
    mongoc_auto_encryption_opts_t *auto_encryption_opts;
    bson_t *kms_providers;
    bson_t *doc_to_insert;
-   bson_t *extra;
+   bson_t *extra = bson_new ();
    bool ret;
    bson_error_t error;
+   bool check_crypt_shared = false;
    mongoc_collection_t *coll;
 
    auto_encryption_opts = mongoc_auto_encryption_opts_new ();
@@ -2658,6 +2670,14 @@ test_bypass_spawning_via_helper (const char *auto_encryption_opt)
    } else if (0 == strcmp (auto_encryption_opt, "bypass_query_analysis")) {
       mongoc_auto_encryption_opts_set_bypass_query_analysis (
          auto_encryption_opts, true);
+   } else if (0 == strcmp (auto_encryption_opt, "cryptSharedLibRequired")) {
+      check_crypt_shared = true;
+      char *env_cryptSharedLibPath =
+         test_framework_getenv ("MONGOC_TEST_CRYPT_SHARED_LIB_PATH");
+      BSON_ASSERT (env_cryptSharedLibPath);
+      BSON_APPEND_UTF8 (extra, "cryptSharedLibPath", env_cryptSharedLibPath);
+      BSON_APPEND_BOOL (extra, "cryptSharedLibRequired", true);
+      bson_free (env_cryptSharedLibPath);
    } else {
       test_error ("Unexpected 'auto_encryption_opt' argument: %s",
                   auto_encryption_opt);
@@ -2665,16 +2685,22 @@ test_bypass_spawning_via_helper (const char *auto_encryption_opt)
 
    /* Create a MongoClient with encryption enabled */
    client_encrypted = test_framework_new_default_client ();
-   extra = BCON_NEW ("mongocryptdSpawnArgs",
-                     "[",
-                     "--pidfilepath=bypass-spawning-mongocryptd.pid",
-                     "--port=27021",
-                     "]");
+   BCON_APPEND (extra,
+                "mongocryptdSpawnArgs",
+                "[",
+                "--pidfilepath=bypass-spawning-mongocryptd.pid",
+                "--port=27021",
+                "]");
    mongoc_auto_encryption_opts_set_extra (auto_encryption_opts, extra);
    bson_destroy (extra);
    ret = mongoc_client_enable_auto_encryption (
       client_encrypted, auto_encryption_opts, &error);
    ASSERT_OR_PRINT (ret, error);
+
+   if (check_crypt_shared) {
+      BSON_ASSERT (mongoc_client_get_crypt_shared_version (client_encrypted) !=
+                   NULL);
+   }
 
    /* Insert { 'encrypt': 'test' }. Should succeed. */
    coll = mongoc_client_get_collection (client_encrypted, "db", "coll");
@@ -2708,6 +2734,24 @@ test_bypass_spawning_via_bypassQueryAnalysis (void *unused)
    BSON_UNUSED (unused);
 
    test_bypass_spawning_via_helper ("bypass_query_analysis");
+}
+
+static void
+test_bypass_spawning_via_cryptSharedLibRequired (void *unused)
+{
+   BSON_UNUSED (unused);
+   test_bypass_spawning_via_helper ("cryptSharedLibRequired");
+}
+
+static int
+_skip_if_no_crypt_shared (void)
+{
+   char *env = test_framework_getenv ("MONGOC_TEST_CRYPT_SHARED_LIB_PATH");
+   if (!env) {
+      return 0; // Skip!
+   }
+   bson_free (env);
+   return 1; // Do not skip
 }
 
 static mongoc_client_encryption_t *
@@ -2779,13 +2823,13 @@ test_kms_tls_cert_valid (void *unused)
 
 #if defined(MONGOC_ENABLE_SSL_SECURE_CHANNEL)
    /* Certificate verification fails with Secure Channel given
-    * "127.0.0.1:7999" with error: "hostname doesn't match certificate". */
+    * "127.0.0.1:8999" with error: "hostname doesn't match certificate". */
    ASSERT_OR_PRINT (
-      _mongoc_host_list_from_string_with_err (&host, "localhost:7999", &error),
+      _mongoc_host_list_from_string_with_err (&host, "localhost:8999", &error),
       error);
 #else
    ASSERT_OR_PRINT (
-      _mongoc_host_list_from_string_with_err (&host, "127.0.0.1:7999", &error),
+      _mongoc_host_list_from_string_with_err (&host, "127.0.0.1:8999", &error),
       error);
 #endif
 
@@ -2834,7 +2878,7 @@ test_kms_tls_cert_expired (void *unused)
       tmp_bson ("{ 'region': 'us-east-1', 'key': "
                 "'arn:aws:kms:us-east-1:579766882180:key/"
                 "89fcc2c4-08b0-4bd9-9f25-e30687b580d0', "
-                "'endpoint': '127.0.0.1:8000' }"));
+                "'endpoint': '127.0.0.1:9000' }"));
 
    ret = mongoc_client_encryption_create_datakey (
       client_encryption, "aws", opts, &keyid, &error);
@@ -2882,7 +2926,7 @@ test_kms_tls_cert_wrong_host (void *unused)
       tmp_bson ("{ 'region': 'us-east-1', 'key': "
                 "'arn:aws:kms:us-east-1:579766882180:key/"
                 "89fcc2c4-08b0-4bd9-9f25-e30687b580d0', "
-                "'endpoint': '127.0.0.1:8001' }"));
+                "'endpoint': '127.0.0.1:9001' }"));
 
    ret = mongoc_client_encryption_create_datakey (
       client_encryption, "aws", opts, &keyid, &error);
@@ -2953,7 +2997,7 @@ _tls_test_make_client_encryption (mongoc_client_t *keyvault_client,
       bson_concat (kms_providers,
                    tmp_bson ("{'azure': {'tenantId': '%s', 'clientId': '%s', "
                              "'clientSecret': '%s', "
-                             "'identityPlatformEndpoint': '127.0.0.1:8002' }}",
+                             "'identityPlatformEndpoint': '127.0.0.1:9002' }}",
                              mongoc_test_azure_tenant_id,
                              mongoc_test_azure_client_id,
                              mongoc_test_azure_client_secret));
@@ -2966,7 +3010,7 @@ _tls_test_make_client_encryption (mongoc_client_t *keyvault_client,
 
       bson_concat (kms_providers,
                    tmp_bson ("{'gcp': { 'email': '%s', 'privateKey': '%s', "
-                             "'endpoint': '127.0.0.1:8002' }}",
+                             "'endpoint': '127.0.0.1:9002' }}",
                              mongoc_test_gcp_email,
                              mongoc_test_gcp_privatekey));
       bson_concat (
@@ -2992,13 +3036,13 @@ _tls_test_make_client_encryption (mongoc_client_t *keyvault_client,
       bson_concat (kms_providers,
                    tmp_bson ("{'azure': {'tenantId': '%s', 'clientId': '%s', "
                              "'clientSecret': '%s', "
-                             "'identityPlatformEndpoint': '127.0.0.1:8002'}}",
+                             "'identityPlatformEndpoint': '127.0.0.1:9002'}}",
                              mongoc_test_azure_tenant_id,
                              mongoc_test_azure_client_id,
                              mongoc_test_azure_client_secret));
       bson_concat (kms_providers,
                    tmp_bson ("{'gcp': { 'email': '%s', 'privateKey': '%s', "
-                             "'endpoint': '127.0.0.1:8002'}}",
+                             "'endpoint': '127.0.0.1:9002'}}",
                              mongoc_test_gcp_email,
                              mongoc_test_gcp_privatekey));
       bson_concat (kms_providers,
@@ -3013,7 +3057,7 @@ _tls_test_make_client_encryption (mongoc_client_t *keyvault_client,
       bson_concat (kms_providers,
                    tmp_bson ("{'azure': {'tenantId': '%s', 'clientId': '%s', "
                              "'clientSecret': '%s', "
-                             "'identityPlatformEndpoint': '127.0.0.1:8000'}}",
+                             "'identityPlatformEndpoint': '127.0.0.1:9000'}}",
                              mongoc_test_azure_tenant_id,
                              mongoc_test_azure_client_id,
                              mongoc_test_azure_client_secret));
@@ -3022,14 +3066,14 @@ _tls_test_make_client_encryption (mongoc_client_t *keyvault_client,
 
       bson_concat (kms_providers,
                    tmp_bson ("{'gcp': { 'email': '%s', 'privateKey': '%s', "
-                             "'endpoint': '127.0.0.1:8000'}}",
+                             "'endpoint': '127.0.0.1:9000'}}",
                              mongoc_test_gcp_email,
                              mongoc_test_gcp_privatekey));
       bson_concat (tls_opts,
                    tmp_bson ("{'gcp': {'tlsCaFile': '%s'} }", ca_file));
 
       bson_concat (kms_providers,
-                   tmp_bson ("{'kmip': { 'endpoint': '127.0.0.1:8000' }}"));
+                   tmp_bson ("{'kmip': { 'endpoint': '127.0.0.1:9000' }}"));
       bson_concat (tls_opts,
                    tmp_bson ("{'kmip': {'tlsCaFile': '%s'} }", ca_file));
    } else if (test_ce == INVALID_HOSTNAME) {
@@ -3042,7 +3086,7 @@ _tls_test_make_client_encryption (mongoc_client_t *keyvault_client,
       bson_concat (kms_providers,
                    tmp_bson ("{'azure': {'tenantId': '%s', 'clientId': '%s', "
                              "'clientSecret': '%s', "
-                             "'identityPlatformEndpoint': '127.0.0.1:8001' }}",
+                             "'identityPlatformEndpoint': '127.0.0.1:9001' }}",
                              mongoc_test_azure_tenant_id,
                              mongoc_test_azure_client_id,
                              mongoc_test_azure_client_secret));
@@ -3051,14 +3095,14 @@ _tls_test_make_client_encryption (mongoc_client_t *keyvault_client,
 
       bson_concat (kms_providers,
                    tmp_bson ("{'gcp': { 'email': '%s', 'privateKey': '%s', "
-                             "'endpoint': '127.0.0.1:8001' }}",
+                             "'endpoint': '127.0.0.1:9001' }}",
                              mongoc_test_gcp_email,
                              mongoc_test_gcp_privatekey));
       bson_concat (tls_opts,
                    tmp_bson ("{'gcp': {'tlsCaFile': '%s'} }", ca_file));
 
       bson_concat (kms_providers,
-                   tmp_bson ("{'kmip': { 'endpoint': '127.0.0.1:8001' }}"));
+                   tmp_bson ("{'kmip': { 'endpoint': '127.0.0.1:9001' }}"));
       bson_concat (tls_opts,
                    tmp_bson ("{'kmip': {'tlsCaFile': '%s'} }", ca_file));
    } else {
@@ -3161,7 +3205,7 @@ test_kms_tls_options (void *unused)
       tmp_bson ("{ 'region': 'us-east-1', 'key': "
                 "'arn:aws:kms:us-east-1:579766882180:key/"
                 "89fcc2c4-08b0-4bd9-9f25-e30687b580d0', 'endpoint': "
-                "'127.0.0.1:8002' }"));
+                "'127.0.0.1:9002' }"));
    res = mongoc_client_encryption_create_datakey (
       client_encryption_no_client_cert, "aws", dkopts, &keyid, &error);
    ASSERT_ERROR_CONTAINS (
@@ -3177,7 +3221,7 @@ test_kms_tls_options (void *unused)
       tmp_bson ("{ 'region': 'us-east-1', 'key': "
                 "'arn:aws:kms:us-east-1:579766882180:key/"
                 "89fcc2c4-08b0-4bd9-9f25-e30687b580d0', 'endpoint': "
-                "'127.0.0.1:8002' }"));
+                "'127.0.0.1:9002' }"));
    res = mongoc_client_encryption_create_datakey (
       client_encryption_with_tls, "aws", dkopts, &keyid, &error);
    ASSERT_ERROR_CONTAINS (error,
@@ -3195,7 +3239,7 @@ test_kms_tls_options (void *unused)
       tmp_bson ("{ 'region': 'us-east-1', 'key': "
                 "'arn:aws:kms:us-east-1:579766882180:key/"
                 "89fcc2c4-08b0-4bd9-9f25-e30687b580d0', 'endpoint': "
-                "'127.0.0.1:8000' }"));
+                "'127.0.0.1:9000' }"));
    res = mongoc_client_encryption_create_datakey (
       client_encryption_expired, "aws", dkopts, &keyid, &error);
    ASSERT_EXPIRED (error);
@@ -3210,7 +3254,7 @@ test_kms_tls_options (void *unused)
       tmp_bson ("{ 'region': 'us-east-1', 'key': "
                 "'arn:aws:kms:us-east-1:579766882180:key/"
                 "89fcc2c4-08b0-4bd9-9f25-e30687b580d0', 'endpoint': "
-                "'127.0.0.1:8001' }"));
+                "'127.0.0.1:9001' }"));
    res = mongoc_client_encryption_create_datakey (
       client_encryption_invalid_hostname, "aws", dkopts, &keyid, &error);
    ASSERT_INVALID_HOSTNAME (error);
@@ -5321,6 +5365,45 @@ _not_have_aws_creds_env (void *unused)
    return !_have_aws_creds_env (unused);
 }
 
+// Test calling mongoc_collection_drop with a NULL bson_error_t when the state
+// collections do not exist. This is a regression test for CDRIVER-4457.
+static void
+test_drop_qe_null_error (void *unused)
+{
+   bson_error_t error;
+   mongoc_client_t *const client = test_framework_new_default_client ();
+   bson_t *const kmsProviders =
+      _make_kms_providers (false /* with aws */, true /* with local */);
+   bson_t *encryptedFieldsMap;
+   mongoc_client_t *encryptedClient;
+   mongoc_auto_encryption_opts_t *aeOpts;
+   mongoc_collection_t *coll;
+
+   BSON_UNUSED (unused);
+
+   /* Create an encryptedFieldsMap. */
+   encryptedFieldsMap = BCON_NEW ("db.encrypted", "{", "fields", "[", "]", "}");
+   encryptedClient = test_framework_new_default_client ();
+   aeOpts = mongoc_auto_encryption_opts_new ();
+   mongoc_auto_encryption_opts_set_kms_providers (aeOpts, kmsProviders);
+   mongoc_auto_encryption_opts_set_keyvault_namespace (
+      aeOpts, "keyvault", "datakeys");
+   mongoc_auto_encryption_opts_set_encrypted_fields_map (aeOpts,
+                                                         encryptedFieldsMap);
+   ASSERT_OR_PRINT (
+      mongoc_client_enable_auto_encryption (encryptedClient, aeOpts, &error),
+      error);
+   coll = mongoc_client_get_collection (encryptedClient, "db", "encrypted");
+   ASSERT (mongoc_collection_drop (coll, NULL));
+
+   mongoc_collection_destroy (coll);
+   mongoc_auto_encryption_opts_destroy (aeOpts);
+   mongoc_client_destroy (encryptedClient);
+   bson_destroy (encryptedFieldsMap);
+   bson_destroy (kmsProviders);
+   mongoc_client_destroy (client);
+}
+
 void
 test_client_side_encryption_install (TestSuite *suite)
 {
@@ -5413,6 +5496,15 @@ test_client_side_encryption_install (TestSuite *suite)
                       NULL,
                       test_framework_skip_if_no_client_side_encryption,
                       test_framework_skip_if_max_wire_version_less_than_8);
+   TestSuite_AddFull (suite,
+                      "/client_side_encryption/bypass_spawning_mongocryptd/"
+                      "cryptSharedLibRequired",
+                      test_bypass_spawning_via_cryptSharedLibRequired,
+                      NULL,
+                      NULL,
+                      test_framework_skip_if_no_client_side_encryption,
+                      test_framework_skip_if_max_wire_version_less_than_8,
+                      _skip_if_no_crypt_shared);
    TestSuite_AddFull (suite,
                       "/client_side_encryption/kms_tls/valid",
                       test_kms_tls_cert_valid,
@@ -5604,4 +5696,12 @@ test_client_side_encryption_install (TestSuite *suite)
                       test_framework_skip_if_no_client_side_encryption,
                       test_framework_skip_if_max_wire_version_less_than_8,
                       _have_aws_creds_env);
+
+   TestSuite_AddFull (suite,
+                      "/client_side_encryption/drop_qe_null_error",
+                      test_drop_qe_null_error,
+                      NULL,
+                      NULL,
+                      test_framework_skip_if_no_client_side_encryption,
+                      test_framework_skip_if_max_wire_version_less_than_8);
 }
