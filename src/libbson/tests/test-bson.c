@@ -21,7 +21,7 @@
 #include <fcntl.h>
 #include <time.h>
 
-#include <bson2/view.h>
+#include <bson/view.h>
 
 #include "TestSuite.h"
 #include "test-conveniences.h"
@@ -2561,7 +2561,7 @@ test_bson_view (void)
       ASSERT_CMPSTR (bson_iterator_key (it).data, "quux");
       BSON_ASSERT (bson_iterator_type (it) == BSON_TYPE_NULL);
       BSON_ASSERT (bson_iterator_done (it = bson_next (it)));
-      BSON_ASSERT (it.ptr == bson_end (v).ptr);
+      BSON_ASSERT (it._ptr == bson_end (v)._ptr);
    }
 }
 

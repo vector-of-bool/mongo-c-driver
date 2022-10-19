@@ -1,21 +1,19 @@
-#ifndef BSON_BSON_VIEW_H_INCLUDED
-#define BSON_BSON_VIEW_H_INCLUDED
+#ifndef BSON_VIEW_H_INCLUDED
+#define BSON_VIEW_H_INCLUDED
 
 #ifdef __cplusplus
 #define BSON2_EXTERN_C_BEGIN extern "C" {
 #define BSON2_EXTERN_C_END }
-#define BSON2_CONSTEXPR constexpr
 #define BSON2_NOEXCEPT noexcept
 #define BSON2_INIT(X) X
 #else
 #define BSON2_EXTERN_C_BEGIN
 #define BSON2_EXTERN_C_END
-#define BSON2_CONSTEXPR inline
 #define BSON2_NOEXCEPT
 #define BSON2_INIT(X) (X)
 #endif
 
-#ifndef _MSC_VER
+#if defined(__GNUC__) || defined(__clang__)
 #define BV_LIKELY(X) __builtin_expect ((X), 1)
 #define BV_UNLIKELY(X) __builtin_expect ((X), 0)
 #else
@@ -30,30 +28,79 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+#ifdef __cplusplus
+#include <stdexcept>
+#endif
+
 BSON2_EXTERN_C_BEGIN
 
-struct _bson_t;
-struct _bson_iter_t;
+struct _bson_t;      // Forward-declare for bson_t interop
+struct _bson_iter_t; // Forward-declare for bson_iter_t interop
 
-enum { BSON_VIEW_CHECKED = 0 };
+// clang-format off
+#pragma push_macro("BSON_VIEW_CHECKED")
+#ifdef BSON_VIEW_CHECKED
+   #if BSON_VIEW_CHECKED == 1
+      #define BSON_VIEW_CHECKED_DEFAULT 1
+   #elif BSON_VIEW_CHECKED == 0
+      #define BSON_VIEW_CHECKED_DEFAULT 0
+   #else
+      #define BSON_VIEW_CHECKED_DEFAULT 0
+   #endif
+   // Undef the macro, we'll re-define it later
+   #undef BSON_VIEW_CHECKED
+#else
+   #define BSON_VIEW_CHECKED_DEFAULT 0
+#endif
+// clang-format on
 
+enum {
+   /// Toggle on/off to enable/disable debug assertions
+   BSON_VIEW_CHECKED = BSON_VIEW_CHECKED_DEFAULT
+};
+
+
+/**
+ * @brief A type that is the size of a byte, but does not alias with other types
+ * (except char)
+ */
+typedef struct bson_byte {
+   /// The 8-bit value of the byte
+   uint8_t v;
+} bson_byte;
+
+
+/**
+ * @internal
+ * @brief Read a little-endian 32-bit unsigned integer from the given array of
+ * four octets
+ *
+ * @param bytes Pointer-to an array of AT LEAST four octets
+ * @return uint32_t The decoded integer value.
+ */
 inline uint32_t
-bson_read_uint32_le (const uint8_t *bytes) BSON2_NOEXCEPT
+_bson_read_uint32_le (const bson_byte *bytes) BSON2_NOEXCEPT
 {
    uint32_t ret = 0;
-   ret |= bytes[3];
+   ret |= bytes[3].v;
    ret <<= 8;
-   ret |= bytes[2];
+   ret |= bytes[2].v;
    ret <<= 8;
-   ret |= bytes[1];
+   ret |= bytes[1].v;
    ret <<= 8;
-   ret |= bytes[0];
+   ret |= bytes[0].v;
    return ret;
 }
 
+/// Fire an assertion failure. This function will abort the program and will not
+/// return to the caller.
 extern void
 _bson_assert_fail (const char *, const char *file, int line);
 
+/**
+ * @brief Assert the truth of the given expression. In checked mode, this is a
+ * runtime assertion. In unchecked mode, this becomes an optimization hint only.
+ */
 #define BV_ASSERT(Cond)                              \
    if (BSON_VIEW_CHECKED && !(Cond)) {               \
       _bson_assert_fail (#Cond, __FILE__, __LINE__); \
@@ -65,13 +112,99 @@ _bson_assert_fail (const char *, const char *file, int line);
 
 
 /**
- * @brief A type that is the size of a byte, but does not alias with other types
- * (except char)
+ * @brief Reasons that advancing a bson_iterator may fail.
  */
-typedef struct bson_byte {
-   /// The 8-bit value of the byte
-   uint8_t v;
-} bson_byte;
+enum bson_iterator_error_cond {
+   /**
+    * @brief No error occurred (this value is equal to zero)
+    */
+   BSON_ITER_NO_ERROR = 0,
+   /**
+    * @brief There is not enough data in the buffer to find the next element.
+    */
+   BSON_ITER_SHORT_READ = 1,
+   /**
+    * @brief The type tag on the element is not a recognized value.
+    */
+   BSON_ITER_INVALID_TYPE,
+   /**
+    * @brief The element has an encoded length, but the length is too large for
+    * the remaining buffer.
+    */
+   BSON_ITER_INVALID_LENGTH,
+};
+
+/**
+ * @brief A type that allows inspecting the elements of a bson_view document.
+ *
+ * This type is trivial, and can be copied and passed as a pointer-like type.
+ * This type is zero-initializable.
+ */
+typedef struct bson_iterator {
+   /// A pointer to the element referred-to by this iterator.
+   const bson_byte *_ptr;
+   /// @private The length of the key string, in bytes, not including the nul
+   int32_t _keylen;
+   /// @private The number of bytes remaining in the document, or an error code.
+   int32_t _rlen;
+
+#ifdef __cplusplus
+
+   class reference;
+   using difference_type = int32_t;
+   using value_type = reference;
+   using iterator_category = std::input_iterator_tag;
+   using iterator_concept = std::forward_iterator_tag;
+   using pointer = bson_iterator;
+
+   inline bool
+   operator== (const bson_iterator other) const noexcept;
+
+   bool
+   operator!= (const bson_iterator other) const noexcept
+   {
+      return !(*this == other);
+   }
+
+   inline reference
+   operator* () const;
+
+   inline bson_iterator &
+   operator++ () noexcept;
+
+   bson_iterator
+   operator++ (int) noexcept
+   {
+      auto c = *this;
+      ++*this;
+      return c;
+   }
+
+   inline reference
+   operator->() const;
+
+   [[nodiscard]] bson_iterator_error_cond
+   error () const noexcept;
+
+   [[nodiscard]] bool
+   has_error () const noexcept
+   {
+      return error () != BSON_ITER_NO_ERROR;
+   }
+
+   [[nodiscard]] bool
+   done () const noexcept;
+
+   [[nodiscard]] bool
+   has_value () const noexcept
+   {
+      return not has_error () and not done ();
+   }
+
+   inline void
+   throw_if_error () const;
+#endif
+} bson_iterator;
 
 /**
  * @brief A type specifically representing a nullable read-only view of a BSON
@@ -92,6 +225,88 @@ typedef struct bson_view {
     * If NULL, the view refers to nothing.
     */
    const bson_byte *data;
+
+#ifdef __cplusplus
+   /**
+    * @brief Alias of @ref bson_iterator
+    */
+   using iterator = bson_iterator;
+
+   /**
+    * @brief Equivalent to @ref bson_begin()
+    */
+   [[nodiscard]] inline iterator
+   begin () const noexcept;
+
+   /**
+    * @brief Equivalent to @ref bson_end()
+    */
+   [[nodiscard]] inline iterator
+   end () const noexcept;
+
+   /**
+    * @brief Check whether this view is non-null
+    *
+    * @return true If the view refers to a document
+    * @return false If the view is null
+    */
+   constexpr explicit operator bool () const noexcept
+   {
+      return has_value ();
+   }
+
+   /**
+    * @brief Determine whether the view refers to an empty document.
+    */
+   [[nodiscard]] bool
+   empty () const noexcept
+   {
+      return not has_value () or byte_size () == 5;
+   }
+
+   /**
+    * @brief Obtain the size of the document data, in bytes
+    */
+   [[nodiscard]] inline uint32_t
+   byte_size () const noexcept;
+
+   /**
+    * @brief Determine whether this view is non-null
+    *
+    * @return true If the view refers to a document
+    * @return false If the view is null
+    */
+   [[nodiscard]] bool
+   has_value () const noexcept
+   {
+      return data != nullptr;
+   }
+
+   /**
+    * @brief Obtain an iterator referring to the first element with the
+    * specified key.
+    *
+    * @param key The key to search for
+    * @return iterator An iterator referring to the found element, or the end
+    * iterator, or an errant iterator
+    */
+   [[nodiscard]] inline iterator
+   find (const char *key) const noexcept;
+
+   /**
+    * @brief Construct a view from the given input data
+    *
+    * @param b Pointer to the beginning of a buffer
+    * @param datalen The addressable length beginning at `b`
+    * @return bson_view A non-null view
+    *
+    * @throws bson_view_error if parsing the data buffer results in an error.
+    *
+    * @note Use @ref bson_view_from_data() for a non-throwing equivalent API.
+    */
+   [[nodiscard]] static inline bson_view
+   from_data (const bson_byte *b, size_t datalen);
+#endif
 } bson_view;
 
 /// A "null" constant expression for bson_view objects
@@ -115,7 +330,7 @@ bson_view_len (bson_view v) BSON2_NOEXCEPT
    // The length of a document is contained in a four-bytes little-endian
    // encoded integer. This size includes the header, the document body, and the
    // null terminator byte on the document.
-   return bson_read_uint32_le ((const uint8_t *) v.data);
+   return _bson_read_uint32_le (v.data);
 }
 
 /**
@@ -151,8 +366,8 @@ enum bson_view_invalid_reason {
  *
  * @param data A pointer to the beginning of a BSON document.
  * @param len The length of the pointed-to data buffer.
- * @param[out] error An out-param to determine why view creation may have
- * failed.
+ * @param[out] error An optional out-param to determine why view creation may
+ * have failed.
  * @return bson_view A view, or BSON_VIEW_NULL if the data is invalid.
  *
  * @throw BSON_VIEW_SHORT_READ if data_len is shorter than the length of the
@@ -163,12 +378,12 @@ enum bson_view_invalid_reason {
  * @throw BSON_VIEW_INVALID_TERMINATOR if the BSON null terminator is missing
  * from the input data.
  *
- * @note IMPORTANT: This function does not error if 'data_len' is longer than
- * the document. This allows support of buffered reads of unknown sizes. The
- * actual length of the resulting document can be obtained with
- * @ref bson_view_len.
+ * @note IMPORTANT: This function DOES NOT consider 'data_len' being longer
+ * than the document to be an error. This allows support of buffered reads of
+ * unknown sizes. The actual length of the resulting document can be obtained
+ * with @ref bson_view_len.
  *
- * @note IMPORTANT: This function does not validate the elements of the
+ * @note IMPORTANT: This function DOES NOT validate the elements of the
  * document: Document elements must be validated during iteration.
  *
  * The returned view is valid *until* one of:
@@ -191,7 +406,7 @@ bson_view_from_data (const bson_byte *const data,
    }
    // Read the length header. This includes the header's four bytes, the
    // document's element data, and the null terminator byte.
-   len = bson_read_uint32_le ((const uint8_t *) data);
+   len = _bson_read_uint32_le (data);
    // Check that the size is in-bounds
    if (len > (1ull << 31) || len < 5) {
       err = BSON_VIEW_INVALID_HEADER;
@@ -220,8 +435,8 @@ done:
 /**
  * @brief Obtain a bson_t from a given bson_view.
  *
- * @param view The view to convert to a bson_t value.
- * @return bson_t A non-owning bson_t value. Should not be destroyed.
+ * @param view The view to convert to a viewing bson_t object.
+ * @return bson_t A non-owning bson_t value. Does not need to be destroyed.
  *
  * The returned `bson_t` is valid for as long as `view` would be valid (See:
  * @ref bson_view_from_data).
@@ -245,8 +460,8 @@ bson_view_from_bson_t (const struct _bson_t *b) BSON2_NOEXCEPT;
  * given bson_iter_t
  *
  * @param it A bson_iter_t.
- * @return bson_view A view of the pointed-to document, or NULL if bson_iter_t
- * does not point to a document/array value.
+ * @return bson_view A view of the pointed-to document, or BSON_VIEW_NULL if
+ * bson_iter_t does not point to a document/array value.
  *
  * The returned bson_view is valid until the `bson_t` being iterated by `it` is
  * destroyed or modified.
@@ -265,49 +480,17 @@ extern struct _bson_t *
 bson_view_copy_as_bson_t (bson_view v) BSON2_NOEXCEPT;
 
 /**
- * @brief A reference-like type that points to an element within a bson_view
- * document.
- *
- * This type is trivial, and can be copied and passed as a pointer-like type.
- * This type is zero-initializable.
- */
-typedef struct bson_iterator {
-   /// A pointer to the beginning of the element.
-   bson_byte const *ptr;
-   /// @private The number of bytes remaining in the document, or an error code.
-   int32_t _rlen;
-   /// @private The length of the key string, in bytes, not including the nul
-   int32_t _keylen;
-} bson_iterator;
-
-/**
- * @brief Determine whether the given iterator is at the end or has encountered
- * an error.
- *
- * @param it A valid iterator derived from a bson_view or another iterator
- * thereof.
- * @return true If advancing `it` with @ref bson_next would be illegal
- * @return false If `bson_next(it)` would provide a well-defined value.
- *
- * To determine whether there is an error, use @ref bson_iterator_error
- */
-inline bool
-bson_iterator_done (bson_iterator it) BSON2_NOEXCEPT
-{
-   return it._rlen <= 1;
-}
-
-/**
  * @brief A pointer+length pair referring to a read-only array of `char`.
  *
- * For a well-formed bson_view_utf8 `V`, if the `V.data` member is not NULL,
+ * For a well-formed bson_utf8_view `V`, if the `V.data` member is not NULL,
  * `V.data` points to the beginning of an array of `char` with a length
  * equal to `V.len+1`, and the character at `V.data[V.len]` is guaranteed to be
  * equal to zero.
  *
- * If `V.data` is not NULL, each `char` accessible by `v.data`.
+ * @note The pointed-to array MAY contain null characters other than the one
+ * guaranteed to be present at `V.data[V.len]`
  */
-typedef struct bson_view_utf8 {
+typedef struct bson_utf8_view {
    /// A pointer to the beginning of a byte array.
    const char *data;
    /**
@@ -317,59 +500,89 @@ typedef struct bson_view_utf8 {
     * If `data` is not NULL, the `char` at `(data + len)` is equivalent to zero.
     */
    int32_t len;
-} bson_view_utf8;
+} bson_utf8_view;
 
 /**
- * @brief Obtain a pointer to the beginning of the null-terminated string
- * denoting the BSON element's key
+ * @brief Determine whether the given iterator is at the end OR has encountered
+ * an error.
  *
- * @param it The iterator under inspection
- * @return const char* A pointer to the beginning of a null-terminated string
+ * @param it A valid iterator derived from a bson_view or other valid iterator.
+ * @retval true If advancing `it` with @ref bson_next would be illegal.
+ * @retval false If `bson_next(it)` would provide a well-defined value.
+ *
+ * To determine whether there is an error, use @ref bson_iterator_get_error
  */
-inline bson_view_utf8
+inline bool
+bson_iterator_done (bson_iterator it) BSON2_NOEXCEPT
+{
+   return it._rlen <= 1;
+}
+
+/**
+ * @brief Obtain the error associated with the given iterator.
+ *
+ * @param it An iterator that may or may not have encountered an error
+ * @return enum bson_iterator_error_cond The error that occurred while creating
+ * `it`. Returns BSON_ITER_NO_ERROR if there was no error.
+ */
+static inline enum bson_iterator_error_cond
+bson_iterator_get_error (bson_iterator it)
+{
+   return it._rlen < 0 ? (enum bson_iterator_error_cond) - it._rlen
+                       : BSON_ITER_NO_ERROR;
+}
+
+/**
+ * @brief Obtain a bson_utf8_view referring to the key string of the BSON
+ * document element referred-to by the given iterator.
+ *
+ * @param it The iterator under inspection.
+ * @return const char* A pointer to the beginning of a null-terminated string
+ *
+ * @pre bson_iterator_done(it) == false
+ */
+inline bson_utf8_view
 bson_iterator_key (bson_iterator it) BSON2_NOEXCEPT
 {
    BV_ASSERT (it._rlen >= it._keylen + 1);
-   return (bson_view_utf8){.data = (const char *) it.ptr + 1,
+   BV_ASSERT (it._ptr);
+   return (bson_utf8_view){.data = (const char *) it._ptr + 1,
                            .len = it._keylen};
 }
 
+/**
+ * @brief Obtain the type of the BSON element referred-to by the given iterator
+ *
+ * @param it The iterator to inspect
+ * @return bson_type The type of the referred-to element. Returns BSON_TYPE_EOD
+ * if the iterator refers to the end of the document.
+ *
+ * @pre bson_iterator_get_error(it) == false
+ */
 inline bson_type
 bson_iterator_type (bson_iterator it) BSON2_NOEXCEPT
 {
-   BV_ASSERT (it._rlen >= 1);
-   return (bson_type) it.ptr[0].v;
+   BV_ASSERT (it._rlen > 0);
+   return (bson_type) (it._ptr[0].v);
 }
 
-enum bson_iterator_error_cond {
-   BSON_ITER_NO_ERROR = 0,
-   BSON_ITER_SHORT_READ = 1,
-   BSON_ITER_INVALID_TYPE,
-   BSON_ITER_INVALID,
-   BSON_ITER_INVALID_LENGTH,
-};
-
+/// @internal Generate a bson_iterator that encodes an error during iteration
 inline bson_iterator
 _bson_iterator_error (enum bson_iterator_error_cond err)
 {
    return BSON2_INIT (bson_iterator){._rlen = -((int32_t) err)};
 }
 
-static inline enum bson_iterator_error_cond
-bson_get_error (bson_iterator it)
-{
-   return it._rlen < 0 ? (enum bson_iterator_error_cond) - it._rlen
-                       : BSON_ITER_NO_ERROR;
-}
-
+/// @internal Obtain a pointer to the beginning of the referred-to element's
+/// value
 inline bson_byte const *
-_bson_iterator_value_ptr (bson_iterator it) BSON2_NOEXCEPT
+_bson_iterator_value_ptr (bson_iterator iter) BSON2_NOEXCEPT
 {
-   BV_ASSERT (it._rlen > 2);
-   return it.ptr + 1 + it._keylen + 1;
+   return iter._ptr + 1 + iter._keylen + 1;
 }
 
 /**
+ * @internal
  * @brief Compute the byte-length of a regular expression BSON element.
  *
  * @param valptr The beginning of the value of the regular expression element
@@ -418,6 +631,7 @@ _bson_value_re_len (const char *valptr, int32_t maxlen)
 }
 
 /**
+ * @internal
  * @brief Compute the size of the value data in a BSON element stored in
  * contiguous memory.
  *
@@ -557,7 +771,7 @@ _bson_valsize (bson_type tag, bson_byte const *const valptr, int32_t val_maxlen)
          return -BSON_ITER_INVALID_LENGTH;
       }
       // The length of the value given by the length prefix:
-      const uint32_t varlen = bson_read_uint32_le ((const uint8_t *) valptr);
+      const uint32_t varlen = _bson_read_uint32_le (valptr);
       full_len += varlen;
    }
    // Check whether there is enough room to hold the value's required size.
@@ -586,6 +800,7 @@ _bson_valsize (bson_type tag, bson_byte const *const valptr, int32_t val_maxlen)
 }
 
 /**
+ * @internal
  * @brief Obtain an iterator pointing to the given 'data', which must be the
  * beginning of a document element, or to the null terminator at the end of the
  * BSON document.
@@ -633,7 +848,11 @@ _bson_iterator_at (bson_byte const *const data, int32_t maxlen) BSON2_NOEXCEPT
       BV_ASSERT (data[last_index].v == 0);
       // This "zero" type is actually the null terminator at the end of the
       // document.
-      return (bson_iterator){.ptr = data, ._rlen = 1, ._keylen = 0};
+      return (bson_iterator){
+         ._ptr = data,
+         ._keylen = 0,
+         ._rlen = 1,
+      };
    }
 
    //? Prove: maxlen > 1
@@ -775,7 +994,10 @@ _bson_iterator_at (bson_byte const *const data, int32_t maxlen) BSON2_NOEXCEPT
       }
    }
    return BSON2_INIT (bson_iterator){
-      .ptr = data, ._rlen = maxlen, ._keylen = keylen};
+      ._ptr = data,
+      ._keylen = keylen,
+      ._rlen = maxlen,
+   };
 }
 
 /**
@@ -811,14 +1033,15 @@ bson_next (const bson_iterator it) BSON2_NOEXCEPT
                           + 1;         // The nul after the key
    const int skip_size =
       val_offset +
-      _bson_valsize (bson_iterator_type (it), it.ptr + val_offset, INT32_MAX);
-   return _bson_iterator_at (it.ptr + skip_size, it._rlen - skip_size);
+      _bson_valsize (bson_iterator_type (it), it._ptr + val_offset, INT32_MAX);
+   return _bson_iterator_at (it._ptr + skip_size, it._rlen - skip_size);
 }
+
 
 /**
  * @brief Obtain a bson_iterator referring to the first position within `v`.
  *
- * @param v A valid bson_view
+ * @param v A non-null bson_view
  * @return bson_iterator A new iterator `It` referring to the first valid
  * position of `v`, or an errant `It` if there is no valid first element.
  *
@@ -830,7 +1053,8 @@ bson_next (const bson_iterator it) BSON2_NOEXCEPT
  * will refer to that element.
  *
  * Otherwise, the returned `It` will indicate an error that can be obtained with
- * @ref bson_iterator_error, and @ref bson_iterator_done() will return `true`.
+ * @ref bson_iterator_get_error, and @ref bson_iterator_done() will return
+ * `true`.
  *
  * The returned iterator (as well as any iterator derived from it) is valid for
  * as long as `v` would be valid.
@@ -843,10 +1067,11 @@ bson_begin (bson_view v) BSON2_NOEXCEPT
                              bson_view_len (v) - sizeof (int32_t));
 }
 
+
 /**
- * @brief Obtain a past-the-end iterator for the given bson_view `v`
+ * @brief Obtain a past-the-end "done" iterator for the given bson_view `v`
  *
- * @param v A valid bson_view
+ * @param v A non-null bson_view
  * @return bson_iterator A new iterator referring to the end of `v`.
  *
  * The returned iterator does not refer to any element of the document. The
@@ -859,6 +1084,7 @@ bson_end (bson_view v) BSON2_NOEXCEPT
    BV_ASSERT (v.data);
    return _bson_iterator_at (v.data + bson_view_len (v) - 1, 1);
 }
+
 
 /**
  * @brief Determine whether two non-error iterators are equivalent (i.e. refer
@@ -876,33 +1102,58 @@ bson_end (bson_view v) BSON2_NOEXCEPT
 inline bool
 bson_iterator_eq (bson_iterator left, bson_iterator right) BSON2_NOEXCEPT
 {
-   return left.ptr == right.ptr;
+   return left._ptr == right._ptr;
 }
 
+
 /**
- * @brief Obtain the range of UTF-8 encoded bytes referred to by the given
+ * @brief Obtain the value of a IEE754 double-precision floating point in the
+ * element referred-to by the given iterator.
+ *
+ * @param it A non-error iterator
+ * @return double If `it` refers to an element with type DOUBLE, returns the
+ * value contained in that element, otherwise returns zero.
+ */
+inline double
+bson_iterator_double (bson_iterator it) BSON2_NOEXCEPT
+{
+   if (bson_iterator_type (it) != BSON_TYPE_DOUBLE) {
+      return 0.0;
+   }
+   uint32_t bytes = _bson_read_uint32_le (_bson_iterator_value_ptr (it));
+   double d = 0;
+   memcpy (&d, &bytes, sizeof bytes);
+   return d;
+}
+
+
+/**
+ * @brief Obtain the range of UTF-8 encoded bytes referred-to by the given
  * iterator
  *
  * @param it A non-error iterator
- * @return bson_view_utf8 A view denoting a null-terminated array of `char`.
+ * @return bson_utf8_view If the element is of type UTF-8, returns a view to the
+ * UTF-8 string it contains, otherwise returns a null view.
  *
  * @note The null-terminated `char` array might not be a valid UTF-8 code unit
- * sequence, and may contain null characters. Extra validation is required.
+ * sequence. Extra validation is required.
+ * @note The `char` array may contain null characters.
  */
-inline bson_view_utf8
+inline bson_utf8_view
 bson_iterator_utf8 (bson_iterator it) BSON2_NOEXCEPT
 {
    if (bson_iterator_type (it) != BSON_TYPE_UTF8) {
-      return BSON2_INIT (bson_view_utf8){NULL};
+      return BSON2_INIT (bson_utf8_view){NULL};
    }
    bson_byte const *after_key = _bson_iterator_value_ptr (it);
-   const uint32_t len = bson_read_uint32_le ((const uint8_t *) after_key);
-   if (len > it._rlen || len < 1) {
-      return (bson_view_utf8){NULL};
-   }
-   return (bson_view_utf8){(const char *) (after_key + sizeof len),
+   const uint32_t len = _bson_read_uint32_le (after_key);
+   // String length checks were already done when creating `it`
+   BV_ASSERT (len < it._rlen);
+   BV_ASSERT (len > 0);
+   return (bson_utf8_view){(const char *) (after_key + sizeof len),
                            (int32_t) len - 1};
 }
+
 
 /**
  * @brief Obtain a view of the BSON document referred to by the given iterator.
@@ -914,7 +1165,8 @@ bson_iterator_utf8 (bson_iterator it) BSON2_NOEXCEPT
  * @return bson_view A view derived from the bson_view being iterated with `it`.
  */
 inline bson_view
-bson_iterator_document (bson_iterator it) BSON2_NOEXCEPT
+bson_iterator_document (bson_iterator it,
+                        enum bson_view_invalid_reason *error) BSON2_NOEXCEPT
 {
    BV_ASSERT (!bson_iterator_done (it));
    if (bson_iterator_type (it) != BSON_TYPE_DOCUMENT &&
@@ -922,27 +1174,55 @@ bson_iterator_document (bson_iterator it) BSON2_NOEXCEPT
       return BSON_VIEW_NULL;
    }
    const bson_byte *const valptr = _bson_iterator_value_ptr (it);
-   const int valoffset = valptr - it.ptr;
-   enum bson_view_invalid_reason err;
-   bson_view r = bson_view_from_data (valptr, it._rlen - valoffset, &err);
-   if (err) {
-      return BSON_VIEW_NULL;
-   }
-   return r;
+   const int64_t val_offset = (valptr - it._ptr);
+   const int64_t val_remain = it._rlen - val_offset;
+   BV_ASSERT (val_remain > 0);
+   return bson_view_from_data (valptr, (size_t) val_remain, error);
 }
+
+
+/**
+ * @brief Obtain the boolean value of the referred-to element.
+ *
+ * If the element is not a boolean value, returns false.
+ *
+ * @param it A non-error iterator
+ * @retval true If the element contains a true value
+ * @retval false IF the element contains a false value, or the element is not a
+ * bool value.
+ */
+inline bool
+bson_iterator_bool (bson_iterator it) BSON2_NOEXCEPT
+{
+   if (bson_iterator_type (it) != BSON_TYPE_BOOL) {
+      return false;
+   }
+   return _bson_iterator_value_ptr (it)[0].v != 0;
+}
+
 
 inline bool
 bson_key_eq (const bson_iterator it, const char *key) BSON2_NOEXCEPT
 {
-   const bson_view_utf8 k = bson_iterator_key (it);
+   const bson_utf8_view k = bson_iterator_key (it);
    return k.len == strlen (key) && memcmp (k.data, key, it._keylen) == 0;
 }
 
+
+/**
+ * @brief Find the first element within the view that has the given key
+ *
+ * @param v A view to inspect
+ * @param key The key to search for
+ * @return bson_iterator An iterator pointing to the found element, OR the
+ * done-iterator if no element was found, OR an errant iterator if a parsing
+ * error occured.
+ */
 inline bson_iterator
-bson_find_key (bson_view v, const char *key) BSON2_NOEXCEPT
+bson_view_find (bson_view v, const char *key) BSON2_NOEXCEPT
 {
    bson_iterator it = bson_begin (v);
-   for (; it._rlen > 1; it = bson_next (it)) {
+   for (; !bson_iterator_done (it); it = bson_next (it)) {
       if (bson_key_eq (it, key)) {
          break;
       }
@@ -950,10 +1230,211 @@ bson_find_key (bson_view v, const char *key) BSON2_NOEXCEPT
    return it;
 }
 
+BSON2_EXTERN_C_END
+
+#ifdef __cplusplus
+struct bson_iterator_error : std::runtime_error {
+   bson_iterator_error () noexcept
+       : std::runtime_error ("Invalid element in BSON document data")
+   {
+   }
+
+   [[nodiscard]] virtual bson_iterator_error_cond
+   cond () const noexcept = 0;
+};
+
+template <bson_iterator_error_cond Cond>
+struct bson_iterator_error_of : bson_iterator_error {
+   [[nodiscard]] bson_iterator_error_cond
+   cond () const noexcept override
+   {
+      return Cond;
+   }
+};
+
+struct bson_view_error : std::runtime_error {
+   bson_view_error () noexcept
+       : std::runtime_error ("Invalid BSON document data")
+   {
+   }
+
+   [[nodiscard]] virtual bson_view_invalid_reason
+   reason () const noexcept = 0;
+};
+
+template <bson_view_invalid_reason R>
+struct bson_view_error_of : bson_view_error {
+   [[nodiscard]] bson_view_invalid_reason
+   reason () const noexcept
+   {
+      return R;
+   }
+};
+
+class bson_iterator::reference
+{
+   bson_iterator _iter;
+   friend ::bson_iterator;
+
+   explicit reference (bson_iterator it) : _iter (it)
+   {
+   }
+
+ public:
+   [[nodiscard]] bson_type
+   type () const noexcept
+   {
+      return bson_iterator_type (_iter);
+   }
+
+   [[nodiscard]] double
+   as_double () const noexcept
+   {
+      return bson_iterator_double (_iter);
+   }
+
+   [[nodiscard]] bson_utf8_view
+   as_utf8 () const noexcept
+   {
+      return bson_iterator_utf8 (_iter);
+   }
+
+   [[nodiscard]] bson_view
+   as_document () const
+   {
+      bson_view_invalid_reason error;
+      auto v = bson_iterator_document (_iter, &error);
+      switch (error) {
+      case BSON_VIEW_OKAY:
+         return v;
+#define X(R) \
+   case R:   \
+      throw bson_view_error_of<R> ()
+         X (BSON_VIEW_INVALID_HEADER);
+         X (BSON_VIEW_INVALID_TERMINATOR);
+         X (BSON_VIEW_SHORT_READ);
+#undef X
+      }
+   }
+
+   [[nodiscard]] bson_view
+   as_array () const
+   {
+      if (type () != BSON_TYPE_ARRAY) {
+         return BSON_VIEW_NULL;
+      }
+      return as_document ();
+   }
+
+   [[nodiscard]] bool
+   as_bool () const
+   {
+      return bson_iterator_bool (_iter);
+   }
+};
+
+bson_iterator::reference
+bson_iterator::operator* () const
+{
+   throw_if_error ();
+   return reference (*this);
+}
+
+bson_iterator::reference
+bson_iterator::operator->() const
+{
+   return **this;
+}
+
+bool
+bson_iterator::operator== (bson_iterator other) const noexcept
+{
+   return bson_iterator_eq (*this, other);
+}
+
+bson_iterator_error_cond
+bson_iterator::error () const noexcept
+{
+   return bson_iterator_get_error (*this);
+}
+
+void
+bson_iterator::throw_if_error () const
+{
+   switch (this->error ()) {
+   case BSON_ITER_NO_ERROR:
+      return;
+#define X(Cond) \
+   case Cond:   \
+      throw bson_iterator_error_of<Cond> ()
+      X (BSON_ITER_SHORT_READ);
+      X (BSON_ITER_INVALID_LENGTH);
+      X (BSON_ITER_INVALID_TYPE);
+#undef X
+   }
+}
+
+bson_iterator
+bson_view::begin () const noexcept
+{
+   return bson_begin (*this);
+}
+
+bson_iterator
+bson_view::end () const noexcept
+{
+   return bson_end (*this);
+}
+
+uint32_t
+bson_view::byte_size () const noexcept
+{
+   return bson_view_len (*this);
+}
+
+bson_iterator
+bson_view::find (const char *key) const noexcept
+{
+   return bson_view_find (*this, key);
+}
+
+inline bson_iterator &
+bson_iterator::operator++ () noexcept
+{
+   throw_if_error ();
+   return *this = bson_next (*this);
+}
+
+bool
+bson_iterator::done () const noexcept
+{
+   return bson_iterator_done (*this);
+}
+
+bson_view
+bson_view::from_data (const bson_byte *b, size_t datalen)
+{
+   bson_view_invalid_reason error;
+   auto v = bson_view_from_data (b, datalen, &error);
+   switch (error) {
+   case BSON_VIEW_OKAY:
+      return v;
+#define X(Reason) \
+   case Reason:   \
+      throw bson_view_error_of<Reason> ()
+      X (BSON_VIEW_SHORT_READ);
+      X (BSON_VIEW_INVALID_HEADER);
+      X (BSON_VIEW_INVALID_TERMINATOR);
+   }
+#undef X
+}
+#endif
+
+
 #undef BV_ASSERT
 #undef BV_LIKELY
 #undef BV_UNLIKELY
 
-BSON2_EXTERN_C_END
+#pragma pop_macro("BSON_VIEW_CHECKED")
 
-#endif // BSON_BSON_VIEW_H_INCLUDED
+#endif // BSON_VIEW_H_INCLUDED

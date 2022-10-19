@@ -1,7 +1,7 @@
 #include <catch2/catch.hpp>
 
 #include <bson/bson.h>
-#include <bson2/view.h>
+#include <bson/view.h>
 
 #include <fstream>
 #include <sstream>
@@ -21,9 +21,8 @@ int
 walk (bson_view v)
 {
    int acc = 0;
-   for (auto it = bson_begin (v); not bson_iterator_done (it);
-        it = bson_next (it)) {
-      auto subdoc = bson_iterator_document (it);
+   for (auto e : v) {
+      auto subdoc = e.as_document ();
       if (subdoc.data) {
          acc += walk (subdoc);
       }

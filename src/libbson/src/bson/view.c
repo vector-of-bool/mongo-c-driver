@@ -5,7 +5,7 @@
 #include <bson/bson.h>
 
 extern inline uint32_t
-bson_read_uint32_le (const uint8_t *bytes);
+_bson_read_uint32_le (const bson_byte *bytes);
 
 extern inline uint32_t bson_view_len (bson_view);
 
@@ -25,14 +25,14 @@ _bson_safe_addptr (const bson_byte *const from,
 extern inline bson_iterator
 bson_next (const bson_iterator it);
 
-extern inline bson_view_utf8
+extern inline bson_utf8_view
 bson_iterator_key (bson_iterator it);
 
 extern inline bson_type
 bson_iterator_type (bson_iterator it);
 
 extern inline bson_byte const *
-_bson_iterator_value_ptr (bson_iterator it);
+_bson_iterator_value_ptr (bson_iterator iter);
 
 extern inline bson_iterator
 bson_begin (bson_view v);
@@ -46,17 +46,20 @@ bson_iterator_eq (bson_iterator left, bson_iterator right);
 extern inline bool
 bson_iterator_done (bson_iterator it);
 
-extern inline bson_view_utf8
+extern inline double
+bson_iterator_double (bson_iterator it);
+
+extern inline bson_utf8_view
 bson_iterator_utf8 (bson_iterator it);
 
 extern inline bool
 bson_key_eq (const bson_iterator, const char *key);
 
 extern inline bson_iterator
-bson_find_key (bson_view v, const char *key);
+bson_view_find (bson_view v, const char *key);
 
-extern inline bson_view
-bson_iterator_document (bson_iterator it);
+inline bson_view
+bson_iterator_document (bson_iterator it, enum bson_view_invalid_reason *error);
 
 extern inline void
 _bson_view_assert (bool b, const char *expr, const char *file, int line);

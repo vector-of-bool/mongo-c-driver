@@ -1,5 +1,5 @@
 #include <bson/bson.h>
-#include <bson2/view.h>
+#include <bson/view.h>
 
 #include <stdint.h>
 
