@@ -16,6 +16,8 @@
 
 #include "operation.h"
 
+#include <bson/bson-dsl.h>
+
 #include "mongoc-array-private.h"
 #include "result.h"
 #include "test-diagnostics.h"
@@ -653,6 +655,111 @@ done:
    bson_parser_destroy_with_parsed_fields (parser);
 
    return ret;
+}
+
+static bool
+operation_create_encrypted_collection (test_t *test,
+                                       operation_t *op,
+                                       result_t *result,
+                                       bson_error_t *error)
+{
+   char *errpath = NULL;
+   char *errstr = NULL;
+   const char *collName = NULL;
+   const char *dbName = NULL;
+   const char *kmsProvider = NULL;
+   // dkOpts:
+   bson_t dk_masterKey = BSON_INITIALIZER;
+   struct {
+      bson_subtype_t subtype;
+      uint32_t len;
+      const uint8_t *data;
+   } dk_keyMaterial;
+   // The dkOpts
+   mongoc_client_encryption_datakey_opts_t *dkOpts =
+      mongoc_client_encryption_datakey_opts_new ();
+   // Array for keyAltNames
+   mongoc_array_t dk_keyAltNames;
+   _mongoc_array_init (&dk_keyAltNames, sizeof (const char *));
+   // The collection options
+   bson_t opts = BSON_INITIALIZER;
+   bsonParse (
+      *op->arguments,
+      require (keyWithType ("collection", utf8), storeStrRef (collName)),
+      require (keyWithType ("database", utf8), storeStrRef (dbName)),
+      require (keyWithType ("opts", doc), storeDocRef (opts)),
+      require (keyWithType ("kmsProvider", utf8), storeStrRef (kmsProvider)),
+      find (
+         key ("dkOpts"),
+         if (not(type (doc)),
+             then (error ("In 'createEncryptedCollection', the 'dkOpts' "
+                          "argument should be a document value"))),
+         parse (
+            find (key ("masterKey"),
+                  require (type (doc)),
+                  storeDocRef (dk_masterKey),
+                  do(mongoc_client_encryption_datakey_opts_set_masterkey (
+                     dkOpts, &dk_masterKey))),
+            find (
+               key ("keyAltNames"),
+               require (type (array)),
+               visitEach (
+                  if (not(type (utf8)),
+                      then (
+                         dupPath (errpath),
+                         errorf (errstr,
+                                 "At [%s]: All 'keyAltNames' must be strings",
+                                 errpath))),
+                  do({
+                     const char *kn = bson_iter_utf8 (&bsonVisitIter, NULL);
+                     _mongoc_array_append_val (&dk_keyAltNames, kn);
+                  })),
+               do(mongoc_client_encryption_datakey_opts_set_keyaltnames (
+                  dkOpts, dk_keyAltNames.data, (uint32_t) dk_keyAltNames.len))),
+            find (key ("keyMaterial"),
+                  require (type (binary)),
+                  storeBinRef (dk_keyMaterial),
+                  do(mongoc_client_encryption_datakey_opts_set_keymaterial (
+                     dkOpts, dk_keyMaterial.data, dk_keyMaterial.len))),
+            visitOthers (
+               dupPath (errpath),
+               errorf (errstr, "Unrecognized datakey option [%s]", errpath)))),
+      visitOthers (
+         errorf (errstr,
+                 "Unrecognized option for createEncryptedCollection '%s'",
+                 bson_iter_key (&bsonVisitIter))));
+   if (bsonParseError) {
+      bson_set_error (error,
+                      MONGOC_ERROR_BSON,
+                      MONGOC_ERROR_BSON_INVALID,
+                      "Error while parsing createEncryptedCollection: %s",
+                      bsonParseError);
+      bson_free (errstr);
+      bson_free (errpath);
+      _mongoc_array_destroy (&dk_keyAltNames);
+      mongoc_client_encryption_datakey_opts_destroy (dkOpts);
+      return false;
+   }
+   // Get the ClientEncryption object
+   mongoc_client_encryption_t *const ce =
+      entity_map_get_client_encryption (test->entity_map, op->object, error);
+   if (!ce) {
+      return false;
+   }
+   // Get the Database
+   mongoc_database_t *const db =
+      entity_map_get_database (test->entity_map, dbName, error);
+   if (!db) {
+      return false;
+   }
+   // Create it:
+   mongoc_collection_t *const coll =
+      mongoc_client_encryption_create_encrypted_collection (
+         ce, db, collName, &opts, NULL, kmsProvider, dkOpts, error);
+   result_from_val_and_reply (result, NULL, NULL, error);
+   mongoc_client_encryption_datakey_opts_destroy (dkOpts);
+   mongoc_collection_destroy (coll);
+   return true;
 }
 
 static bool
@@ -3225,6 +3332,7 @@ operation_run (test_t *test, bson_t *op_bson, bson_error_t *error)
       {"addKeyAltName", operation_add_key_alt_name},
       {"removeKeyAltName", operation_remove_key_alt_name},
       {"getKeyByAltName", operation_get_key_by_alt_name},
+      {"createEncryptedCollection", operation_create_encrypted_collection},
 
       /* Database operations */
       {"createCollection", operation_create_collection},

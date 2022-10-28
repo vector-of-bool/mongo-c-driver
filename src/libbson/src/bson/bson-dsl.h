@@ -470,6 +470,12 @@ BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic ignored \"-Wshadow\""))
    (Dest) = bson_iter_as_bool (&bsonVisitIter);           \
    _bsonDSL_end
 
+#define _bsonVisitOperation_storeBinRef(Dest)                      \
+   _bsonDSL_begin ("storeBinRef(%s)", _bsonDSL_str (Dest));        \
+   bson_iter_binary (                                              \
+      &bsonVisitIter, &(Dest).subtype, &(Dest).len, &(Dest).data); \
+   _bsonDSL_end
+
 #define _bsonVisitOperation_storeStrRef(Dest)               \
    _bsonDSL_begin ("storeStrRef(%s)", _bsonDSL_str (Dest)); \
    (Dest) = bson_iter_utf8 (&bsonVisitIter, NULL);          \

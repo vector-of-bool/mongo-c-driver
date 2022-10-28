@@ -1,0 +1,125 @@
+{
+  "description": "createEncryptedCollection",
+  "schemaVersion": "1.8",
+  "runOnRequirements": [
+    {
+      "csfle": true
+    }
+  ],
+  "createEntities": [
+    {
+      "client": {
+        "id": "client0",
+        "observeEvents": [
+          "commandStartedEvent"
+        ]
+      }
+    },
+    {
+      "clientEncryption": {
+        "id": "clientEncryption0",
+        "clientEncryptionOpts": {
+          "keyVaultClient": "client0",
+          "keyVaultNamespace": "keyvault.theDataKeysNamespace",
+          "kmsProviders": {
+            "local": {
+              "key": {
+                "$$placeholder": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "database": {
+        "id": "database0",
+        "client": "client0",
+        "databaseName": "test"
+      }
+    },
+    {
+      "collection": {
+        "id": "collection0",
+        "database": "database0",
+        "collectionName": "testCollection"
+      }
+    }
+  ],
+  "tests": [
+    {
+      "description": "Create a simple encrypted collection",
+      "operations": [
+        {
+          "name": "createEncryptedCollection",
+          "object": "clientEncryption0",
+          "arguments": {
+            "collection": "testCollection",
+            "database": "database0",
+            "kmsProvider": "local",
+            "dkOpts": {},
+            "opts": {
+              "encryptedFields": {
+                "fields": [
+                  {
+                    "path": "ssn",
+                    "bsonType": "string",
+                    "keyId": null,
+                    "queries": {
+                      "queryType": "equality"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "expectEvents": [
+        {
+          "client": "client0",
+          "ignoreExtraEvents": true,
+          "events": [
+            {
+              "commandStartedEvent": {
+                "command": {
+                  "insert": "theDataKeysNamespace"
+                }
+              }
+            },
+            {
+              "commandStartedEvent": {}
+            },
+            {
+              "commandStartedEvent": {}
+            },
+            {
+              "commandStartedEvent": {}
+            },
+            {
+              "commandStartedEvent": {
+                "command": {
+                  "create": "testCollection",
+                  "encryptedFields": {
+                    "fields": [
+                      {
+                        "path": "ssn",
+                        "bsonType": "string",
+                        "keyId": {
+                          "$$type": "binData"
+                        },
+                        "queries": {
+                          "queryType": "equality"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
