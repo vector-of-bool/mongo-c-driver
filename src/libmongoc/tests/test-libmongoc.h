@@ -182,8 +182,6 @@ int
 test_framework_skip_if_slow (void);
 int
 test_framework_skip_if_slow_or_live (void);
-int
-test_framework_skip_if_valgrind (void);
 
 #define WIRE_VERSION_CHECK_DECLS(wv)                                  \
    int test_framework_skip_if_max_wire_version_less_than_##wv (void); \
@@ -201,6 +199,8 @@ WIRE_VERSION_CHECK_DECLS (13)
 WIRE_VERSION_CHECK_DECLS (14)
 /* wire version 17 begins with the 6.0 release. */
 WIRE_VERSION_CHECK_DECLS (17)
+/* wire version 19 begins with the 6.2 release. */
+WIRE_VERSION_CHECK_DECLS (19)
 
 #undef WIRE_VERSION_CHECK_DECLS
 

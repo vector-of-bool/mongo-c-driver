@@ -25,8 +25,8 @@ server_id_for_reads (mongoc_cluster_t *cluster)
    mongoc_server_stream_t *server_stream;
    uint32_t id;
 
-   server_stream = mongoc_cluster_stream_for_reads (
-      cluster, NULL, NULL, NULL, false, &error);
+   server_stream =
+      mongoc_cluster_stream_for_reads (cluster, NULL, NULL, NULL, &error);
    ASSERT_OR_PRINT (server_stream, error);
    id = server_stream->sd->id;
 
@@ -459,12 +459,9 @@ test_cluster_time_cmd_started_cb (const mongoc_apm_command_started_t *event)
          BSON_ASSERT (!bson_empty0 (test->cluster_time));
          bson_iter_bson (&iter, &client_cluster_time);
          if (!bson_equal (test->cluster_time, &client_cluster_time)) {
-            fprintf (stderr,
-                     "Unequal clusterTimes.\nServer sent %s\nClient sent %s\n",
-                     bson_as_json (test->cluster_time, NULL),
-                     bson_as_json (&client_cluster_time, NULL));
-
-            abort ();
+            test_error ("Unequal clusterTimes.\nServer sent %s\nClient sent %s",
+                        bson_as_json (test->cluster_time, NULL),
+                        bson_as_json (&client_cluster_time, NULL));
          }
 
          bson_destroy (&client_cluster_time);
@@ -813,13 +810,11 @@ receives_with_cluster_time (mock_server_t *server,
    BSON_ASSERT (BSON_ITER_HOLDS_TIMESTAMP (&cluster_time));
    bson_iter_timestamp (&cluster_time, &t, &i);
    if (t != timestamp || i != increment) {
-      fprintf (stderr,
-               "Expected Timestamp(%d, %d), got Timestamp(%d, %d)\n",
-               timestamp,
-               increment,
-               t,
-               i);
-      abort ();
+      test_error ("Expected Timestamp(%d, %d), got Timestamp(%d, %d)",
+                  timestamp,
+                  increment,
+                  t,
+                  i);
    }
 
    return request;
@@ -1372,7 +1367,9 @@ _test_cluster_hello_fails (bool hangup)
    mock_server_run (mock_server);
    uri = mongoc_uri_copy (mock_server_get_uri (mock_server));
    /* increase heartbeatFrequencyMS to prevent background server selection. */
-   mongoc_uri_set_option_as_int32 (uri, "heartbeatFrequencyMS", 99999);
+   mongoc_uri_set_option_as_int32 (uri, MONGOC_URI_HEARTBEATFREQUENCYMS, 99999);
+   /* prevent retryable handshakes from interfering with mock server hangups */
+   mongoc_uri_set_option_as_bool (uri, MONGOC_URI_RETRYREADS, false);
    pool = test_framework_client_pool_new_from_uri (uri, NULL);
    mongoc_client_pool_set_error_api (pool, 2);
    mongoc_uri_destroy (uri);

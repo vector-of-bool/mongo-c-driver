@@ -37,7 +37,7 @@ intersphinx_disabled_reftypes = []
 # don't fetch libbson's inventory from mongoc.org during build - Debian and
 # Fedora package builds must work offline - maintain a recent copy here
 intersphinx_mapping = {
-    'bson': ('http://mongoc.org/libbson/current', 'libbson-objects.inv'),
+    'bson': ('https://www.mongoc.org/libbson/current', 'libbson-objects.inv'),
 }
 
 # -- Options for HTML output ----------------------------------------------
@@ -71,12 +71,16 @@ rst_prolog = '''
 
     This API |qenc:is-experimental|
 
+.. |qenc:range-is-experimental| replace::
+
+    Range algorithm is experimental only and not intended for public use. It is subject to breaking changes.
+
 '''
 
 
 def add_canonical_link(app, pagename, templatename, context, doctree):
     link = ('<link rel="canonical"'
-            ' href="http://mongoc.org/libbson/current/%s.html"/>' % pagename)
+            ' href="https://www.mongoc.org/libbson/current/%s.html"/>' % pagename)
 
     context['metatags'] = context.get('metatags', '') + link
 

@@ -581,6 +581,14 @@ _mongoc_write_opmsg (mongoc_write_command_t *command,
                &txn_number_iter,
                ++parts.assembled.session->server_session->txn_number);
          }
+
+         // Store the original error and reply if needed.
+         struct {
+            bson_t reply;
+            bson_error_t error;
+            bool set;
+         } original_error = {0};
+
       retry:
          ret = mongoc_cluster_run_command_monitored (
             &client->cluster, &parts.assembled, &reply, error);
@@ -620,6 +628,15 @@ _mongoc_write_opmsg (mongoc_write_command_t *command,
                 retry_server_stream->sd->max_wire_version >=
                    WIRE_VERSION_RETRY_WRITES) {
                parts.assembled.server_stream = retry_server_stream;
+               {
+                  // Store the original error and reply before retry.
+                  BSON_ASSERT (!original_error.set); // Retry only happens once.
+                  original_error.set = true;
+                  bson_copy_to (&reply, &original_error.reply);
+                  if (error) {
+                     original_error.error = *error;
+                  }
+               }
                bson_destroy (&reply);
                GOTO (retry);
             }
@@ -635,6 +652,17 @@ _mongoc_write_opmsg (mongoc_write_command_t *command,
             }
          }
 
+         // If a retry attempt fails with an error labeled NoWritesPerformed,
+         // drivers MUST return the original error.
+         if (original_error.set &&
+             mongoc_error_has_label (&reply, "NoWritesPerformed")) {
+            if (error) {
+               *error = original_error.error;
+            }
+            bson_destroy (&reply);
+            bson_copy_to (&original_error.reply, &reply);
+         }
+
          /* Result merge needs to know the absolute index for a document
           * so it can rewrite the error message which contains the relative
           * document index per batch
@@ -643,6 +671,9 @@ _mongoc_write_opmsg (mongoc_write_command_t *command,
          index_offset += document_count;
          document_count = 0;
          bson_destroy (&reply);
+         if (original_error.set) {
+            bson_destroy (&original_error.reply);
+         }
       }
       /* While we have more documents to write */
    } while (payload_total_offset < command->payload.len && !result->must_stop);
@@ -1116,6 +1147,7 @@ _mongoc_write_result_init (mongoc_write_result_t *result) /* IN */
    bson_init (&result->writeConcernErrors);
    bson_init (&result->writeErrors);
    bson_init (&result->errorLabels);
+   bson_init (&result->rawErrorReplies);
 
    EXIT;
 }
@@ -1132,6 +1164,7 @@ _mongoc_write_result_destroy (mongoc_write_result_t *result)
    bson_destroy (&result->writeConcernErrors);
    bson_destroy (&result->writeErrors);
    bson_destroy (&result->errorLabels);
+   bson_destroy (&result->rawErrorReplies);
 
    EXIT;
 }
@@ -1324,6 +1357,22 @@ _mongoc_write_result_merge (mongoc_write_result_t *result,   /* IN */
       result->n_writeConcernErrors++;
    }
 
+   /* If a server error ocurred, then append the raw response to the
+    * error_replies array. */
+   if (!_mongoc_cmd_check_ok (
+          reply, MONGOC_ERROR_API_VERSION_2, NULL /* error */)) {
+      char str[16];
+      const char *key;
+
+      bson_uint32_to_string (result->n_errorReplies, &key, str, sizeof str);
+
+      if (!bson_append_document (&result->rawErrorReplies, key, -1, reply)) {
+         MONGOC_ERROR ("Error adding \"%s\" to errorReplies.\n", key);
+      }
+
+      result->n_errorReplies++;
+   }
+
    /* inefficient if there are ever large numbers: for each label in each err,
     * we linear-search result->errorLabels to see if it's included yet */
    _mongoc_bson_array_copy_labels_to (reply, &result->errorLabels);
@@ -1434,6 +1483,7 @@ _mongoc_write_result_complete (
    /* produce either old fields like nModified from the deprecated Bulk API Spec
     * or new fields like modifiedCount from the CRUD Spec, which we partly obey
     */
+
    if (bson && mongoc_write_concern_is_acknowledged (wc)) {
       n_args = 0;
       va_start (args, error);
@@ -1496,6 +1546,12 @@ _mongoc_write_result_complete (
          BSON_APPEND_ARRAY (
             bson, "writeConcernErrors", &result->writeConcernErrors);
       }
+   }
+
+   /* If there is a raw error response then we know a server error has occurred.
+    * We should add the raw result to the reply. */
+   if (bson && !bson_empty (&result->rawErrorReplies)) {
+      BSON_APPEND_ARRAY (bson, "errorReplies", &result->rawErrorReplies);
    }
 
    /* set bson_error_t from first write error or write concern error */

@@ -54,8 +54,7 @@ static TestSuite *gTestSuite;
 #define TEST_HELPTEXT (1 << 2)
 #define TEST_DEBUGOUTPUT (1 << 3)
 #define TEST_TRACE (1 << 4)
-#define TEST_VALGRIND (1 << 5)
-#define TEST_LISTTESTS (1 << 6)
+#define TEST_LISTTESTS (1 << 5)
 
 MONGOC_PRINTF_FORMAT (1, 2)
 static void
@@ -66,8 +65,8 @@ test_msg (const char *format, ...)
    va_start (ap, format);
    vprintf (format, ap);
    printf ("\n");
-   fflush (stdout);
    va_end (ap);
+   fflush (stdout);
 }
 
 
@@ -76,11 +75,12 @@ _test_error (const char *format, ...)
 {
    va_list ap;
 
+   fflush (stdout);
    va_start (ap, format);
    vfprintf (stderr, format, ap);
    fprintf (stderr, "\n");
-   fflush (stderr);
    va_end (ap);
+   fflush (stderr);
    abort ();
 }
 
@@ -207,10 +207,6 @@ TestSuite_Init (TestSuite *suite, const char *name, int argc, char **argv)
       test_error ("'--ctest-run' cannot be specified with '-l' or '--match'");
    }
 
-   if (test_framework_getenv_bool ("MONGOC_TEST_VALGRIND")) {
-      suite->flags |= TEST_VALGRIND;
-   }
-
    mock_server_log = test_framework_getenv ("MONGOC_TEST_SERVER_LOG");
    if (mock_server_log) {
       if (!strcmp (mock_server_log, "stdout")) {
@@ -222,7 +218,6 @@ TestSuite_Init (TestSuite *suite, const char *name, int argc, char **argv)
       } else {
          test_error ("Unrecognized option: MONGOC_TEST_SERVER_LOG=%s",
                      mock_server_log);
-         abort ();
       }
 
       bson_free (mock_server_log);
@@ -231,7 +226,6 @@ TestSuite_Init (TestSuite *suite, const char *name, int argc, char **argv)
    if (suite->silent) {
       if (suite->outfile) {
          test_error ("Cannot combine -F with --silent");
-         abort ();
       }
 
       suite->flags &= ~(TEST_DEBUGOUTPUT);
@@ -298,11 +292,11 @@ _TestSuite_AddCheck (Test *test, CheckFunc check, const char *name)
 {
    test->checks[test->num_checks] = check;
    if (++test->num_checks > MAX_TEST_CHECK_FUNCS) {
-      fprintf (stderr,
-               "Too many check funcs for %s, increase MAX_TEST_CHECK_FUNCS "
-               "to more than %d\n",
-               name,
-               MAX_TEST_CHECK_FUNCS);
+      MONGOC_STDERR_PRINTF (
+         "Too many check funcs for %s, increase MAX_TEST_CHECK_FUNCS "
+         "to more than %d\n",
+         name,
+         MAX_TEST_CHECK_FUNCS);
       abort ();
    }
 }
@@ -670,9 +664,9 @@ TestSuite_RunTest (TestSuite *suite, /* IN */
    }
 
    t2 = bson_get_monotonic_time ();
+   // CDRIVER-2567: check that bson_get_monotonic_time does not wrap.
+   ASSERT_CMPINT64 (t2, >=, t1);
    t3 = t2 - t1;
-   /* CDRIVER-2567: check that bson_get_monotonic_time does not wrap. */
-   BSON_ASSERT (t3 >= 0);
 
    bson_string_append_printf (buf,
                               "    { \"status\": \"%s\", "
@@ -1229,19 +1223,6 @@ test_suite_debug_output (void)
 }
 
 
-int
-test_suite_valgrind (void)
-{
-   int ret;
-
-   bson_mutex_lock (&gTestMutex);
-   ret = gTestSuite->flags & TEST_VALGRIND;
-   bson_mutex_unlock (&gTestMutex);
-
-   return ret;
-}
-
-
 MONGOC_PRINTF_FORMAT (1, 2)
 void
 test_suite_mock_server_log (const char *msg, ...)
@@ -1277,4 +1258,31 @@ TestSuite_NoFork (TestSuite *suite)
       return true;
    }
    return false;
+}
+
+char *
+bson_value_to_str (const bson_value_t *val)
+{
+   bson_t *tmp = bson_new ();
+   BSON_APPEND_VALUE (tmp, "v", val);
+   char *str = bson_as_canonical_extended_json (tmp, NULL);
+   // str is the string: { "v": ... }
+   // remove the prefix and suffix.
+   char *ret = bson_strndup (str + 6, strlen (str) - (6 + 1));
+   bson_free (str);
+   bson_destroy (tmp);
+   return ret;
+}
+
+bool
+bson_value_eq (const bson_value_t *a, const bson_value_t *b)
+{
+   bson_t *tmp_a = bson_new ();
+   bson_t *tmp_b = bson_new ();
+   BSON_APPEND_VALUE (tmp_a, "v", a);
+   BSON_APPEND_VALUE (tmp_b, "v", b);
+   bool ret = bson_equal (tmp_a, tmp_b);
+   bson_destroy (tmp_b);
+   bson_destroy (tmp_a);
+   return ret;
 }

@@ -2474,6 +2474,359 @@ done:
 }
 
 
+/* clang-format on */
+
+static bool
+insert_pet (mongoc_collection_t *collection, bool is_adoptable)
+{
+   bson_t *doc = NULL;
+   bson_error_t error;
+   bool rc;
+
+   doc = BCON_NEW ("adoptable", BCON_BOOL (is_adoptable));
+
+   rc = mongoc_collection_insert_one (collection, doc, NULL, NULL, &error);
+   if (!rc) {
+      MONGOC_ERROR ("insert into pets.%s failed: %s",
+                    mongoc_collection_get_name (collection),
+                    error.message);
+      goto cleanup;
+   }
+
+cleanup:
+   bson_destroy (doc);
+   return rc;
+}
+
+
+static bool
+pet_setup (mongoc_collection_t *cats_collection,
+           mongoc_collection_t *dogs_collection)
+{
+   bool ok = true;
+
+   mongoc_collection_drop (cats_collection, NULL);
+   mongoc_collection_drop (dogs_collection, NULL);
+
+   ok = insert_pet (cats_collection, true);
+   if (!ok) {
+      goto done;
+   }
+
+   ok = insert_pet (dogs_collection, true);
+   if (!ok) {
+      goto done;
+   }
+
+   ok = insert_pet (dogs_collection, false);
+   if (!ok) {
+      goto done;
+   }
+done:
+   return ok;
+}
+
+/*
+ * Increment 'accumulator' by the amount of adoptable pets in the given
+ * collection.
+ */
+static bool
+accumulate_adoptable_count (const mongoc_client_session_t *cs,
+                            mongoc_collection_t *collection,
+                            int64_t *accumulator /* OUT */
+)
+{
+   bson_t *pipeline = NULL;
+   mongoc_cursor_t *cursor = NULL;
+   bool rc = false;
+   const bson_t *doc = NULL;
+   bson_error_t error;
+   bson_iter_t iter;
+   bson_t opts = BSON_INITIALIZER;
+
+   rc = mongoc_client_session_append (cs, &opts, &error);
+   if (!rc) {
+      MONGOC_ERROR ("could not apply session options: %s", error.message);
+      goto cleanup;
+   }
+
+   pipeline = BCON_NEW ("pipeline",
+                        "[",
+                        "{",
+                        "$match",
+                        "{",
+                        "adoptable",
+                        BCON_BOOL (true),
+                        "}",
+                        "}",
+                        "{",
+                        "$count",
+                        BCON_UTF8 ("adoptableCount"),
+                        "}",
+                        "]");
+
+   cursor = mongoc_collection_aggregate (
+      collection, MONGOC_QUERY_NONE, pipeline, &opts, NULL);
+   bson_destroy (&opts);
+
+   rc = mongoc_cursor_next (cursor, &doc);
+
+   if (mongoc_cursor_error (cursor, &error)) {
+      MONGOC_ERROR ("could not get adoptableCount: %s", error.message);
+      rc = false;
+      goto cleanup;
+   }
+
+   if (!rc) {
+      MONGOC_ERROR ("%s", "cursor has no results");
+      goto cleanup;
+   }
+
+   rc = bson_iter_init_find (&iter, doc, "adoptableCount");
+   if (rc) {
+      *accumulator += bson_iter_as_int64 (&iter);
+   } else {
+      MONGOC_ERROR ("%s", "missing key: 'adoptableCount'");
+      goto cleanup;
+   }
+
+cleanup:
+   bson_destroy (pipeline);
+   mongoc_cursor_destroy (cursor);
+   return rc;
+}
+
+/*
+ * JIRA: https://jira.mongodb.org/browse/DRIVERS-2181
+ */
+static void
+test_example_59 (mongoc_database_t *db)
+{
+   mongoc_client_t *client = NULL;
+   client = test_framework_new_default_client ();
+
+   /* Start Snapshot Query Example 1 */
+   mongoc_client_session_t *cs = NULL;
+   mongoc_collection_t *cats_collection = NULL;
+   mongoc_collection_t *dogs_collection = NULL;
+   int64_t adoptable_pets_count = 0;
+   bson_error_t error;
+   mongoc_session_opt_t *session_opts;
+
+   cats_collection = mongoc_client_get_collection (client, "pets", "cats");
+   dogs_collection = mongoc_client_get_collection (client, "pets", "dogs");
+
+   /* Seed 'pets.cats' and 'pets.dogs' with example data */
+   if (!pet_setup (cats_collection, dogs_collection)) {
+      goto cleanup;
+   }
+
+   /* start a snapshot session */
+   session_opts = mongoc_session_opts_new ();
+   mongoc_session_opts_set_snapshot (session_opts, true);
+   cs = mongoc_client_start_session (client, session_opts, &error);
+   mongoc_session_opts_destroy (session_opts);
+   if (!cs) {
+      MONGOC_ERROR ("Could not start session: %s", error.message);
+      goto cleanup;
+   }
+
+   /*
+    * Perform the following aggregation pipeline, and accumulate the count in
+    * `adoptable_pets_count`.
+    *
+    *  adoptablePetsCount = db.cats.aggregate(
+    *      [ { "$match": { "adoptable": true } },
+    *        { "$count": "adoptableCatsCount" } ], session=s
+    *  ).next()["adoptableCatsCount"]
+    *
+    *  adoptablePetsCount += db.dogs.aggregate(
+    *      [ { "$match": { "adoptable": True} },
+    *        { "$count": "adoptableDogsCount" } ], session=s
+    *  ).next()["adoptableDogsCount"]
+    *
+    * Remember in order to apply the client session to
+    * this operation, you must append the client session to the options passed
+    * to `mongoc_collection_aggregate`, i.e.,
+    *
+    * mongoc_client_session_append (cs, &opts, &error);
+    * cursor = mongoc_collection_aggregate (
+    *    collection, MONGOC_QUERY_NONE, pipeline, &opts, NULL);
+    */
+   accumulate_adoptable_count (cs, cats_collection, &adoptable_pets_count);
+   accumulate_adoptable_count (cs, dogs_collection, &adoptable_pets_count);
+
+   printf ("there are %" PRId64 " adoptable pets\n", adoptable_pets_count);
+
+   /* End Snapshot Query Example 1 */
+
+   if (adoptable_pets_count != 2) {
+      MONGOC_ERROR (
+         "there should be exatly 2 adoptable_pets_count, found: %" PRId64,
+         adoptable_pets_count);
+   }
+
+   /* Start Snapshot Query Example 1 Post */
+cleanup:
+   mongoc_collection_destroy (dogs_collection);
+   mongoc_collection_destroy (cats_collection);
+   mongoc_client_session_destroy (cs);
+   mongoc_client_destroy (client);
+   /* End Snapshot Query Example 1 Post */
+}
+
+static bool
+retail_setup (mongoc_collection_t *sales_collection)
+{
+   bool ok = true;
+   bson_t *doc = NULL;
+   bson_error_t error;
+   struct timeval tv;
+   int64_t unix_time_now = 0;
+
+   if (bson_gettimeofday (&tv)) {
+      MONGOC_ERROR ("could not get time of day");
+      goto cleanup;
+   }
+   unix_time_now = 1000 * tv.tv_sec;
+
+   mongoc_collection_drop (sales_collection, NULL);
+
+   doc = BCON_NEW ("shoeType",
+                   BCON_UTF8 ("boot"),
+                   "price",
+                   BCON_INT64 (30),
+                   "saleDate",
+                   BCON_DATE_TIME (unix_time_now));
+
+   ok =
+      mongoc_collection_insert_one (sales_collection, doc, NULL, NULL, &error);
+   if (!ok) {
+      MONGOC_ERROR ("insert into retail.sales failed: %s", error.message);
+      goto cleanup;
+   }
+
+cleanup:
+   bson_destroy (doc);
+   return ok;
+}
+
+
+static void
+test_example_60 (mongoc_database_t *db)
+{
+   mongoc_client_t *client = NULL;
+   client = test_framework_new_default_client ();
+
+   /* Start Snapshot Query Example 2 */
+   mongoc_client_session_t *cs = NULL;
+   mongoc_collection_t *sales_collection = NULL;
+   bson_error_t error;
+   mongoc_session_opt_t *session_opts;
+   bson_t *pipeline = NULL;
+   bson_t opts = BSON_INITIALIZER;
+   mongoc_cursor_t *cursor = NULL;
+   const bson_t *doc = NULL;
+   bool ok = true;
+   bson_iter_t iter;
+   int64_t total_sales = 0;
+
+   sales_collection = mongoc_client_get_collection (client, "retail", "sales");
+
+   /* seed 'retail.sales' with example data */
+   if (!retail_setup (sales_collection)) {
+      goto cleanup;
+   }
+
+   /* start a snapshot session */
+   session_opts = mongoc_session_opts_new ();
+   mongoc_session_opts_set_snapshot (session_opts, true);
+   cs = mongoc_client_start_session (client, session_opts, &error);
+   mongoc_session_opts_destroy (session_opts);
+   if (!cs) {
+      MONGOC_ERROR ("Could not start session: %s", error.message);
+      goto cleanup;
+   }
+
+   if (!mongoc_client_session_append (cs, &opts, &error)) {
+      MONGOC_ERROR ("could not apply session options: %s", error.message);
+      goto cleanup;
+   }
+
+   pipeline = BCON_NEW ("pipeline",
+                        "[",
+                        "{",
+                        "$match",
+                        "{",
+                        "$expr",
+                        "{",
+                        "$gt",
+                        "[",
+                        "$saleDate",
+                        "{",
+                        "$dateSubtract",
+                        "{",
+                        "startDate",
+                        "$$NOW",
+                        "unit",
+                        BCON_UTF8 ("day"),
+                        "amount",
+                        BCON_INT64 (1),
+                        "}",
+                        "}",
+                        "]",
+                        "}",
+                        "}",
+                        "}",
+                        "{",
+                        "$count",
+                        BCON_UTF8 ("totalDailySales"),
+                        "}",
+                        "]");
+
+   cursor = mongoc_collection_aggregate (
+      sales_collection, MONGOC_QUERY_NONE, pipeline, &opts, NULL);
+   bson_destroy (&opts);
+
+   ok = mongoc_cursor_next (cursor, &doc);
+
+   if (mongoc_cursor_error (cursor, &error)) {
+      MONGOC_ERROR ("could not get totalDailySales: %s", error.message);
+      goto cleanup;
+   }
+
+   if (!ok) {
+      MONGOC_ERROR ("%s", "cursor has no results");
+      goto cleanup;
+   }
+
+   ok = bson_iter_init_find (&iter, doc, "totalDailySales");
+   if (ok) {
+      total_sales = bson_iter_as_int64 (&iter);
+   } else {
+      MONGOC_ERROR ("%s", "missing key: 'totalDailySales'");
+      goto cleanup;
+   }
+
+   /* End Snapshot Query Example 2 */
+
+   if (total_sales != 1) {
+      MONGOC_ERROR ("there should be exactly 1 total_sales, found: %" PRId64,
+                    total_sales);
+   }
+
+   /* Start Snapshot Query Example 2 Post */
+cleanup:
+   mongoc_collection_destroy (sales_collection);
+   mongoc_client_session_destroy (cs);
+   mongoc_cursor_destroy (cursor);
+   bson_destroy (pipeline);
+   mongoc_client_destroy (client);
+   /* End Snapshot Query Example 2 Post */
+}
+
+/* clang-format off */
+
 typedef struct {
    bson_mutex_t lock;
    mongoc_collection_t *collection;
@@ -3453,7 +3806,7 @@ callback (mongoc_client_session_t *session,
           bson_error_t *error);
 
 /* See additional usage of mongoc_client_session_with_transaction at
- * http://mongoc.org/libmongoc/1.15.3/mongoc_client_session_with_transaction.html
+ * https://www.mongoc.org/libmongoc/1.15.3/mongoc_client_session_with_transaction.html
  */
 /* Start Transactions withTxn API Example 1 */
 static bool
@@ -3616,6 +3969,8 @@ _test_sample_versioned_api_example_1 (void)
 
    mongoc_client_destroy (client);
    mongoc_server_api_destroy (server_api);
+
+   BSON_UNUSED (error);
 }
 
 static void
@@ -3650,6 +4005,8 @@ _test_sample_versioned_api_example_2 (void)
 
    mongoc_client_destroy (client);
    mongoc_server_api_destroy (server_api);
+
+   BSON_UNUSED (error);
 }
 
 static void
@@ -3684,6 +4041,8 @@ _test_sample_versioned_api_example_3 (void)
 
    mongoc_client_destroy (client);
    mongoc_server_api_destroy (server_api);
+
+   BSON_UNUSED (error);
 }
 
 static void
@@ -3718,6 +4077,8 @@ _test_sample_versioned_api_example_4 (void)
 
    mongoc_client_destroy (client);
    mongoc_server_api_destroy (server_api);
+
+   BSON_UNUSED (error);
 }
 
 static int64_t
@@ -3744,7 +4105,6 @@ _test_sample_versioned_api_example_5_6_7_8 (void)
    bson_t *docs[N_DOCS];
    int i;
    bson_t reply;
-   bson_t *cmd;
    int64_t count;
    bson_t *filter;
 
@@ -3853,16 +4213,33 @@ _test_sample_versioned_api_example_5_6_7_8 (void)
    ASSERT_OR_PRINT (ok, error);
    bson_destroy (&reply);
 
-   cmd = BCON_NEW ("count", "sales");
-   ok = mongoc_database_command_simple (
-      db, cmd, NULL /* read_prefs */, &reply, &error);
-   ASSERT_ERROR_CONTAINS (
-      error,
-      MONGOC_ERROR_SERVER,
-      323,
-      "Provided apiStrict:true, but the command count is not in API Version 1");
-   ASSERT (!ok);
-   bson_destroy (&reply);
+   {
+      const server_version_t version = test_framework_get_server_version ();
+
+      // count command was added to API version 1 in 6.0 and backported to 5.0.9
+      // and 5.3.2 (see SERVER-63850 and DRIVERS-2228). This test assumes count
+      // command is not in API version 1. Skip until examples are updated
+      // accordingly (see DRIVERS-1846).
+      const bool should_skip =
+         (version >= 106100100) ||                        // [6.0.0, inf)
+         (version >= 105103102 && version < 106100100) || // [5.3.2, 6.0.0)
+         (version >= 105100109 && version < 105101100);   // [5.0.9, 5.1.0)
+
+      if (!should_skip) {
+         bson_t *cmd = BCON_NEW ("count", "sales");
+         ok = mongoc_database_command_simple (
+            db, cmd, NULL /* read_prefs */, &reply, &error);
+         ASSERT_ERROR_CONTAINS (
+            error,
+            MONGOC_ERROR_SERVER,
+            323,
+            "Provided apiStrict:true, but the command count "
+            "is not in API Version 1");
+         ASSERT (!ok);
+         bson_destroy (&reply);
+         bson_destroy (cmd);
+      }
+   }
 #if 0
    /* This block not evaluated, but is inserted into documentation to represent the above reply.
     * Don't delete me! */
@@ -3890,7 +4267,6 @@ _test_sample_versioned_api_example_5_6_7_8 (void)
    /* End Versioned API Example 8 */
 
    bson_destroy (filter);
-   bson_destroy (cmd);
    for (i = 0; i < N_DOCS; i++) {
       bson_destroy (docs[i]);
    }
@@ -3977,6 +4353,8 @@ test_sample_commands (void)
    test_sample_command (test_example_57, 57, db, collection, false);
    test_sample_command (test_example_58, 58, db, collection, false);
    test_sample_command (test_example_56, 56, db, collection, true);
+   test_sample_command (test_example_59, 59, db, collection, true);
+   test_sample_command (test_example_60, 60, db, collection, true);
    test_sample_change_stream_command (test_example_change_stream, db);
    test_sample_causal_consistency (client);
    test_sample_aggregation (db);

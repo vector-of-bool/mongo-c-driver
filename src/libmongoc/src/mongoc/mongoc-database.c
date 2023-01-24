@@ -30,6 +30,8 @@
 #include "mongoc-write-concern-private.h"
 #include "mongoc-change-stream-private.h"
 
+#include <bson/bson-dsl.h>
+
 #undef MONGOC_LOG_DOMAIN
 #define MONGOC_LOG_DOMAIN "database"
 
@@ -1246,39 +1248,91 @@ fail:
    return ret;
 }
 
+bool
+_mongoc_get_collection_encryptedFields (mongoc_client_t *client,
+                                        const char *dbName,
+                                        const char *collName,
+                                        const bson_t *opts,
+                                        bson_t *encryptedFields,
+                                        bson_error_t *error)
+{
+   BSON_ASSERT_PARAM (client);
+   BSON_ASSERT_PARAM (dbName);
+   BSON_ASSERT_PARAM (collName);
+   BSON_ASSERT (opts || true);
+   BSON_ASSERT_PARAM (encryptedFields);
+   BSON_ASSERT (error || true);
+
+   bson_init (encryptedFields); // Initially empty
+
+   if (opts) {
+      // We have collection options, which may have encryptedFields in it
+      bool found = false;
+      bsonParse (
+         *opts,
+         find (key ("encryptedFields"),
+               if (not(type (doc)),
+                   then (error ("'encryptedFields' should be a document"))),
+               // Update encryptedFields to be a reference to the subdocument:
+               storeDocRef (*encryptedFields),
+               do(found = true)));
+      if (bsonParseError) {
+         // Error while parsing
+         bson_set_error (error,
+                         MONGOC_ERROR_COMMAND,
+                         MONGOC_ERROR_COMMAND_INVALID_ARG,
+                         "Invalid createCollection command options: %s",
+                         bsonParseError);
+         return false;
+      } else if (found) {
+         // Found it!
+         return true;
+      } else {
+         // Nothing found in the options
+      }
+   }
+
+   // Look in the encryptedFieldsMap based on this collection name
+   if (!_mongoc_get_encryptedFields_from_map (
+          client, dbName, collName, encryptedFields, error)) {
+      // Error during lookup.
+      return false;
+   }
+
+   // No error. We may or may not have found encryptedFields. The caller
+   // determines this by checking if encryptedFields is empty.
+   return true;
+}
+
 mongoc_collection_t *
 mongoc_database_create_collection (mongoc_database_t *database,
                                    const char *name,
                                    const bson_t *opts,
                                    bson_error_t *error)
 {
-   bson_iter_t iter;
+   BSON_ASSERT_PARAM (database);
+   BSON_ASSERT_PARAM (name);
+   BSON_ASSERT (opts || true);
+   BSON_ASSERT (error || true);
+
    bson_t encryptedFields = BSON_INITIALIZER;
-
-   if (opts && bson_iter_init_find (&iter, opts, "encryptedFields")) {
-      if (!_mongoc_iter_document_as_bson (&iter, &encryptedFields, error)) {
-         return NULL;
-      }
-   }
-
-   if (bson_empty (&encryptedFields)) {
-      if (!_mongoc_get_encryptedFields_from_map (
-             database->client,
-             mongoc_database_get_name (database),
-             name,
-             &encryptedFields,
-             error)) {
-         return NULL;
-      }
+   if (!_mongoc_get_collection_encryptedFields (
+          database->client,
+          mongoc_database_get_name (database),
+          name,
+          opts,
+          &encryptedFields,
+          error)) {
+      // Error during fields lookup
+      bson_destroy (&encryptedFields);
+      return false;
    }
 
    if (!bson_empty (&encryptedFields)) {
-      bson_t opts_without_encryptedFields = BSON_INITIALIZER;
-
-      if (opts) {
-         bson_copy_to_excluding_noinit (
-            opts, &opts_without_encryptedFields, "encryptedFields", NULL);
-      }
+      // Clone 'opts' without the encryptedFields element
+      bsonBuildDecl (
+         opts_without_encryptedFields,
+         if (opts, then (insert (*opts, not(key ("encryptedFields"))))));
 
       mongoc_collection_t *ret =
          create_collection_with_encryptedFields (database,
@@ -1287,11 +1341,12 @@ mongoc_database_create_collection (mongoc_database_t *database,
                                                  &encryptedFields,
                                                  error);
 
-      bson_destroy (&opts_without_encryptedFields);
       bson_destroy (&encryptedFields);
+      bson_destroy (&opts_without_encryptedFields);
       return ret;
    }
 
+   bson_destroy (&encryptedFields);
    return create_collection (database, name, opts, error);
 }
 

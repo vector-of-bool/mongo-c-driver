@@ -176,6 +176,69 @@ done:
 }
 
 static bool
+operation_list_database_names (test_t *test,
+                               operation_t *op,
+                               result_t *result,
+                               bson_error_t *error)
+{
+   bool ret = false;
+   mongoc_client_t *client = NULL;
+   bson_t *opts = NULL;
+
+   opts = bson_new ();
+   if (op->session) {
+      if (!mongoc_client_session_append (op->session, opts, error)) {
+         goto done;
+      }
+   }
+   if (op->arguments) {
+      bson_concat (opts, op->arguments);
+   }
+
+   client = entity_map_get_client (test->entity_map, op->object, error);
+   if (!client) {
+      goto done;
+   }
+
+   char **names =
+      mongoc_client_get_database_names_with_opts (client, opts, error);
+
+   {
+      bson_val_t *val = NULL;
+      if (names) {
+         bson_t bson = BSON_INITIALIZER;
+         bson_t element;
+         uint32_t idx = 0u;
+
+         BSON_APPEND_ARRAY_BEGIN (&bson, "v", &element);
+         for (char **names_iter = names; *names_iter != NULL; ++names_iter) {
+            char buffer[16];
+            const char *key = NULL;
+            const size_t key_len =
+               bson_uint32_to_string (idx++, &key, buffer, sizeof (buffer));
+            bson_append_utf8 (&element, key, key_len, *names_iter, -1);
+         }
+         bson_append_array_end (&bson, &element);
+
+         bson_iter_t iter;
+         bson_iter_init_find (&iter, &bson, "v");
+         val = bson_val_from_iter (&iter);
+
+         bson_destroy (&bson);
+      }
+      result_from_val_and_reply (result, val, NULL, error);
+      bson_val_destroy (val);
+   }
+
+   bson_strfreev (names);
+
+   ret = true;
+done:
+   bson_destroy (opts);
+   return ret;
+}
+
+static bool
 operation_create_datakey (test_t *test,
                           operation_t *op,
                           result_t *result,
@@ -769,7 +832,9 @@ operation_list_collections (test_t *test,
          goto done;
       }
    }
-   bson_concat (opts, op->arguments);
+   if (op->arguments) {
+      bson_concat (opts, op->arguments);
+   }
 
    db = entity_map_get_database (test->entity_map, op->object, error);
    if (!db) {
@@ -1313,10 +1378,13 @@ operation_create_index (test_t *test,
    bson_parser_t *bp = NULL;
    char *name = NULL;
    bson_t *keys = NULL;
-   bson_t *create_indexes = NULL;
+   bool *unique = NULL;
+   bson_t *create_indexes = bson_new ();
    bson_t op_reply = BSON_INITIALIZER;
    bson_error_t op_error = {0};
    bson_t *opts = bson_new ();
+   bson_t arguments;
+   bson_t array;
 
    coll = entity_map_get_collection (test->entity_map, op->object, error);
    if (!coll) {
@@ -1324,24 +1392,35 @@ operation_create_index (test_t *test,
    }
 
    bp = bson_parser_new ();
-   bson_parser_utf8 (bp, "name", &name);
    bson_parser_doc (bp, "keys", &keys);
+   bson_parser_utf8_optional (bp, "name", &name);
+   bson_parser_bool_optional (bp, "unique", &unique);
+
    if (!bson_parser_parse (bp, op->arguments, error)) {
       goto done;
    }
 
+   if (!name) {
+      name = mongoc_collection_keys_to_index_string (keys);
+   }
+
    /* libmongoc has no create index helper. Use runCommand. */
-   create_indexes = BCON_NEW ("createIndexes",
-                              mongoc_collection_get_name (coll),
-                              "indexes",
-                              "[",
-                              "{",
-                              "name",
-                              name,
-                              "key",
-                              BCON_DOCUMENT (keys),
-                              "}",
-                              "]");
+   /* Building the command */
+   BSON_APPEND_UTF8 (
+      create_indexes, "createIndexes", mongoc_collection_get_name (coll));
+   BSON_APPEND_ARRAY_BEGIN (create_indexes, "indexes", &array);
+   BSON_APPEND_DOCUMENT_BEGIN (&array, "0", &arguments);
+   BSON_APPEND_DOCUMENT (&arguments, "key", keys);
+   BSON_APPEND_UTF8 (&arguments, "name", name);
+   if (unique) {
+      BSON_APPEND_BOOL (&arguments, "unique", unique);
+   }
+   bson_append_document_end (&array, &arguments);
+   bson_append_array_end (create_indexes, &array);
+
+   bson_destroy (&array);
+   bson_destroy (&arguments);
+
    if (op->session) {
       if (!mongoc_client_session_append (op->session, opts, error)) {
          goto done;
@@ -1362,6 +1441,7 @@ done:
    bson_destroy (&op_reply);
    bson_destroy (opts);
    bson_destroy (create_indexes);
+
    return ret;
 }
 
@@ -2151,6 +2231,49 @@ operation_close (test_t *test,
 
    ret = true;
 done:
+   return ret;
+}
+
+static bool
+operation_drop_index (test_t *test,
+                      operation_t *op,
+                      result_t *result,
+                      bson_error_t *error)
+{
+   bool ret = false;
+   entity_t *entity;
+   bson_parser_t *parser = NULL;
+   char *index = NULL;
+   bson_t *opts = NULL;
+   mongoc_collection_t *coll = NULL;
+   bson_error_t op_error = {0};
+
+   parser = bson_parser_new ();
+   bson_parser_utf8 (parser, "name", &index);
+   if (!bson_parser_parse (parser, op->arguments, error)) {
+      goto done;
+   }
+
+   entity = entity_map_get (test->entity_map, op->object, error);
+   if (!entity) {
+      goto done;
+   }
+
+   opts = bson_new ();
+   if (op->session) {
+      if (!mongoc_client_session_append (op->session, opts, error)) {
+         goto done;
+      }
+   }
+
+   coll = entity_map_get_collection (test->entity_map, op->object, error);
+   mongoc_collection_drop_index (coll, index, error);
+   result_from_val_and_reply (result, NULL, NULL, &op_error);
+   ret = true;
+
+done:
+   bson_parser_destroy_with_parsed_fields (parser);
+   bson_destroy (opts);
    return ret;
 }
 
@@ -3118,8 +3241,10 @@ operation_rename (test_t *test,
    const char *object = op->object;
    bson_parser_t *bp = bson_parser_new ();
    bool ret = false;
+   bool *drop_target = false;
    char *new_name = NULL;
    bson_parser_utf8 (bp, "to", &new_name);
+   bson_parser_bool_optional (bp, "dropTarget", &drop_target);
    bool parse_ok = bson_parser_parse (bp, op->arguments, error);
    bson_parser_destroy (bp);
    if (!parse_ok) {
@@ -3140,15 +3265,17 @@ operation_rename (test_t *test,
          ent->type);
       goto done;
    }
+
    // Rename the collection in the server,
    mongoc_collection_t *coll = ent->value;
-   if (!mongoc_collection_rename (coll, NULL, new_name, false, error)) {
+   if (!mongoc_collection_rename (coll, NULL, new_name, drop_target, error)) {
       goto done;
    }
    result_from_ok (result);
    ret = true;
 done:
    bson_free (new_name);
+   bson_free (drop_target);
    return ret;
 }
 
@@ -3168,6 +3295,7 @@ operation_run (test_t *test, bson_t *op_bson, bson_error_t *error)
       /* Client operations */
       {"createChangeStream", operation_create_change_stream},
       {"listDatabases", operation_list_databases},
+      {"listDatabaseNames", operation_list_database_names},
 
       /* ClientEncryption operations */
       {"createDataKey", operation_create_datakey},
@@ -3213,6 +3341,7 @@ operation_run (test_t *test, bson_t *op_bson, bson_error_t *error)
       {"iterateUntilDocumentOrError",
        operation_iterate_until_document_or_error},
       {"close", operation_close},
+      {"dropIndex", operation_drop_index},
 
       /* Test runner operations */
       {"failPoint", operation_failpoint},

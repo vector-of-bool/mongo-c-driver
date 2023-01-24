@@ -280,7 +280,8 @@ all_functions = OD([
         export ORCHESTRATION_FILE=${ORCHESTRATION_FILE}
         export OCSP=${OCSP}
         export REQUIRE_API_VERSION=${REQUIRE_API_VERSION}
-        sh .evergreen/integration-tests.sh
+        export LOAD_BALANCER=${LOAD_BALANCER}
+        bash .evergreen/integration-tests.sh
         ''', test=False),
         OD([
             ("command", "expansions.update"),
@@ -295,7 +296,7 @@ all_functions = OD([
         export SSL=${SSL}
         export URI=${URI}
         export IPV4_ONLY=${IPV4_ONLY}
-        export VALGRIND=${VALGRIND}
+        export ASAN=${ASAN}
         export MONGOC_TEST_URI=${URI}
         export DNS=${DNS}
         export ASAN=${ASAN}
@@ -315,11 +316,11 @@ all_functions = OD([
           export AWS_SECRET_ACCESS_KEY="${client_side_encryption_aws_secret_access_key}"
           export AWS_ACCESS_KEY_ID="${client_side_encryption_aws_access_key_id}"
           export AWS_DEFAULT_REGION="us-east-1"
-          echo "Running activate_venv.sh..."
-          . ./activate_venv.sh
-          echo "Running activate_venv.sh... done."
+          echo "Running activate-kmstlsvenv.sh..."
+          . ./activate-kmstlsvenv.sh
+          echo "Running activate-kmstlsvenv.sh... done."
           echo "Running set-temp-creds.sh..."
-          PYTHON="$(type -P python)" . ./set-temp-creds.sh
+          . ./set-temp-creds.sh
           echo "Running set-temp-creds.sh... done."
           deactivate
           popd
@@ -345,17 +346,18 @@ all_functions = OD([
           export MONGOC_TEST_CSFLE_TLS_CA_FILE=../drivers-evergreen-tools/.evergreen/x509gen/ca.pem
           export MONGOC_TEST_CSFLE_TLS_CERTIFICATE_KEY_FILE=../drivers-evergreen-tools/.evergreen/x509gen/client.pem
           echo "Setting KMS credentials from the environment... done."
+          export SKIP_CRYPT_SHARED_LIB="${SKIP_CRYPT_SHARED_LIB}"
         fi
         export LOADBALANCED=${LOADBALANCED}
         export SINGLE_MONGOS_LB_URI="${SINGLE_MONGOS_LB_URI}"
         export MULTI_MONGOS_LB_URI="${MULTI_MONGOS_LB_URI}"
         export CRYPT_SHARED_LIB_PATH="${CRYPT_SHARED_LIB_PATH}"
         set -o errexit
-        sh .evergreen/run-tests.sh
+        bash .evergreen/run-tests.sh
         '''),
     )),
     ('run tests bson', Function(
-        shell_mongoc(r'CC="${CC}" sh .evergreen/run-tests-bson.sh'),
+        shell_mongoc(r'CC="${CC}" bash .evergreen/run-tests-bson.sh'),
     )),
     # Use "silent=True" to hide output since errors may contain credentials.
     ('run auth tests', Function(
@@ -378,15 +380,16 @@ all_functions = OD([
         export ATLAS_TLS12_SRV='${atlas_tls12_srv}'
         export REQUIRE_TLS12='${require_tls12}'
         export OBSOLETE_TLS='${obsolete_tls}'
-        export VALGRIND='${valgrind}'
+        export ASAN='${ASAN}'
+        export CC='${CC}'
         export ATLAS_SERVERLESS_SRV='${atlas_serverless_srv}'
         export ATLAS_SERVERLESS='${atlas_serverless}'
-        sh .evergreen/run-auth-tests.sh
+        bash .evergreen/run-auth-tests.sh
         ''', silent=True),
     )),
     ('run mock server tests', Function(
         shell_mongoc(
-            r'CC="${CC}" VALGRIND=${VALGRIND} sh .evergreen/run-mock-server-tests.sh'),
+            r'CC="${CC}" ASAN=${ASAN} bash .evergreen/run-mock-server-tests.sh'),
     )),
     ('cleanup', Function(
         shell_mongoc(r'''
@@ -487,19 +490,19 @@ all_functions = OD([
     ('debug-compile-coverage-notest-nosasl-nossl', Function(
         shell_mongoc(r'''
         export EXTRA_CONFIGURE_FLAGS="-DENABLE_COVERAGE=ON -DENABLE_EXAMPLES=OFF"
-        DEBUG=ON CC='${CC}' MARCH='${MARCH}' SASL=OFF SSL=OFF SKIP_MOCK_TESTS=ON sh .evergreen/compile.sh
+        DEBUG=ON CC='${CC}' MARCH='${MARCH}' SASL=OFF SSL=OFF SKIP_MOCK_TESTS=ON bash .evergreen/compile.sh
         '''),
     )),
     ('debug-compile-coverage-notest-nosasl-openssl', Function(
         shell_mongoc(r'''
         export EXTRA_CONFIGURE_FLAGS="-DENABLE_COVERAGE=ON -DENABLE_EXAMPLES=OFF"
-        DEBUG=ON CC='${CC}' MARCH='${MARCH}' SASL=OFF SSL=OPENSSL SKIP_MOCK_TESTS=ON sh .evergreen/compile.sh
+        DEBUG=ON CC='${CC}' MARCH='${MARCH}' SASL=OFF SSL=OPENSSL SKIP_MOCK_TESTS=ON bash .evergreen/compile.sh
         '''),
     )),
     ('build mongohouse', Function(
         shell_mongoc(r'''
         if [ ! -d "drivers-evergreen-tools" ]; then
-           git clone git@github.com:mongodb-labs/drivers-evergreen-tools.git
+           git clone --depth 1 git@github.com:mongodb-labs/drivers-evergreen-tools.git
         fi
         cd drivers-evergreen-tools
         export DRIVERS_TOOLS=$(pwd)
@@ -542,12 +545,12 @@ all_functions = OD([
         export SSL=${SSL}
         export URI=${URI}
         export IPV4_ONLY=${IPV4_ONLY}
-        export VALGRIND=${VALGRIND}
+        export ASAN=${ASAN}
         export MONGOC_TEST_URI=${URI}
         export DNS=${DNS}
         export ASAN=${ASAN}
         export MONGODB_API_VERSION=1
-        sh .evergreen/run-tests.sh
+        bash .evergreen/run-tests.sh
         unset MONGODB_API_VERSION
 
         '''),
@@ -556,7 +559,9 @@ all_functions = OD([
         shell_mongoc(r'''
         # Add AWS variables to a file.
         # Clone in one directory above so it does not get uploaded in working directory.
-        git clone --depth=1 https://github.com/mongodb-labs/drivers-evergreen-tools.git ../drivers-evergreen-tools
+        if [ ! -d ../drivers-evergreen-tools ]; then
+            git clone --depth 1 git@github.com:mongodb-labs/drivers-evergreen-tools.git ../drivers-evergreen-tools
+        fi
         cat <<EOF > ../drivers-evergreen-tools/.evergreen/auth_aws/aws_e2e_setup.json
         {
             "iam_auth_ecs_account" : "${iam_auth_ecs_account}",
@@ -581,14 +586,16 @@ all_functions = OD([
         set +o xtrace
         export IAM_AUTH_ECS_ACCOUNT=${iam_auth_ecs_account}
         export IAM_AUTH_ECS_SECRET_ACCESS_KEY=${iam_auth_ecs_secret_access_key}
-        . ../drivers-evergreen-tools/.evergreen/auth_aws/activate_venv.sh
+        pushd ../drivers-evergreen-tools/.evergreen/auth_aws
+        . ./activate-authawsvenv.sh
+        popd # ../drivers-evergreen-tools/.evergreen/auth_aws
         sh ./.evergreen/run-aws-tests.sh ${TESTCASE}
         ''')
     )),
     ('clone drivers-evergreen-tools', Function(
         shell_exec(r'''
         if [ ! -d "drivers-evergreen-tools" ]; then
-            git clone git@github.com:mongodb-labs/drivers-evergreen-tools.git --depth=1
+            git clone --depth 1 git@github.com:mongodb-labs/drivers-evergreen-tools.git
         fi
         ''', test=False)
     )),
@@ -596,19 +603,29 @@ all_functions = OD([
         shell_exec(r'''
         echo "Preparing CSFLE venv environment..."
         cd ./drivers-evergreen-tools/.evergreen/csfle
-        # This function ensures future invocations of activate_venv.sh conducted in
+        # This function ensures future invocations of activate-kmstlsvenv.sh conducted in
         # parallel do not race to setup a venv environment; it has already been prepared.
         # This primarily addresses the situation where the "run tests" and "run kms servers"
-        # functions invoke 'activate_venv.sh' simultaneously.
+        # functions invoke 'activate-kmstlsvenv.sh' simultaneously.
         # TODO: remove this function along with the "run kms servers" function.
-        . ./activate_venv.sh
-        deactivate
+        if [[ "$OSTYPE" =~ cygwin && ! -d kmstlsvenv ]]; then
+            # Avoid using Python 3.10 on Windows due to incompatible cipher suites.
+            # See CDRIVER-4530.
+            . ../venv-utils.sh
+            venvcreate "C:/python/Python39/python.exe" kmstlsvenv || # windows-2017
+            venvcreate "C:/python/Python38/python.exe" kmstlsvenv    # windows-2015
+            python -m pip install --upgrade boto3~=1.19 pykmip~=0.10.0
+            deactivate
+        else
+            . ./activate-kmstlsvenv.sh
+            deactivate
+        fi
         echo "Preparing CSFLE venv environment... done."
         ''', test=False),
         shell_exec(r'''
         echo "Starting mock KMS servers..."
         cd ./drivers-evergreen-tools/.evergreen/csfle
-        . ./activate_venv.sh
+        . ./activate-kmstlsvenv.sh
         python -u kms_http_server.py --ca_file ../x509gen/ca.pem --cert_file ../x509gen/server.pem --port 8999 &
         python -u kms_http_server.py --ca_file ../x509gen/ca.pem --cert_file ../x509gen/expired.pem --port 9000 &
         python -u kms_http_server.py --ca_file ../x509gen/ca.pem --cert_file ../x509gen/wrong-host.pem --port 9001 &

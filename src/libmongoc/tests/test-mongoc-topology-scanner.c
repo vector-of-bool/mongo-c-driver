@@ -35,8 +35,7 @@ test_topology_scanner_helper (uint32_t id,
    BSON_UNUSED (rtt_msec);
 
    if (error->code) {
-      fprintf (stderr, "scanner error: %s\n", error->message);
-      abort ();
+      test_error ("scanner error: %s", error->message);
    }
 
    /* mock servers are configured to return distinct wire versions */
@@ -763,13 +762,11 @@ test_topology_scanner_install (TestSuite *suite)
                       test_topology_scanner_does_not_renegotiate_single,
                       NULL,
                       NULL,
-                      test_framework_skip_if_slow_or_live,
-                      test_framework_skip_if_valgrind);
+                      test_framework_skip_if_slow_or_live);
    TestSuite_AddFull (suite,
                       "/TOPOLOGY/scanner/renegotiate/pooled",
                       test_topology_scanner_does_not_renegotiate_pooled,
                       NULL,
                       NULL,
-                      test_framework_skip_if_slow_or_live,
-                      test_framework_skip_if_valgrind);
+                      test_framework_skip_if_slow_or_live);
 }
