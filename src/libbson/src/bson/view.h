@@ -250,7 +250,7 @@ typedef struct bson_view {
     * @return true If the view refers to a document
     * @return false If the view is null
     */
-   constexpr explicit operator bool () const noexcept
+   explicit operator bool () const noexcept
    {
       return has_value ();
    }
@@ -1315,6 +1315,7 @@ class bson_iterator::reference
          X (BSON_VIEW_SHORT_READ);
 #undef X
       }
+      abort ();
    }
 
    [[nodiscard]] bson_view
