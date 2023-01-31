@@ -100,9 +100,6 @@ endif ()
 include (Sanitizers)
 
 add_compile_options(-fno-omit-frame-pointer)
-add_compile_definitions (CATCH_CONFIG_ENABLE_BENCHMARKING=1)
-include (pmm.cmake)
-pmm (BPT DEPENDENCIES catch2@2.13.7)
 
 set (BUILD_VERSION "0.0.0" CACHE STRING "Library version (for both libbson and libmongoc)")
 

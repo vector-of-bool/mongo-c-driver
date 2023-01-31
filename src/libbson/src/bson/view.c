@@ -17,11 +17,6 @@ bson_view_from_data (const bson_byte *const data,
 extern inline bson_iterator
 _bson_iterator_at (bson_byte const *const data, int32_t bytes_remaining);
 
-extern inline bson_byte const *
-_bson_safe_addptr (const bson_byte *const from,
-                   uint32_t dist,
-                   const bson_byte *const end);
-
 extern inline bson_iterator
 bson_next (const bson_iterator it);
 
@@ -60,9 +55,6 @@ bson_view_find (bson_view v, const char *key);
 
 inline bson_view
 bson_iterator_document (bson_iterator it, enum bson_view_invalid_reason *error);
-
-extern inline void
-_bson_view_assert (bool b, const char *expr, const char *file, int line);
 
 extern inline int32_t
 _bson_value_re_len (const char *valptr, int32_t maxlen);

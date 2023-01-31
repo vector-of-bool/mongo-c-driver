@@ -183,7 +183,7 @@ typedef struct bson_iterator {
    inline reference
    operator->() const;
 
-   [[nodiscard]] bson_iterator_error_cond
+   [[nodiscard]] inline bson_iterator_error_cond
    error () const noexcept;
 
    [[nodiscard]] bool
@@ -192,7 +192,7 @@ typedef struct bson_iterator {
       return error () != BSON_ITER_NO_ERROR;
    }
 
-   [[nodiscard]] bool
+   [[nodiscard]] inline bool
    done () const noexcept;
 
    [[nodiscard]] bool
