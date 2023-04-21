@@ -46,7 +46,7 @@ static char *gFourMBString;
 
 
 void
-test_conveniences_init ()
+test_conveniences_init (void)
 {
    if (!gConveniencesInitialized) {
       _mongoc_array_init (&gTmpBsonArray, sizeof (bson_t *));
@@ -62,16 +62,15 @@ test_conveniences_init ()
 void
 test_conveniences_cleanup (void)
 {
-   int i;
    bson_t *doc;
 
    if (gConveniencesInitialized) {
-      for (i = 0; i < gTmpBsonArray.len; i++) {
+      for (size_t i = 0u; i < gTmpBsonArray.len; i++) {
          doc = _mongoc_array_index (&gTmpBsonArray, bson_t *, i);
          bson_destroy (doc);
       }
 
-      for (i = 0; i < gTmpStringArray.len; i++) {
+      for (size_t i = 0u; i < gTmpStringArray.len; i++) {
          char *str;
 
          str = _mongoc_array_index (&gTmpStringArray, char *, i);
@@ -1656,7 +1655,7 @@ init_four_mb_string (void)
 
 
 const char *
-four_mb_string ()
+four_mb_string (void)
 {
    init_four_mb_string ();
    return gFourMBString;
@@ -1738,7 +1737,7 @@ match_in_array (const bson_t *doc, const bson_t *array, match_ctx_t *ctx)
 }
 
 bson_t *
-bson_with_all_types ()
+bson_with_all_types (void)
 {
    bson_t *bson = tmp_bson ("{}");
    bson_oid_t oid;
@@ -1777,7 +1776,7 @@ bson_with_all_types ()
 }
 
 const char *
-json_with_all_types ()
+json_with_all_types (void)
 {
    const char *json = "{\n"
                       "    \"double\": {\n"

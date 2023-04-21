@@ -675,9 +675,9 @@ _mongoc_getenv (const char *name)
       return NULL;
    }
 #else
-
-   if (getenv (name) && strlen (getenv (name))) {
-      return bson_strdup (getenv (name));
+   char *const var = getenv (name);
+   if (var && strlen (var)) {
+      return bson_strdup (var);
    } else {
       return NULL;
    }
@@ -902,4 +902,45 @@ _mongoc_iter_document_as_bson (const bson_iter_t *iter,
    }
 
    return true;
+}
+
+uint8_t *
+hex_to_bin (const char *hex, uint32_t *len)
+{
+   uint8_t *out;
+
+   const size_t hex_len = strlen (hex);
+   if (hex_len % 2u != 0u) {
+      return NULL;
+   }
+
+   BSON_ASSERT (bson_in_range_unsigned (uint32_t, hex_len / 2u));
+
+   *len = (uint32_t) (hex_len / 2u);
+   out = bson_malloc0 (*len);
+
+   for (uint32_t i = 0; i < hex_len; i += 2u) {
+      uint32_t hex_char;
+
+      if (1 != sscanf (hex + i, "%2x", &hex_char)) {
+         bson_free (out);
+         return NULL;
+      }
+
+      BSON_ASSERT (bson_in_range_unsigned (uint8_t, hex_char));
+      out[i / 2u] = (uint8_t) hex_char;
+   }
+   return out;
+}
+
+char *
+bin_to_hex (const uint8_t *bin, uint32_t len)
+{
+   char *out = bson_malloc0 (2u * len + 1u);
+
+   for (uint32_t i = 0u; i < len; i++) {
+      bson_snprintf (out + (2u * i), 3, "%02x", bin[i]);
+   }
+
+   return out;
 }

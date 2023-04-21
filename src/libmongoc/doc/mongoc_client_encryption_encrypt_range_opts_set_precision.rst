@@ -9,7 +9,7 @@ Synopsis
 .. code-block:: c
 
     void
-    mongoc_client_encryption_encrypt_opts_set_precision (
+    mongoc_client_encryption_encrypt_range_opts_set_precision (
          mongoc_client_encryption_encrypt_range_opts_t *range_opts, int32_t precision);
 
 .. important:: The |qenc:range-is-experimental| |qenc:api-is-experimental|
@@ -35,5 +35,6 @@ Parameters
 
 .. seealso::
 
-  | :symbol:`mongoc_client_encryption_encrypt_range_opts_set_min_max`
+  | :symbol:`mongoc_client_encryption_encrypt_range_opts_set_min`
+  | :symbol:`mongoc_client_encryption_encrypt_range_opts_set_max`
   | :symbol:`mongoc_client_encryption_encrypt_range_opts_t`

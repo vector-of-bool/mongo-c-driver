@@ -47,6 +47,7 @@
    iov.iov_len = 4;                          \
    header->msg_len += (int32_t) iov.iov_len; \
    _mongoc_array_append_val (array, iov);
+#define CHECKSUM_FIELD(_name) // Do not include optional checksum.
 #define ENUM_FIELD INT32_FIELD
 #define INT64_FIELD(_name)                   \
    iov.iov_base = (void *) &rpc->_name;      \
@@ -176,6 +177,7 @@
 #undef SECTION_ARRAY_FIELD
 #undef RAW_BUFFER_FIELD
 #undef BSON_OPTIONAL
+#undef CHECKSUM_FIELD
 
 
 #if BSON_BYTE_ORDER == BSON_BIG_ENDIAN
@@ -188,6 +190,7 @@
    }
 #define UINT8_FIELD(_name)
 #define INT32_FIELD(_name) rpc->_name = BSON_UINT32_FROM_LE (rpc->_name);
+#define CHECKSUM_FIELD(_name) rpc->_name = BSON_UINT32_FROM_LE (rpc->_name);
 #define ENUM_FIELD INT32_FIELD
 #define INT64_FIELD(_name) rpc->_name = BSON_UINT64_FROM_LE (rpc->_name);
 #define CSTRING_FIELD(_name)
@@ -262,6 +265,7 @@
 #undef SECTION_ARRAY_FIELD
 #undef BSON_OPTIONAL
 #undef RAW_BUFFER_FIELD
+#undef CHECKSUM_FIELD
 
 #endif /* BSON_BYTE_ORDER == BSON_BIG_ENDIAN */
 
@@ -273,7 +277,9 @@
       _code                                                             \
    }
 #define UINT8_FIELD(_name) printf ("  " #_name " : %u\n", rpc->_name);
-#define INT32_FIELD(_name) printf ("  " #_name " : %d\n", rpc->_name);
+#define INT32_FIELD(_name) printf ("  " #_name " : %" PRId32 "\n", rpc->_name);
+#define CHECKSUM_FIELD(_name) \
+   printf ("  " #_name " : %" PRIu32 "\n", rpc->_name);
 #define ENUM_FIELD(_name) printf ("  " #_name " : %u\n", rpc->_name);
 #define INT64_FIELD(_name) \
    printf ("  " #_name " : %" PRIi64 "\n", (int64_t) rpc->_name);
@@ -318,44 +324,46 @@
          printf ("\n");                                    \
       }                                                    \
    } while (0);
-#define SECTION_ARRAY_FIELD(_name)                                          \
-   do {                                                                     \
-      ssize_t _i;                                                           \
-      printf ("  " #_name " : %d\n", rpc->n_##_name);                       \
-      for (_i = 0; _i < rpc->n_##_name; _i++) {                             \
-         if (rpc->_name[_i].payload_type == 0) {                            \
-            do {                                                            \
-               bson_t b;                                                    \
-               char *s;                                                     \
-               int32_t __l;                                                 \
-               memcpy (&__l, rpc->_name[_i].payload.bson_document, 4);      \
-               __l = BSON_UINT32_FROM_LE (__l);                             \
-               BSON_ASSERT (bson_init_static (                              \
-                  &b, rpc->_name[_i].payload.bson_document, __l));          \
-               s = bson_as_relaxed_extended_json (&b, NULL);                \
-               printf ("  Type %d: %s\n", rpc->_name[_i].payload_type, s);  \
-               bson_free (s);                                               \
-               bson_destroy (&b);                                           \
-            } while (0);                                                    \
-         } else if (rpc->_name[_i].payload_type == 1) {                     \
-            bson_reader_t *__r;                                             \
-            int max = rpc->_name[_i].payload.sequence.size -                \
-                      strlen (rpc->_name[_i].payload.sequence.identifier) - \
-                      1 - sizeof (int32_t);                                 \
-            bool __eof;                                                     \
-            const bson_t *__b;                                              \
-            printf ("  Identifier: %s\n",                                   \
-                    rpc->_name[_i].payload.sequence.identifier);            \
-            printf ("  Size: %d\n", max);                                   \
-            __r = bson_reader_new_from_data (                               \
-               rpc->_name[_i].payload.sequence.bson_documents, max);        \
-            while ((__b = bson_reader_read (__r, &__eof))) {                \
-               char *s = bson_as_relaxed_extended_json (__b, NULL);         \
-               bson_free (s);                                               \
-            }                                                               \
-            bson_reader_destroy (__r);                                      \
-         }                                                                  \
-      }                                                                     \
+#define SECTION_ARRAY_FIELD(_name)                                         \
+   do {                                                                    \
+      printf ("  " #_name " : %d\n", rpc->n_##_name);                      \
+      for (ssize_t _i = 0; _i < rpc->n_##_name; _i++) {                    \
+         if (rpc->_name[_i].payload_type == 0) {                           \
+            do {                                                           \
+               bson_t b;                                                   \
+               char *s;                                                    \
+               int32_t __l;                                                \
+               memcpy (&__l, rpc->_name[_i].payload.bson_document, 4);     \
+               __l = BSON_UINT32_FROM_LE (__l);                            \
+               BSON_ASSERT (bson_init_static (                             \
+                  &b, rpc->_name[_i].payload.bson_document, __l));         \
+               s = bson_as_relaxed_extended_json (&b, NULL);               \
+               printf ("  Type %d: %s\n", rpc->_name[_i].payload_type, s); \
+               bson_free (s);                                              \
+               bson_destroy (&b);                                          \
+            } while (0);                                                   \
+         } else if (rpc->_name[_i].payload_type == 1) {                    \
+            bson_reader_t *__r;                                            \
+            BSON_ASSERT (bson_in_range_signed (                            \
+               size_t, rpc->_name[_i].payload.sequence.size));             \
+            const size_t max_size =                                        \
+               (size_t) rpc->_name[_i].payload.sequence.size -             \
+               strlen (rpc->_name[_i].payload.sequence.identifier) - 1u -  \
+               sizeof (int32_t);                                           \
+            bool __eof;                                                    \
+            const bson_t *__b;                                             \
+            printf ("  Identifier: %s\n",                                  \
+                    rpc->_name[_i].payload.sequence.identifier);           \
+            printf ("  Size: %zu\n", max_size);                            \
+            __r = bson_reader_new_from_data (                              \
+               rpc->_name[_i].payload.sequence.bson_documents, max_size);  \
+            while ((__b = bson_reader_read (__r, &__eof))) {               \
+               char *s = bson_as_relaxed_extended_json (__b, NULL);        \
+               bson_free (s);                                              \
+            }                                                              \
+            bson_reader_destroy (__r);                                     \
+         }                                                                 \
+      }                                                                    \
    } while (0);
 #define BSON_OPTIONAL(_check, _code) \
    if (rpc->_check) {                \
@@ -406,6 +414,7 @@
 #undef SECTION_ARRAY_FIELD
 #undef BSON_OPTIONAL
 #undef RAW_BUFFER_FIELD
+#undef CHECKSUM_FIELD
 
 
 #define RPC(_name, _code)                                             \
@@ -431,6 +440,12 @@
    memcpy (&rpc->_name, buf, 4); \
    buflen -= 4;                  \
    buf += 4;
+#define CHECKSUM_FIELD(_name)       \
+   if (buflen >= 4) {               \
+      memcpy (&rpc->_name, buf, 4); \
+      buflen -= 4;                  \
+      buf += 4;                     \
+   }
 #define ENUM_FIELD INT32_FIELD
 #define INT64_FIELD(_name)       \
    if (buflen < 8) {             \
@@ -525,7 +540,7 @@
       buf += __l;                                                           \
       buflen -= __l;                                                        \
       rpc->n_##_name++;                                                     \
-   } while (buflen);
+   } while (buflen > 4); // Only optional checksum can come after data sections.
 #define RAW_BUFFER_FIELD(_name)         \
    rpc->_name = (void *) buf;           \
    rpc->_name##_len = (int32_t) buflen; \
@@ -559,6 +574,7 @@
 #undef SECTION_ARRAY_FIELD
 #undef BSON_OPTIONAL
 #undef RAW_BUFFER_FIELD
+#undef CHECKSUM_FIELD
 
 
 /*
@@ -840,26 +856,15 @@ _mongoc_rpc_compress (struct _mongoc_cluster_t *cluster,
                       mongoc_rpc_t *rpc_le,
                       bson_error_t *error)
 {
-   char *output;
-   size_t output_length = 0;
-   size_t allocate = BSON_UINT32_FROM_LE (rpc_le->header.msg_len) - 16;
-   char *data;
-   int size;
-   int32_t compression_level = -1;
+   const size_t allocate = BSON_UINT32_FROM_LE (rpc_le->header.msg_len) - 16u;
+   BSON_ASSERT (allocate > 0u);
 
-   if (compressor_id == MONGOC_COMPRESSOR_ZLIB_ID) {
-      compression_level = mongoc_uri_get_option_as_int32 (
-         cluster->uri, MONGOC_URI_ZLIBCOMPRESSIONLEVEL, -1);
-   }
-
-   BSON_ASSERT (allocate > 0);
-   data = bson_malloc0 (allocate);
-   size = _mongoc_cluster_buffer_iovec (
+   char *const data = bson_malloc0 (allocate);
+   const size_t size = _mongoc_cluster_buffer_iovec (
       cluster->iov.data, cluster->iov.len, 16, data);
-   BSON_ASSERT (size);
-
-   output_length =
+   size_t output_length =
       mongoc_compressor_max_compressed_length (compressor_id, size);
+
    if (!output_length) {
       bson_set_error (error,
                       MONGOC_ERROR_COMMAND,
@@ -870,7 +875,16 @@ _mongoc_rpc_compress (struct _mongoc_cluster_t *cluster,
       return NULL;
    }
 
-   output = (char *) bson_malloc0 (output_length);
+   int32_t compression_level = -1;
+
+   if (compressor_id == MONGOC_COMPRESSOR_ZLIB_ID) {
+      compression_level = mongoc_uri_get_option_as_int32 (
+         cluster->uri, MONGOC_URI_ZLIBCOMPRESSIONLEVEL, -1);
+   }
+
+   BSON_ASSERT (size > 0u);
+
+   char *const output = (char *) bson_malloc0 (output_length);
    if (mongoc_compress (compressor_id,
                         compression_level,
                         data,
@@ -886,10 +900,13 @@ _mongoc_rpc_compress (struct _mongoc_cluster_t *cluster,
       rpc_le->header.response_to =
          BSON_UINT32_FROM_LE (rpc_le->header.response_to);
 
-      rpc_le->compressed.uncompressed_size = size;
+      BSON_ASSERT (bson_in_range_unsigned (int32_t, size));
+      BSON_ASSERT (bson_in_range_unsigned (int32_t, output_length));
+
+      rpc_le->compressed.uncompressed_size = (int32_t) size;
       rpc_le->compressed.compressor_id = compressor_id;
       rpc_le->compressed.compressed_message = (const uint8_t *) output;
-      rpc_le->compressed.compressed_message_len = output_length;
+      rpc_le->compressed.compressed_message_len = (int32_t) output_length;
       bson_free (data);
 
 
@@ -997,9 +1014,8 @@ _mongoc_rpc_get_first_document (mongoc_rpc_t *rpc, bson_t *reply)
       return _mongoc_rpc_reply_get_first_msg (&rpc->msg, reply);
    }
 
-   if (rpc->header.opcode == MONGOC_OPCODE_REPLY &&
-       _mongoc_rpc_reply_get_first (&rpc->reply, reply)) {
-      return true;
+   if (rpc->header.opcode == MONGOC_OPCODE_REPLY) {
+      return _mongoc_rpc_reply_get_first (&rpc->reply, reply);
    }
 
    return false;
@@ -1015,17 +1031,17 @@ _mongoc_rpc_reply_get_first_msg (mongoc_rpc_msg_t *reply_msg,
 
    int32_t document_len;
 
-   BSON_ASSERT (0 == reply_msg->sections[0].payload_type);
+   if (BSON_UNLIKELY (reply_msg->sections[0].payload_type != 0)) {
+      return false;
+   }
 
    /* As per the Wire Protocol documentation, each section has a 32 bit length
    field: */
    memcpy (&document_len, reply_msg->sections[0].payload.bson_document, 4);
    document_len = BSON_UINT32_FROM_LE (document_len);
 
-   bson_init_static (
+   return bson_init_static (
       bson_reply, reply_msg->sections[0].payload.bson_document, document_len);
-
-   return true;
 }
 
 bool

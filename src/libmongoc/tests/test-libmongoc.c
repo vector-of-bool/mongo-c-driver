@@ -37,7 +37,12 @@
 
 #if defined(_MSC_VER) && defined(_WIN64)
 #include <errhandlingapi.h>
+
+// warning C4091: 'typedef ': ignored on left of '' when no variable is declared
+#pragma warning(push)
+#pragma warning(disable : 4091)
 #include <DbgHelp.h>
+#pragma warning(pop)
 #endif
 
 #ifdef MONGOC_ENABLE_SSL_OPENSSL
@@ -184,7 +189,7 @@ print_captured_logs (const char *prefix)
 #define DEFAULT_FUTURE_TIMEOUT_MS 10 * 1000
 
 int64_t
-get_future_timeout_ms ()
+get_future_timeout_ms (void)
 {
    return test_framework_getenv_int64 ("MONGOC_TEST_FUTURE_TIMEOUT_MS",
                                        DEFAULT_FUTURE_TIMEOUT_MS);
@@ -485,6 +490,9 @@ test_framework_get_host (void)
    if (env_uri) {
       /* choose first host */
       hosts = mongoc_uri_get_hosts (env_uri);
+      ASSERT_WITH_MSG (hosts,
+                       "could not obtain hosts from URI [%s]",
+                       mongoc_uri_get_string (env_uri));
       host = bson_strdup (hosts->host);
       mongoc_uri_destroy (env_uri);
       return host;
@@ -750,7 +758,7 @@ test_framework_add_user_password_from_env (const char *uri_str)
  *--------------------------------------------------------------------------
  */
 char *
-test_framework_get_compressors ()
+test_framework_get_compressors (void)
 {
    return test_framework_getenv ("MONGOC_TEST_COMPRESSORS");
 }
@@ -840,7 +848,7 @@ test_framework_get_ssl (void)
  *--------------------------------------------------------------------------
  */
 char *
-test_framework_get_unix_domain_socket_uri_str ()
+test_framework_get_unix_domain_socket_uri_str (void)
 {
    char *path;
    char *test_uri_str;
@@ -984,11 +992,26 @@ set_name (bson_t *hello_response)
 static bool
 uri_str_has_db (bson_string_t *uri_string)
 {
-   const char *after_scheme;
+   BSON_ASSERT_PARAM (uri_string);
 
-   ASSERT_STARTSWITH (uri_string->str, "mongodb://");
-   after_scheme = uri_string->str + strlen ("mongodb://");
-   return strchr (after_scheme, '/') != NULL;
+   const char *const str = uri_string->str;
+   const char *const standard = "mongodb://";
+   const char *const srv = "mongodb+srv://";
+
+   const bool is_standard = strstr (str, standard) == str;
+   const bool is_srv = strstr (str, srv) == str;
+
+   ASSERT_WITH_MSG (is_standard || is_srv,
+                    "[%s] does not start with [%s] or [%s]",
+                    uri_string->str,
+                    standard,
+                    srv);
+
+   if (is_standard) {
+      return strchr (str + strlen (standard), '/') != NULL;
+   } else {
+      return strchr (str + strlen (srv), '/') != NULL;
+   }
 }
 
 
@@ -1111,7 +1134,9 @@ test_framework_get_uri_str_no_auth (const char *database_name)
       add_option_to_uri_str (uri_string, MONGOC_URI_COMPRESSORS, compressors);
       bson_free (compressors);
    }
-   /* make tests a little more resilient to transient errors */
+
+   // Required by test-atlas-executor. Not required by normal unified test
+   // runner, but make tests a little more resilient to transient errors.
    add_option_to_uri_str (
       uri_string, MONGOC_URI_SERVERSELECTIONTRYONCE, "false");
 
@@ -1136,15 +1161,19 @@ test_framework_get_uri_str_no_auth (const char *database_name)
  *--------------------------------------------------------------------------
  */
 char *
-test_framework_get_uri_str ()
+test_framework_get_uri_str (void)
 {
    char *uri_str_no_auth;
    char *uri_str;
 
-   /* no_auth also contains compressors. */
-
-   uri_str_no_auth = test_framework_get_uri_str_no_auth (NULL);
-   uri_str = test_framework_add_user_password_from_env (uri_str_no_auth);
+   if (test_framework_getenv_bool ("MONGOC_TEST_ATLAS")) {
+      // User and password is already embedded in URI.
+      return test_framework_get_uri_str_no_auth (NULL);
+   } else {
+      /* no_auth also contains compressors. */
+      uri_str_no_auth = test_framework_get_uri_str_no_auth (NULL);
+      uri_str = test_framework_add_user_password_from_env (uri_str_no_auth);
+   }
 
    bson_free (uri_str_no_auth);
 
@@ -1169,19 +1198,21 @@ test_framework_get_uri_str ()
  *--------------------------------------------------------------------------
  */
 mongoc_uri_t *
-test_framework_get_uri ()
+test_framework_get_uri (void)
 {
-   char *test_uri_str = test_framework_get_uri_str ();
-   mongoc_uri_t *uri = mongoc_uri_new (test_uri_str);
+   bson_error_t error = {0};
 
-   BSON_ASSERT (uri);
+   char *test_uri_str = test_framework_get_uri_str ();
+   mongoc_uri_t *uri = mongoc_uri_new_with_error (test_uri_str, &error);
+
+   ASSERT_OR_PRINT (uri, error);
    bson_free (test_uri_str);
 
    return uri;
 }
 
 mongoc_uri_t *
-test_framework_get_uri_multi_mongos_loadbalanced ()
+test_framework_get_uri_multi_mongos_loadbalanced (void)
 {
    char *uri_str_no_auth;
    char *uri_str;
@@ -1458,7 +1489,7 @@ test_framework_set_ssl_opts (mongoc_client_t *client)
  *--------------------------------------------------------------------------
  */
 mongoc_client_t *
-test_framework_new_default_client ()
+test_framework_new_default_client (void)
 {
    char *test_uri_str = test_framework_get_uri_str ();
    mongoc_client_t *client = test_framework_client_new (test_uri_str, NULL);
@@ -1488,7 +1519,7 @@ test_framework_new_default_client ()
  *--------------------------------------------------------------------------
  */
 mongoc_client_t *
-test_framework_client_new_no_server_api ()
+test_framework_client_new_no_server_api (void)
 {
    mongoc_uri_t *uri = test_framework_get_uri ();
    mongoc_client_t *client = mongoc_client_new_from_uri (uri);
@@ -1690,7 +1721,7 @@ test_framework_set_pool_ssl_opts (mongoc_client_pool_t *pool)
  *--------------------------------------------------------------------------
  */
 mongoc_client_pool_t *
-test_framework_new_default_client_pool ()
+test_framework_new_default_client_pool (void)
 {
    mongoc_uri_t *test_uri = test_framework_get_uri ();
    mongoc_client_pool_t *pool =
@@ -2308,14 +2339,14 @@ test_framework_skip_if_not_replset (void)
 
 /* convenience skip functions based on the wire version. */
 #define WIRE_VERSION_CHECKS(wv)                                         \
-   int test_framework_skip_if_max_wire_version_more_than_##wv ()        \
+   int test_framework_skip_if_max_wire_version_more_than_##wv (void)    \
    {                                                                    \
       if (!TestSuite_CheckLive ()) {                                    \
          return 0;                                                      \
       }                                                                 \
       return test_framework_max_wire_version_at_least (wv + 1) ? 0 : 1; \
    }                                                                    \
-   int test_framework_skip_if_max_wire_version_less_than_##wv ()        \
+   int test_framework_skip_if_max_wire_version_less_than_##wv (void)    \
    {                                                                    \
       if (!TestSuite_CheckLive ()) {                                    \
          return 0;                                                      \
@@ -2355,6 +2386,8 @@ WIRE_VERSION_CHECKS (14)
 WIRE_VERSION_CHECKS (17)
 /* wire version 19 begins with the 6.2 release. */
 WIRE_VERSION_CHECKS (19)
+/* wire version 21 begins with the 7.0 release. */
+WIRE_VERSION_CHECKS (21)
 
 int
 test_framework_skip_if_no_dual_ip_hostname (void)
@@ -2510,6 +2543,15 @@ test_framework_is_serverless (void)
 }
 
 int
+test_framework_skip_if_serverless (void)
+{
+   if (test_framework_is_serverless ()) {
+      return 0; // do not proceed
+   }
+   return 1; // proceed.
+}
+
+int
 test_framework_skip_if_time_sensitive (void)
 {
 /* Skip time sensitive tests on macOS per CDRIVER-3549. */
@@ -2637,12 +2679,13 @@ windows_exception_handler (EXCEPTION_POINTERS *pExceptionInfo)
 }
 #endif
 
-int
-main (int argc, char *argv[])
-{
-   TestSuite suite;
-   int ret;
 
+void
+test_libmongoc_init (TestSuite *suite,
+                     BSON_MAYBE_UNUSED const char *name,
+                     int argc,
+                     char **argv)
+{
 #if defined(_MSC_VER) && defined(_WIN64)
    SetUnhandledExceptionFilter (windows_exception_handler);
 #endif
@@ -2663,157 +2706,18 @@ main (int argc, char *argv[])
    atexit (test_framework_global_ssl_opts_cleanup);
 #endif
 
-   TestSuite_Init (&suite, "", argc, argv);
-   TestSuite_Add (&suite, "/TestSuite/version_cmp", test_version_cmp);
+   TestSuite_Init (suite, "", argc, argv);
+   TestSuite_Add (suite, "/TestSuite/version_cmp", test_version_cmp);
+}
 
-   /* libbson */
 
-#define TEST_INSTALL(FuncName)                 \
-   if (1) {                                    \
-      extern void FuncName (TestSuite *suite); \
-      FuncName (&suite);                       \
-   } else                                      \
-      ((void) 0)
-
-   TEST_INSTALL (test_atomic_install);
-   TEST_INSTALL (test_bcon_basic_install);
-   TEST_INSTALL (test_bcon_extract_install);
-   TEST_INSTALL (test_bson_corpus_install);
-   TEST_INSTALL (test_bson_error_install);
-   TEST_INSTALL (test_bson_install);
-   TEST_INSTALL (test_bson_version_install);
-   TEST_INSTALL (test_clock_install);
-   TEST_INSTALL (test_decimal128_install);
-   TEST_INSTALL (test_endian_install);
-   TEST_INSTALL (test_iso8601_install);
-   TEST_INSTALL (test_iter_install);
-   TEST_INSTALL (test_json_install);
-   TEST_INSTALL (test_oid_install);
-   TEST_INSTALL (test_reader_install);
-   TEST_INSTALL (test_string_install);
-   TEST_INSTALL (test_utf8_install);
-   TEST_INSTALL (test_value_install);
-   TEST_INSTALL (test_writer_install);
-   TEST_INSTALL (test_b64_install);
-   TEST_INSTALL (test_bson_cmp_install);
-
-   /* libmongoc */
-
-   TEST_INSTALL (test_aggregate_install);
-   TEST_INSTALL (test_array_install);
-   TEST_INSTALL (test_async_install);
-   TEST_INSTALL (test_buffer_install);
-   TEST_INSTALL (test_change_stream_install);
-   TEST_INSTALL (test_client_install);
-   TEST_INSTALL (test_client_max_staleness_install);
-   TEST_INSTALL (test_client_hedged_reads_install);
-   TEST_INSTALL (test_client_pool_install);
-   TEST_INSTALL (test_client_cmd_install);
-   TEST_INSTALL (test_client_versioned_api_install);
-   TEST_INSTALL (test_write_command_install);
-   TEST_INSTALL (test_bulk_install);
-   TEST_INSTALL (test_cluster_install);
-   TEST_INSTALL (test_collection_install);
-   TEST_INSTALL (test_collection_find_install);
-   TEST_INSTALL (test_collection_find_with_opts_install);
-   TEST_INSTALL (test_connection_uri_install);
-   TEST_INSTALL (test_command_monitoring_install);
-   TEST_INSTALL (test_cursor_install);
-   TEST_INSTALL (test_database_install);
-   TEST_INSTALL (test_error_install);
-   TEST_INSTALL (test_exhaust_install);
-   TEST_INSTALL (test_find_and_modify_install);
-   TEST_INSTALL (test_gridfs_install);
-   TEST_INSTALL (test_gridfs_bucket_install);
-   TEST_INSTALL (test_gridfs_file_page_install);
-   TEST_INSTALL (test_handshake_install);
-   TEST_INSTALL (test_linux_distro_scanner_install);
-   TEST_INSTALL (test_list_install);
-   TEST_INSTALL (test_log_install);
-   TEST_INSTALL (test_long_namespace_install);
-   TEST_INSTALL (test_matcher_install);
-   TEST_INSTALL (test_mongos_pinning_install);
-   TEST_INSTALL (test_queue_install);
-   TEST_INSTALL (test_primary_stepdown_install);
-   TEST_INSTALL (test_read_concern_install);
-   TEST_INSTALL (test_read_write_concern_install);
-   TEST_INSTALL (test_read_prefs_install);
-   TEST_INSTALL (test_retryable_writes_install);
-   TEST_INSTALL (test_retryable_reads_install);
-   TEST_INSTALL (test_rpc_install);
-   TEST_INSTALL (test_socket_install);
-   TEST_INSTALL (test_opts_install);
-   TEST_INSTALL (test_topology_scanner_install);
-   TEST_INSTALL (test_topology_reconcile_install);
-   TEST_INSTALL (test_transactions_install);
-   TEST_INSTALL (test_samples_install);
-   TEST_INSTALL (test_scram_install);
-   TEST_INSTALL (test_sdam_install);
-   TEST_INSTALL (test_sdam_monitoring_install);
-   TEST_INSTALL (test_server_selection_install);
-   TEST_INSTALL (test_dns_install);
-   TEST_INSTALL (test_server_selection_errors_install);
-   TEST_INSTALL (test_session_install);
-   TEST_INSTALL (test_set_install);
-   TEST_INSTALL (test_speculative_auth_install);
-   TEST_INSTALL (test_stream_install);
-   TEST_INSTALL (test_thread_install);
-   TEST_INSTALL (test_topology_install);
-   TEST_INSTALL (test_topology_description_install);
-   TEST_INSTALL (test_ts_pool_install);
-   TEST_INSTALL (test_uri_install);
-   TEST_INSTALL (test_usleep_install);
-   TEST_INSTALL (test_util_install);
-   TEST_INSTALL (test_version_install);
-   TEST_INSTALL (test_with_transaction_install);
-   TEST_INSTALL (test_write_concern_install);
-#ifdef MONGOC_ENABLE_SSL
-   TEST_INSTALL (test_stream_tls_install);
-   TEST_INSTALL (test_x509_install);
-   TEST_INSTALL (test_stream_tls_error_install);
-   TEST_INSTALL (test_client_side_encryption_install);
-#endif
-#ifdef MONGOC_ENABLE_SASL_CYRUS
-   TEST_INSTALL (test_cyrus_install);
-#endif
-   TEST_INSTALL (test_happy_eyeballs_install);
-   TEST_INSTALL (test_counters_install);
-   TEST_INSTALL (test_crud_install);
-   TEST_INSTALL (test_mongohouse_install);
-   TEST_INSTALL (test_apm_install);
-   TEST_INSTALL (test_server_description_install);
-   TEST_INSTALL (test_aws_install);
-   TEST_INSTALL (test_streamable_hello_install);
-#if defined(MONGOC_ENABLE_OCSP_OPENSSL) && OPENSSL_VERSION_NUMBER >= 0x10101000L
-   TEST_INSTALL (test_ocsp_cache_install);
-#endif
-   TEST_INSTALL (test_interrupt_install);
-   TEST_INSTALL (test_monitoring_install);
-   TEST_INSTALL (test_http_install);
-   TEST_INSTALL (test_install_unified);
-   TEST_INSTALL (test_timeout_install);
-   TEST_INSTALL (test_bson_match_install);
-   TEST_INSTALL (test_bson_util_install);
-   TEST_INSTALL (test_result_install);
-   TEST_INSTALL (test_loadbalanced_install);
-   TEST_INSTALL (test_server_stream_install);
-   TEST_INSTALL (test_generation_map_install);
-   TEST_INSTALL (test_shared_install);
-   TEST_INSTALL (test_ssl_install);
-
-   TEST_INSTALL (test_mcd_azure_imds_install);
-   TEST_INSTALL (test_mcd_integer_install);
-   TEST_INSTALL (test_service_gcp_install);
-
-   ret = TestSuite_Run (&suite);
-
-   TestSuite_Destroy (&suite);
-
+void
+test_libmongoc_destroy (TestSuite *suite)
+{
+   TestSuite_Destroy (suite);
    capture_logs (false); /* clear entries */
    _mongoc_array_destroy (&captured_logs);
    mongoc_cleanup ();
-
-   return ret;
 }
 
 /*

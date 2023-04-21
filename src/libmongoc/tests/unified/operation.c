@@ -17,8 +17,10 @@
 #include "operation.h"
 
 #include "mongoc-array-private.h"
+#include "mongoc-util-private.h" // hex_to_bin
 #include "result.h"
 #include "test-diagnostics.h"
+#include "test-libmongoc.h"
 #include "util.h"
 #include "utlist.h"
 
@@ -216,7 +218,8 @@ operation_list_database_names (test_t *test,
             const char *key = NULL;
             const size_t key_len =
                bson_uint32_to_string (idx++, &key, buffer, sizeof (buffer));
-            bson_append_utf8 (&element, key, key_len, *names_iter, -1);
+            ASSERT (bson_in_range_unsigned (int, key_len));
+            bson_append_utf8 (&element, key, (int) key_len, *names_iter, -1);
          }
          bson_append_array_end (&bson, &element);
 
@@ -2463,12 +2466,14 @@ operation_download (test_t *test,
    if (stream) {
       while ((bytes_read =
                  mongoc_stream_read (stream, buf, sizeof (buf), 1, 0)) > 0) {
-         _mongoc_array_append_vals (&all_bytes, buf, bytes_read);
+         ASSERT (bson_in_range_signed (uint32_t, bytes_read));
+         _mongoc_array_append_vals (&all_bytes, buf, (uint32_t) bytes_read);
       }
       mongoc_gridfs_bucket_stream_error (stream, &op_error);
    }
 
-   val = bson_val_from_bytes (all_bytes.data, all_bytes.len);
+   ASSERT (bson_in_range_unsigned (uint32_t, all_bytes.len));
+   val = bson_val_from_bytes (all_bytes.data, (uint32_t) all_bytes.len);
    result_from_val_and_reply (result, val, NULL, &op_error);
 
    ret = true;
@@ -2513,7 +2518,7 @@ operation_upload (test_t *test,
       bucket, filename, bson_parser_get_extra (bp), &file_id, &op_error);
 
    if (stream) {
-      ssize_t total_written = 0;
+      size_t total_written = 0u;
       uint8_t *source_bytes;
       uint32_t source_bytes_len;
       bson_iter_t iter;
@@ -2527,17 +2532,12 @@ operation_upload (test_t *test,
       source_bytes =
          hex_to_bin (bson_iter_utf8 (&iter, NULL), &source_bytes_len);
       while (total_written < source_bytes_len) {
-         ssize_t bytes_written = 0;
-
-         bytes_written =
-            mongoc_stream_write (stream,
-                                 source_bytes,
-                                 (size_t) (source_bytes_len - total_written),
-                                 0);
+         const ssize_t bytes_written = mongoc_stream_write (
+            stream, source_bytes, source_bytes_len - total_written, 0);
          if (bytes_written < 0) {
             break;
          }
-         total_written += bytes_written;
+         total_written += (size_t) bytes_written;
       }
       mongoc_gridfs_bucket_stream_error (stream, &op_error);
       bson_free (source_bytes);
@@ -3202,17 +3202,278 @@ operation_assert_session_unpinned (test_t *test,
 }
 
 static bool
+create_loop_bson_array_entity (entity_map_t *em,
+                               const char *id,
+                               bson_error_t *error)
+{
+   BSON_ASSERT_PARAM (em);
+   BSON_ASSERT (id || true);
+   BSON_ASSERT (error || true);
+
+   if (!id) {
+      // Nothing to do.
+      return true;
+   }
+
+   const entity_t *const entity = entity_map_get (em, id, error);
+
+   // If the entity does not exist, the test runner MUST create it with the
+   // type of BSON array.
+   if (!entity) {
+      return entity_map_add_bson_array (em, id, error);
+   }
+
+   // If the entity exists and is of type BSON array, the test runner MUST do
+   // nothing.
+   else if (strcmp (entity->type, "bson_array") == 0) {
+      return true;
+   }
+
+   // If the entity exists and is of a different type, the test runner MUST
+   // raise an error.
+   else {
+      test_set_error (
+         error, "loop entity %s exists but is not of type BSON array", id);
+      return false;
+   }
+}
+
+static bool
+create_loop_size_t_entity (entity_map_t *em,
+                           const char *id,
+                           bson_error_t *error)
+{
+   BSON_ASSERT_PARAM (em);
+   BSON_ASSERT (id || true);
+   BSON_ASSERT (error || true);
+
+   if (!id) {
+      return true;
+   }
+
+   const entity_t *const entity = entity_map_get (em, id, error);
+
+   // If the entity of the specified name already exists, the test runner MUST
+   // raise an error.
+   if (entity) {
+      test_set_error (
+         error, "loop entity %s already exists when it should not", id);
+      return false;
+   }
+
+   return entity_map_add_size_t (em, id, bson_malloc0 (sizeof (size_t)), error);
+}
+
+static void
+increment_loop_counter (entity_map_t *em, const char *id)
+{
+   BSON_ASSERT_PARAM (em);
+   BSON_ASSERT (id || true);
+
+   if (id) {
+      bson_error_t error = {0};
+      size_t *const counter = entity_map_get_size_t (em, id, &error);
+
+      // Entity should always be valid at this point.
+      ASSERT_OR_PRINT (counter, error);
+
+      *counter += 1u;
+   }
+}
+
+static bool
+append_loop_error (entity_map_t *em,
+                   const char *id,
+                   bson_error_t *op_error,
+                   bson_error_t *error)
+{
+   BSON_ASSERT_PARAM (em);
+   BSON_ASSERT (id || true);
+   BSON_ASSERT_PARAM (op_error);
+   BSON_ASSERT (error || true);
+
+   if (!id) {
+      return true;
+   }
+
+   mongoc_array_t *array = entity_map_get_bson_array (em, id, error);
+
+   if (!array) {
+      return false;
+   }
+
+   const int64_t usecs = usecs_since_epoch ();
+   const double secs = (double) usecs / 1000000.0;
+
+   bson_t *doc = bson_new ();
+   BSON_APPEND_UTF8 (doc, "error", op_error->message);
+   BSON_APPEND_DOUBLE (doc, "time", secs);
+
+   _mongoc_array_append_val (array, doc); // Transfer ownership.
+
+   return true;
+}
+
+// Expected to be set by a SIGINT (on Linux and OS X) or CTRL_BREAK_EVENT (on
+// Windows) handler when test suite is being executed by test-atlas-executor.
+volatile sig_atomic_t operation_loop_terminated = false;
+
+static bool
 operation_loop (test_t *test,
                 operation_t *op,
                 result_t *result,
                 bson_error_t *error)
 {
-   BSON_UNUSED (test);
-   BSON_UNUSED (op);
-   BSON_UNUSED (result);
-   /* TODO: CDRIVER-3867 Comprehensive Atlas Testing */
-   test_set_error (error, "Loop operation not implemented");
-   return false;
+   bool ret = false;
+
+   BSON_ASSERT_PARAM (test);
+   BSON_ASSERT_PARAM (op);
+   BSON_ASSERT_PARAM (result);
+   BSON_ASSERT_PARAM (error);
+
+   if (test->loop_operation_executed) {
+      test_set_error (error,
+                      "test should not contain more than one loop operation");
+      return false;
+   } else {
+      test->loop_operation_executed = true;
+   }
+
+   if (!op->object || strcmp (op->object, "testRunner") != 0) {
+      test_set_error (error, "loop operation object should be \"testRunner\"");
+      return false;
+   }
+
+   bson_t *operations = NULL;
+   char *errors_as_entity = NULL;
+   char *failures_as_entity = NULL;
+   char *successes_as_entity = NULL;
+   char *iterations_as_entity = NULL;
+
+   bson_parser_t *const parser = bson_parser_new ();
+
+   bson_parser_array (parser, "operations", &operations);
+   bson_parser_utf8_optional (parser, "storeErrorsAsEntity", &errors_as_entity);
+   bson_parser_utf8_optional (
+      parser, "storeFailuresAsEntity", &failures_as_entity);
+   bson_parser_utf8_optional (
+      parser, "storeSuccessesAsEntity", &successes_as_entity);
+   bson_parser_utf8_optional (
+      parser, "storeIterationsAsEntity", &iterations_as_entity);
+
+   if (!bson_parser_parse (parser, op->arguments, error)) {
+      goto done;
+   }
+
+   // If the test runner propagates an error or failure (e.g. it is not captured
+   // by the loop or occurs outside of the loop), it MUST be reported by the
+   // workload executor.
+   const bool should_propagate = !failures_as_entity && !errors_as_entity;
+
+   // Guarantee propagation of errors if captures are not defined by the loop.
+   if (should_propagate) {
+      // Ensure any errors or failures are still reported.
+      errors_as_entity = bson_strdup ("errors");
+   }
+
+   // If only one of errors or failures is provided, all failures and errors
+   // must be stored in the provided entity.
+   if ((errors_as_entity ? 1 : 0) != (failures_as_entity ? 1 : 0)) {
+      if (errors_as_entity) {
+         failures_as_entity = bson_strdup (errors_as_entity);
+      } else {
+         errors_as_entity = bson_strdup (failures_as_entity);
+      }
+   }
+
+   if (!create_loop_bson_array_entity (
+          test->entity_map, errors_as_entity, error)) {
+      goto done;
+   }
+
+   if (!create_loop_bson_array_entity (
+          test->entity_map, failures_as_entity, error)) {
+      goto done;
+   }
+
+   if (!create_loop_size_t_entity (
+          test->entity_map, successes_as_entity, error)) {
+      goto done;
+   }
+
+   if (!create_loop_size_t_entity (
+          test->entity_map, iterations_as_entity, error)) {
+      goto done;
+   }
+
+   MONGOC_DEBUG ("running loop operations...");
+   // `operation_loop_terminated` may be set to true within the loop if
+   // `should_propagate` is true on error/failure or by test-atlas-executor upon
+   // receiving a termination request.
+   while (!operation_loop_terminated) {
+      // Clear any prior errors that may have occurred.
+      error->code = 0;
+
+      increment_loop_counter (test->entity_map, iterations_as_entity);
+
+      bson_iter_t iter;
+      BSON_FOREACH (operations, iter)
+      {
+         bson_t op_bson;
+         bson_iter_bson (&iter, &op_bson);
+
+         bson_error_t op_error = {0};
+
+         // Execute the loop sub-operation.
+         const bool res = operation_run (test, &op_bson, &op_error);
+
+         if (res) {
+            increment_loop_counter (test->entity_map, successes_as_entity);
+         } else {
+            // Categorize errors triggered by a sub-operation as a "failure".
+            // If this operation fails, categorize as an "error" instead.
+            (void) append_loop_error (
+               test->entity_map, failures_as_entity, &op_error, error);
+
+            // If neither storeErrorsAsEntity nor storeFailuresAsEntity are
+            // specified, the loop MUST terminate and raise the error/failure
+            // (i.e. the error/failure will interrupt the test).
+            operation_loop_terminated =
+               operation_loop_terminated || should_propagate;
+
+            // If, in the course of executing sub-operations, a sub-operation
+            // yields an error or failure, the test runner MUST NOT execute
+            // subsequent sub-operations in the same loop iteration.
+            break;
+         }
+      } // End of loop sub-operations, but *not* end of loop iterations.
+
+      // Categorize errors triggered outside of sub-operation execution as
+      // "errors".
+      if (error->code != 0) {
+         // We have a problem if we can't store errors without triggering a new
+         // error. Terminate the test suite early instead of looping with an
+         // irrecoverable state.
+         ASSERT_OR_PRINT (append_loop_error (
+                             test->entity_map, errors_as_entity, error, error),
+                          (*error));
+
+         // If neither storeErrorsAsEntity nor storeFailuresAsEntity are
+         // specified, the loop MUST terminate and raise the error/failure
+         // (i.e. the error/failure will interrupt the test).
+         operation_loop_terminated =
+            operation_loop_terminated || should_propagate;
+      }
+   }
+   MONGOC_DEBUG ("running loop operations... done.");
+
+   result_from_ok (result);
+   ret = true;
+
+done:
+   bson_parser_destroy_with_parsed_fields (parser);
+
+   return ret;
 }
 
 static bool
@@ -3258,11 +3519,11 @@ operation_rename (test_t *test,
    }
    // We only support collections so far
    if (0 != strcmp (ent->type, "collection")) {
-      test_set_error (
-         error,
-         "'rename' is only supported for collection objects '%s' has type '%s'",
-         object,
-         ent->type);
+      test_set_error (error,
+                      "'rename' is only supported for collection objects "
+                      "'%s' has type '%s'",
+                      object,
+                      ent->type);
       goto done;
    }
 
@@ -3406,7 +3667,10 @@ operation_run (test_t *test, bson_t *op_bson, bson_error_t *error)
       op->session = session;
    }
 
-   MONGOC_DEBUG ("running operation: %s", tmp_json (op_bson));
+   // Avoid spamming output with sub-operations when executing loop operation.
+   if (!test->loop_operation_executed || operation_loop_terminated) {
+      MONGOC_DEBUG ("running operation: %s", tmp_json (op_bson));
+   }
 
    num_ops = sizeof (op_to_fn_map) / sizeof (op_to_fn_t);
    result = result_new ();

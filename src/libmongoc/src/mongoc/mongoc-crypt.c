@@ -453,6 +453,15 @@ _get_stream (const char *endpoint,
    tls_stream = mongoc_stream_tls_new_with_hostname (
       base_stream, host.host, &ssl_opt_copy, 1 /* client */);
 
+   if (!tls_stream) {
+      bson_set_error (error,
+                      MONGOC_ERROR_STREAM,
+                      MONGOC_ERROR_STREAM_SOCKET,
+                      "Failed to create TLS stream to: %s",
+                      endpoint);
+      goto fail;
+   }
+
    if (!mongoc_stream_tls_handshake_block (
           tls_stream, host.host, connecttimeoutms, error)) {
       goto fail;
@@ -569,7 +578,10 @@ _state_need_kms (_state_machine_t *state_machine, bson_error_t *error)
          }
 
          mongocrypt_binary_destroy (http_reply);
-         http_reply = mongocrypt_binary_new_from_data (buf, read_ret);
+
+         BSON_ASSERT (bson_in_range_signed (uint32_t, read_ret));
+         http_reply =
+            mongocrypt_binary_new_from_data (buf, (uint32_t) read_ret);
          if (!mongocrypt_kms_ctx_feed (kms_ctx, http_reply)) {
             _kms_ctx_check_error (kms_ctx, error, true);
             goto fail;
@@ -1317,6 +1329,12 @@ _mongoc_crypt_new (const bson_t *kms_providers,
    crypt = bson_malloc0 (sizeof (*crypt));
    crypt->handle = mongocrypt_new ();
 
+   // Enable the QEv2 protocol.
+   if (!mongocrypt_setopt_fle2v2 (crypt->handle, true)) {
+      _crypt_check_error (crypt->handle, error, true);
+      goto fail;
+   }
+
    // Stash away a copy of the user's kmsProviders in case we need to lazily
    // load credentials.
    bson_copy_to (kms_providers, &crypt->kms_providers);
@@ -1924,9 +1942,7 @@ _mongoc_crypt_create_datakey (_mongoc_crypt_t *crypt,
    }
 
    if (keyaltnames) {
-      int i;
-
-      for (i = 0; i < keyaltnames_count; i++) {
+      for (uint32_t i = 0u; i < keyaltnames_count; i++) {
          bool keyaltname_ret;
          mongocrypt_binary_t *keyaltname_bin;
          bson_t *keyaltname_doc;

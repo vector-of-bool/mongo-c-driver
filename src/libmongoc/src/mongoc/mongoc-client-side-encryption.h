@@ -278,9 +278,13 @@ mongoc_client_encryption_encrypt_range_opts_set_sparsity (
    mongoc_client_encryption_encrypt_range_opts_t *range_opts, int64_t sparsity);
 
 MONGOC_EXPORT (void)
-mongoc_client_encryption_encrypt_range_opts_set_min_max (
+mongoc_client_encryption_encrypt_range_opts_set_min (
    mongoc_client_encryption_encrypt_range_opts_t *range_opts,
-   const bson_value_t *min,
+   const bson_value_t *min);
+
+MONGOC_EXPORT (void)
+mongoc_client_encryption_encrypt_range_opts_set_max (
+   mongoc_client_encryption_encrypt_range_opts_t *range_opts,
    const bson_value_t *max);
 
 MONGOC_EXPORT (void)
@@ -328,7 +332,7 @@ mongoc_client_encryption_create_encrypted_collection (
    const bson_t *in_options,
    bson_t *opt_out_options,
    const char *const kms_provider,
-   const mongoc_client_encryption_datakey_opts_t *dk_opts,
+   const bson_t *opt_masterkey,
    bson_error_t *error) BSON_GNUC_WARN_UNUSED_RESULT;
 
 BSON_END_DECLS

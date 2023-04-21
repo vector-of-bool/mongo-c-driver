@@ -74,6 +74,7 @@ typedef struct _mongoc_rpc_section_t {
    const uint8_t *_name;        \
    int32_t _name##_len;
 #define BSON_OPTIONAL(_check, _code) _code
+#define CHECKSUM_FIELD(_name) uint32_t _name;
 
 
 #pragma pack(1)
@@ -104,6 +105,7 @@ typedef union {
    mongoc_rpc_reply_header_t reply_header;
    mongoc_rpc_update_t update;
    mongoc_rpc_compressed_t compressed;
+   int32_t _init; // Used only for initialization.
 } mongoc_rpc_t;
 
 
@@ -128,6 +130,7 @@ BSON_STATIC_ASSERT2 (sizeof_reply_header,
 #undef SECTION_ARRAY_FIELD
 #undef BSON_OPTIONAL
 #undef RAW_BUFFER_FIELD
+#undef CHECKSUM_FIELD
 
 
 void

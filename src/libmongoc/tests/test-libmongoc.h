@@ -19,6 +19,20 @@
 #define TEST_LIBMONGOC_H
 
 
+struct _TestSuite;
+struct _bson_t;
+struct _server_version_t;
+
+
+void
+test_libmongoc_init (struct _TestSuite *suite,
+                     const char *name,
+                     int argc,
+                     char **argv);
+void
+test_libmongoc_destroy (struct _TestSuite *suite);
+
+
 mongoc_database_t *
 get_test_database (mongoc_client_t *client);
 char *
@@ -201,6 +215,8 @@ WIRE_VERSION_CHECK_DECLS (14)
 WIRE_VERSION_CHECK_DECLS (17)
 /* wire version 19 begins with the 6.2 release. */
 WIRE_VERSION_CHECK_DECLS (19)
+/* wire version 21 begins with the 7.0 release. */
+WIRE_VERSION_CHECK_DECLS (21)
 
 #undef WIRE_VERSION_CHECK_DECLS
 
@@ -264,6 +280,9 @@ test_framework_skip_if_no_exhaust_cursors (void);
 
 bool
 test_framework_is_serverless (void);
+
+int
+test_framework_skip_if_serverless (void);
 
 bool
 test_framework_is_loadbalanced (void);

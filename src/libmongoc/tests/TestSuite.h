@@ -85,6 +85,13 @@ bson_open (const char *filename, int flags, ...)
 #endif
 
 
+#define TEST_NOFORK (1 << 1)
+#define TEST_HELPTEXT (1 << 2)
+#define TEST_DEBUGOUTPUT (1 << 3)
+#define TEST_TRACE (1 << 4)
+#define TEST_LISTTESTS (1 << 5)
+
+
 #define CERT_CA CERT_TEST_DIR "/ca.pem"
 #define CERT_CRL CERT_TEST_DIR "/crl.pem"
 #define CERT_SERVER CERT_TEST_DIR "/server.pem" /* 127.0.0.1 & localhost */
@@ -530,13 +537,13 @@ _test_error (const char *format, ...) BSON_GNUC_PRINTF (1, 2);
 
 #define ASSERT_CMPTIME(actual, maxduration)   \
    do {                                       \
-      ASSERT_CMPINT (actual, <, maxduration); \
+      ASSERT_CMPINT64 (actual, <, maxduration); \
    } while (0)
 
 #define ASSERT_WITHIN_TIME_INTERVAL(actual, minduration, maxduration) \
    do {                                                               \
-      ASSERT_CMPINT (actual, >=, minduration);                        \
-      ASSERT_CMPINT (actual, <, maxduration);                         \
+      ASSERT_CMPINT64 (actual, >=, minduration);                        \
+      ASSERT_CMPINT64 (actual, <, maxduration);                         \
    } while (0)
 
 #if defined(_WIN32) && !defined(__MINGW32__)
