@@ -170,6 +170,7 @@ set (SOURCES
    ${PROJECT_SOURCE_DIR}/src/bson/bson-version-functions.c
    ${PROJECT_SOURCE_DIR}/src/bson/bson-writer.c
    ${PROJECT_SOURCE_DIR}/src/jsonsl/jsonsl.c
+   ${PROJECT_SOURCE_DIR}/src/bson/build.c
    ${PROJECT_SOURCE_DIR}/src/bson/view.c
    ${PROJECT_SOURCE_DIR}/../../src/common/common-b64.c
    ${PROJECT_SOURCE_DIR}/../../src/common/common-md5.c
@@ -204,6 +205,7 @@ set (HEADERS
    ${PROJECT_SOURCE_DIR}/src/bson/bson-value.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-version-functions.h
    ${PROJECT_SOURCE_DIR}/src/bson/bson-writer.h
+   ${PROJECT_SOURCE_DIR}/src/bson/build.h
    ${PROJECT_SOURCE_DIR}/src/bson/view.h
 )
 

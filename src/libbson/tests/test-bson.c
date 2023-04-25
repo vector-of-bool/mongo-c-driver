@@ -2517,14 +2517,14 @@ test_bson_view (void)
    bson_t *b =
       tmp_bson ("{'foo': 'bar', 'baz': [1, 2, 3, 4, 5, {}, []], 'quux': null}");
    bson_view v = bson_view_from_bson_t (b);
-   BSON_ASSERT (v.data != NULL);
-   ASSERT_CMPINT (bson_view_len (v), ==, b->len);
+   BSON_ASSERT (v._bson_document_data != NULL);
+   ASSERT_CMPINT (bson_size (v), ==, b->len);
    enum bson_view_invalid_reason error = 0;
 
    {
       const char buf[] = "\x10\0\0\0";
       v = bson_view_from_data ((bson_byte const *) buf, sizeof buf, &error);
-      BSON_ASSERT (v.data == NULL);
+      BSON_ASSERT (v._bson_document_data == NULL);
       ASSERT_CMPINT (error, ==, BSON_VIEW_SHORT_READ);
    }
 
@@ -2536,7 +2536,7 @@ test_bson_view (void)
                          "\x00"; // EOD
       bson_view tv =
          bson_view_from_data ((bson_byte const *) buf, sizeof buf, NULL);
-      BSON_ASSERT (tv.data);
+      BSON_ASSERT (tv._bson_document_data);
 
       bson_iter_t it;
       bson_t bs = bson_view_as_viewing_bson_t (tv);
@@ -2563,6 +2563,52 @@ test_bson_view (void)
       BSON_ASSERT (bson_iterator_done (it = bson_next (it)));
       BSON_ASSERT (it._ptr == bson_end (v)._ptr);
    }
+}
+
+static void
+test_bson_mut (void)
+{
+   bson_mut doc = bson_mut_new ();
+   bson_iterator it = bson_begin (doc);
+   it = bson_insert_double (&doc, it, "yo", 12);
+   ASSERT_CMPINT (bson_iterator_type (it), ==, BSON_TYPE_DOUBLE);
+   ASSERT_CMPDOUBLE (bson_iterator_double (it), ==, 12);
+
+   // bson_mut subdoc = bson_insert_doc (&doc, bson_end (doc), "Example
+   // subdoc");
+   it = bson_insert_doc (&doc, bson_end (doc), "meow", BSON_VIEW_NULL);
+   bson_mut subdoc = bson_mut_subdocument (&doc, it);
+
+   it = bson_insert_double (&subdoc, bson_begin (subdoc), "meow", 42);
+   ASSERT_CMPINT (bson_iterator_type (it), ==, BSON_TYPE_DOUBLE);
+   ASSERT_CMPDOUBLE (bson_iterator_double (it), ==, 42);
+   it = bson_parent_iterator (subdoc);
+   ASSERT (bson_iterator_eq (it, bson_next (bson_begin (doc))));
+
+   bson_mut_delete (doc);
+
+   doc = bson_mut_new ();
+   ASSERT_CMPINT32 (bson_reserve (&doc, 512), ==, 512);
+   ASSERT_CMPINT32 (bson_capacity (doc), ==, 512);
+   it = bson_insert_doc (&doc, bson_begin (doc), "foo", BSON_VIEW_NULL);
+   subdoc = bson_mut_subdocument (&doc, it);
+   // Expect capacity: parent_capacity - 4 - 1 - strlen(foo) - 1 - 1
+   ASSERT_CMPINT32 (bson_capacity (subdoc), ==, 502);
+   ASSERT_CMPINT32 (bson_size (doc), ==, 15);
+   ASSERT_CMPINT32 (bson_size (subdoc), ==, 5);
+   ASSERT (!bson_iterator_eq (bson_begin (doc), bson_end (doc)));
+
+   it = bson_begin (subdoc);
+   ASSERT (bson_iterator_eq (bson_begin (subdoc), bson_end (subdoc)));
+   it = bson_insert_double (&subdoc, it, "foo bar baz", 1729);
+   ASSERT (!bson_iterator_eq (bson_begin (subdoc), bson_end (subdoc)));
+   bson_erase (&subdoc, it);
+   ASSERT (bson_iterator_eq (bson_begin (subdoc), bson_end (subdoc)));
+   it = bson_parent_iterator (subdoc);
+   ASSERT (!bson_iterator_eq (bson_begin (doc), bson_end (doc)));
+   bson_erase (&doc, it);
+   ASSERT (bson_iterator_eq (bson_begin (doc), bson_end (doc)));
+   bson_mut_delete (doc);
 }
 
 #define JSON_STRING(...) #__VA_ARGS__
@@ -2966,6 +3012,7 @@ test_bson_install (TestSuite *suite)
    TestSuite_Add (suite, "/bson/as_json_string", test_bson_as_json_string);
 
    TestSuite_Add (suite, "/bson/view", test_bson_view);
+   TestSuite_Add (suite, "/bson/mut", test_bson_mut);
    TestSuite_Add (suite, "/bson/dsl/predicate", test_bson_dsl_predicate);
    TestSuite_Add (suite, "/bson/dsl/parse", test_bson_dsl_parse);
    TestSuite_Add (suite, "/bson/dsl/visit", test_bson_dsl_visit);

@@ -23,6 +23,7 @@ set (src_libbson_src_bson_DIST_hs
    bson-utf8.h
    bson-value.h
    bson-version-functions.h
+   bson/build.h
    bson/view.h
    bson/types.h
    bson-writer.h
@@ -61,6 +62,7 @@ set (src_libbson_src_bson_DIST_cs
    bson-version-functions.c
    bson-view.c
    bson-writer.c
+   bson/build.c
    bson/view.c
 )
 

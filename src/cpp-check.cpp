@@ -6,3 +6,4 @@
 #include <mongoc/mongoc.h>
 
 #include <bson/view.h>
+#include <bson/build.h>
