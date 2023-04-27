@@ -23,31 +23,28 @@
 #define MONGOC_HTTP_PRIVATE_H
 
 typedef struct {
-   const char *host;
-   int port;
-   const char *method;
-   const char *path;
-   const char *extra_headers;
-   const char *body;
-   int body_len;
+    const char *host;
+    int port;
+    const char *method;
+    const char *path;
+    const char *extra_headers;
+    const char *body;
+    int body_len;
 } mongoc_http_request_t;
 
 typedef struct {
-   int status;
-   char *headers;
-   int headers_len;
-   char *body;
-   int body_len;
+    int status;
+    char *headers;
+    int headers_len;
+    char *body;
+    int body_len;
 } mongoc_http_response_t;
 
-void
-_mongoc_http_request_init (mongoc_http_request_t *request);
+void _mongoc_http_request_init(mongoc_http_request_t *request);
 
-void
-_mongoc_http_response_init (mongoc_http_response_t *response);
+void _mongoc_http_response_init(mongoc_http_response_t *response);
 
-void
-_mongoc_http_response_cleanup (mongoc_http_response_t *response);
+void _mongoc_http_response_cleanup(mongoc_http_response_t *response);
 
 /**
  * @brief Render the HTTP request head based on the given HTTP parameters.
@@ -61,9 +58,7 @@ _mongoc_http_response_cleanup (mongoc_http_response_t *response);
  * @note The returned bson_string_t must be freed, including the internal
  * segment.
  */
-bson_string_t *
-_mongoc_http_render_request_head (const mongoc_http_request_t *req);
-
+bson_string_t *_mongoc_http_render_request_head(const mongoc_http_request_t *req);
 
 /**
  * @brief Convenience function to send an HTTP request and receive an HTTP
@@ -89,12 +84,11 @@ _mongoc_http_render_request_head (const mongoc_http_request_t *req);
  * For more transport control, the HTTP request head content can be manually
  * rendered using @ref _mongo_http_render_request_head.
  */
-bool
-_mongoc_http_send (mongoc_http_request_t const *req,
-                   int timeout_ms,
-                   bool use_tls,
-                   mongoc_ssl_opt_t *ssl_opts,
-                   mongoc_http_response_t *res,
-                   bson_error_t *error);
+bool _mongoc_http_send(const mongoc_http_request_t *req,
+                       int timeout_ms,
+                       bool use_tls,
+                       mongoc_ssl_opt_t *ssl_opts,
+                       mongoc_http_response_t *res,
+                       bson_error_t *error);
 
 #endif /* MONGOC_HTTP_PRIVATE */

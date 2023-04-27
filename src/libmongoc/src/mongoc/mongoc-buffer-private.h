@@ -23,62 +23,47 @@
 
 #include "mongoc-stream.h"
 
-
 BSON_BEGIN_DECLS
-
 
 typedef struct _mongoc_buffer_t mongoc_buffer_t;
 
-
 struct _mongoc_buffer_t {
-   uint8_t *data;
-   size_t datalen;
-   size_t len;
-   bson_realloc_func realloc_func;
-   void *realloc_data;
+    uint8_t *data;
+    size_t datalen;
+    size_t len;
+    bson_realloc_func realloc_func;
+    void *realloc_data;
 };
 
+void _mongoc_buffer_init(mongoc_buffer_t *buffer,
+                         uint8_t *buf,
+                         size_t buflen,
+                         bson_realloc_func realloc_func,
+                         void *realloc_data);
 
-void
-_mongoc_buffer_init (mongoc_buffer_t *buffer,
-                     uint8_t *buf,
-                     size_t buflen,
-                     bson_realloc_func realloc_func,
-                     void *realloc_data);
+bool _mongoc_buffer_append(mongoc_buffer_t *buffer, const uint8_t *data, size_t data_size);
 
-bool
-_mongoc_buffer_append (mongoc_buffer_t *buffer,
-                       const uint8_t *data,
-                       size_t data_size);
-
-bool
-_mongoc_buffer_append_from_stream (mongoc_buffer_t *buffer,
-                                   mongoc_stream_t *stream,
-                                   size_t size,
-                                   int64_t timeout_msec,
-                                   bson_error_t *error);
-
-ssize_t
-_mongoc_buffer_try_append_from_stream (mongoc_buffer_t *buffer,
+bool _mongoc_buffer_append_from_stream(mongoc_buffer_t *buffer,
                                        mongoc_stream_t *stream,
                                        size_t size,
-                                       int64_t timeout_msec);
+                                       int64_t timeout_msec,
+                                       bson_error_t *error);
 
-ssize_t
-_mongoc_buffer_fill (mongoc_buffer_t *buffer,
-                     mongoc_stream_t *stream,
-                     size_t min_bytes,
-                     int64_t timeout_msec,
-                     bson_error_t *error);
+ssize_t _mongoc_buffer_try_append_from_stream(mongoc_buffer_t *buffer,
+                                              mongoc_stream_t *stream,
+                                              size_t size,
+                                              int64_t timeout_msec);
 
-void
-_mongoc_buffer_destroy (mongoc_buffer_t *buffer);
+ssize_t _mongoc_buffer_fill(mongoc_buffer_t *buffer,
+                            mongoc_stream_t *stream,
+                            size_t min_bytes,
+                            int64_t timeout_msec,
+                            bson_error_t *error);
 
-void
-_mongoc_buffer_clear (mongoc_buffer_t *buffer, bool zero);
+void _mongoc_buffer_destroy(mongoc_buffer_t *buffer);
 
+void _mongoc_buffer_clear(mongoc_buffer_t *buffer, bool zero);
 
 BSON_END_DECLS
-
 
 #endif /* MONGOC_BUFFER_PRIVATE_H */

@@ -19,22 +19,18 @@
 #include "kms_message_private.h"
 #include "kms_request_str.h"
 
-void
-kms_response_destroy (kms_response_t *response)
-{
-   if (response == NULL) {
-      return;
-   }
-   kms_kv_list_destroy (response->headers);
-   kms_request_str_destroy (response->body);
-   free (response);
+void kms_response_destroy(kms_response_t *response) {
+    if (response == NULL) {
+        return;
+    }
+    kms_kv_list_destroy(response->headers);
+    kms_request_str_destroy(response->body);
+    free(response);
 }
 
-const char *
-kms_response_get_body (kms_response_t *response, size_t *len)
-{
-   if (len) {
-      *len = response->body->len;
-   }
-   return response->body->str;
+const char *kms_response_get_body(kms_response_t *response, size_t *len) {
+    if (len) {
+        *len = response->body->len;
+    }
+    return response->body->str;
 }

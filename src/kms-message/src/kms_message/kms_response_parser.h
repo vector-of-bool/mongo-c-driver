@@ -26,28 +26,26 @@ extern "C" {
 
 typedef struct _kms_response_parser_t kms_response_parser_t;
 
-KMS_MSG_EXPORT (kms_response_parser_t *)
-kms_response_parser_new (void);
+KMS_MSG_EXPORT(kms_response_parser_t *)
+kms_response_parser_new(void);
 
-KMS_MSG_EXPORT (int)
-kms_response_parser_wants_bytes (kms_response_parser_t *parser, int32_t max);
+KMS_MSG_EXPORT(int)
+kms_response_parser_wants_bytes(kms_response_parser_t *parser, int32_t max);
 
-KMS_MSG_EXPORT (bool)
-kms_response_parser_feed (kms_response_parser_t *parser,
-                          uint8_t *buf,
-                          uint32_t len);
+KMS_MSG_EXPORT(bool)
+kms_response_parser_feed(kms_response_parser_t *parser, uint8_t *buf, uint32_t len);
 
-KMS_MSG_EXPORT (kms_response_t *)
-kms_response_parser_get_response (kms_response_parser_t *parser);
+KMS_MSG_EXPORT(kms_response_t *)
+kms_response_parser_get_response(kms_response_parser_t *parser);
 
-KMS_MSG_EXPORT (int)
-kms_response_parser_status (kms_response_parser_t *parser);
+KMS_MSG_EXPORT(int)
+kms_response_parser_status(kms_response_parser_t *parser);
 
-KMS_MSG_EXPORT (const char *)
-kms_response_parser_error (kms_response_parser_t *parser);
+KMS_MSG_EXPORT(const char *)
+kms_response_parser_error(kms_response_parser_t *parser);
 
-KMS_MSG_EXPORT (void)
-kms_response_parser_destroy (kms_response_parser_t *parser);
+KMS_MSG_EXPORT(void)
+kms_response_parser_destroy(kms_response_parser_t *parser);
 
 #ifdef __cplusplus
 } /* extern "C" */

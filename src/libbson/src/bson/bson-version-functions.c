@@ -14,32 +14,25 @@
  * limitations under the License.
  */
 
-
 #include "bson-version.h"
 #include "bson-version-functions.h"
-
 
 /**
  * bson_get_major_version:
  *
  * Helper function to return the runtime major version of the library.
  */
-int
-bson_get_major_version (void)
-{
-   return BSON_MAJOR_VERSION;
+int bson_get_major_version(void) {
+    return BSON_MAJOR_VERSION;
 }
-
 
 /**
  * bson_get_minor_version:
  *
  * Helper function to return the runtime minor version of the library.
  */
-int
-bson_get_minor_version (void)
-{
-   return BSON_MINOR_VERSION;
+int bson_get_minor_version(void) {
+    return BSON_MINOR_VERSION;
 }
 
 /**
@@ -47,10 +40,8 @@ bson_get_minor_version (void)
  *
  * Helper function to return the runtime micro version of the library.
  */
-int
-bson_get_micro_version (void)
-{
-   return BSON_MICRO_VERSION;
+int bson_get_micro_version(void) {
+    return BSON_MICRO_VERSION;
 }
 
 /**
@@ -58,10 +49,8 @@ bson_get_micro_version (void)
  *
  * Helper function to return the runtime string version of the library.
  */
-const char *
-bson_get_version (void)
-{
-   return BSON_VERSION_S;
+const char *bson_get_version(void) {
+    return BSON_VERSION_S;
 }
 
 /**
@@ -70,8 +59,6 @@ bson_get_version (void)
  * True if libmongoc's version is greater than or equal to the required
  * version.
  */
-bool
-bson_check_version (int required_major, int required_minor, int required_micro)
-{
-   return BSON_CHECK_VERSION (required_major, required_minor, required_micro);
+bool bson_check_version(int required_major, int required_minor, int required_micro) {
+    return BSON_CHECK_VERSION(required_major, required_minor, required_micro);
 }

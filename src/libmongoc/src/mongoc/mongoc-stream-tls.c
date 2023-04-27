@@ -46,134 +46,114 @@
 #undef MONGOC_LOG_DOMAIN
 #define MONGOC_LOG_DOMAIN "stream-tls"
 
-
 /**
  * mongoc_stream_tls_handshake:
  *
  * Performs TLS handshake dance
  */
-bool
-mongoc_stream_tls_handshake (mongoc_stream_t *stream,
-                             const char *host,
-                             int32_t timeout_msec,
-                             int *events,
-                             bson_error_t *error)
-{
-   mongoc_stream_tls_t *stream_tls =
-      (mongoc_stream_tls_t *) mongoc_stream_get_tls_stream (stream);
+bool mongoc_stream_tls_handshake(mongoc_stream_t *stream,
+                                 const char *host,
+                                 int32_t timeout_msec,
+                                 int *events,
+                                 bson_error_t *error) {
+    mongoc_stream_tls_t *stream_tls = (mongoc_stream_tls_t *)mongoc_stream_get_tls_stream(stream);
 
-   BSON_ASSERT (stream_tls);
-   BSON_ASSERT (stream_tls->handshake);
+    BSON_ASSERT(stream_tls);
+    BSON_ASSERT(stream_tls->handshake);
 
-   stream_tls->timeout_msec = timeout_msec;
+    stream_tls->timeout_msec = timeout_msec;
 
-   return stream_tls->handshake (stream, host, events, error);
+    return stream_tls->handshake(stream, host, events, error);
 }
 
-bool
-mongoc_stream_tls_handshake_block (mongoc_stream_t *stream,
-                                   const char *host,
-                                   int32_t timeout_msec,
-                                   bson_error_t *error)
-{
-   int events;
-   ssize_t ret = 0;
-   mongoc_stream_poll_t poller;
-   int64_t expire = 0;
+bool mongoc_stream_tls_handshake_block(mongoc_stream_t *stream,
+                                       const char *host,
+                                       int32_t timeout_msec,
+                                       bson_error_t *error) {
+    int events;
+    ssize_t ret = 0;
+    mongoc_stream_poll_t poller;
+    int64_t expire = 0;
 
-   if (timeout_msec >= 0) {
-      expire = bson_get_monotonic_time () + (timeout_msec * 1000);
-   }
+    if (timeout_msec >= 0) {
+        expire = bson_get_monotonic_time() + (timeout_msec * 1000);
+    }
 
-   /*
-    * error variables get re-used a lot. To prevent cross-contamination of error
-    * messages, and still be able to provide a generic failure message when
-    * mongoc_stream_tls_handshake fails without a specific reason, we need to
-    * init
-    * the error code to 0.
-    */
-   if (error) {
-      error->code = 0;
-   }
-   do {
-      events = 0;
+    /*
+     * error variables get re-used a lot. To prevent cross-contamination of error
+     * messages, and still be able to provide a generic failure message when
+     * mongoc_stream_tls_handshake fails without a specific reason, we need to
+     * init
+     * the error code to 0.
+     */
+    if (error) {
+        error->code = 0;
+    }
+    do {
+        events = 0;
 
-      if (mongoc_stream_tls_handshake (
-             stream, host, timeout_msec, &events, error)) {
-         return true;
-      }
+        if (mongoc_stream_tls_handshake(stream, host, timeout_msec, &events, error)) {
+            return true;
+        }
 
-      if (events) {
-         poller.stream = stream;
-         poller.events = events;
-         poller.revents = 0;
+        if (events) {
+            poller.stream = stream;
+            poller.events = events;
+            poller.revents = 0;
 
-         if (expire >= 0) {
-            const int64_t now = bson_get_monotonic_time ();
-            const int64_t remaining = expire - now;
-            if (remaining < 0) {
-               bson_set_error (error,
-                               MONGOC_ERROR_STREAM,
-                               MONGOC_ERROR_STREAM_SOCKET,
-                               "TLS handshake timed out.");
-               return false;
-            } else {
-               const int64_t msec = remaining / 1000;
-               BSON_ASSERT (bson_in_range_signed (int32_t, msec));
-               timeout_msec = (int32_t) msec;
+            if (expire >= 0) {
+                const int64_t now = bson_get_monotonic_time();
+                const int64_t remaining = expire - now;
+                if (remaining < 0) {
+                    bson_set_error(error, MONGOC_ERROR_STREAM, MONGOC_ERROR_STREAM_SOCKET, "TLS handshake timed out.");
+                    return false;
+                } else {
+                    const int64_t msec = remaining / 1000;
+                    BSON_ASSERT(bson_in_range_signed(int32_t, msec));
+                    timeout_msec = (int32_t)msec;
+                }
             }
-         }
-         ret = mongoc_stream_poll (&poller, 1, timeout_msec);
-      }
-   } while (events && ret > 0);
+            ret = mongoc_stream_poll(&poller, 1, timeout_msec);
+        }
+    } while (events && ret > 0);
 
-   if (error && !error->code) {
-      bson_set_error (error,
-                      MONGOC_ERROR_STREAM,
-                      MONGOC_ERROR_STREAM_SOCKET,
-                      "TLS handshake failed.");
-   }
-   return false;
+    if (error && !error->code) {
+        bson_set_error(error, MONGOC_ERROR_STREAM, MONGOC_ERROR_STREAM_SOCKET, "TLS handshake failed.");
+    }
+    return false;
 }
-/**
- * Deprecated. Was never supposed to be part of the public API.
- * See mongoc_stream_tls_handshake.
- */
-bool
-mongoc_stream_tls_do_handshake (mongoc_stream_t *stream, int32_t timeout_msec)
-{
-   mongoc_stream_tls_t *stream_tls =
-      (mongoc_stream_tls_t *) mongoc_stream_get_tls_stream (stream);
-
-   BSON_UNUSED (timeout_msec);
-
-   BSON_ASSERT (stream_tls);
-
-   MONGOC_ERROR ("This function doesn't do anything. Please call "
-                 "mongoc_stream_tls_handshake()");
-   return false;
-}
-
 
 /**
  * Deprecated. Was never supposed to be part of the public API.
  * See mongoc_stream_tls_handshake.
  */
-bool
-mongoc_stream_tls_check_cert (mongoc_stream_t *stream, const char *host)
-{
-   mongoc_stream_tls_t *stream_tls =
-      (mongoc_stream_tls_t *) mongoc_stream_get_tls_stream (stream);
+bool mongoc_stream_tls_do_handshake(mongoc_stream_t *stream, int32_t timeout_msec) {
+    mongoc_stream_tls_t *stream_tls = (mongoc_stream_tls_t *)mongoc_stream_get_tls_stream(stream);
 
-   BSON_UNUSED (host);
+    BSON_UNUSED(timeout_msec);
 
-   BSON_ASSERT (stream_tls);
+    BSON_ASSERT(stream_tls);
 
-   MONGOC_ERROR ("This function doesn't do anything. Please call "
+    MONGOC_ERROR("This function doesn't do anything. Please call "
                  "mongoc_stream_tls_handshake()");
-   return false;
+    return false;
 }
 
+/**
+ * Deprecated. Was never supposed to be part of the public API.
+ * See mongoc_stream_tls_handshake.
+ */
+bool mongoc_stream_tls_check_cert(mongoc_stream_t *stream, const char *host) {
+    mongoc_stream_tls_t *stream_tls = (mongoc_stream_tls_t *)mongoc_stream_get_tls_stream(stream);
+
+    BSON_UNUSED(host);
+
+    BSON_ASSERT(stream_tls);
+
+    MONGOC_ERROR("This function doesn't do anything. Please call "
+                 "mongoc_stream_tls_handshake()");
+    return false;
+}
 
 /*
  *--------------------------------------------------------------------------
@@ -202,46 +182,37 @@ mongoc_stream_tls_check_cert (mongoc_stream_t *stream, const char *host)
  */
 
 mongoc_stream_t *
-mongoc_stream_tls_new_with_hostname (mongoc_stream_t *base_stream,
-                                     const char *host,
-                                     mongoc_ssl_opt_t *opt,
-                                     int client)
-{
-   BSON_ASSERT (base_stream);
+mongoc_stream_tls_new_with_hostname(mongoc_stream_t *base_stream, const char *host, mongoc_ssl_opt_t *opt, int client) {
+    BSON_ASSERT(base_stream);
 
-   /* !client is only used for testing,
-    * when the streams are pretending to be the server */
-   if (!client || opt->weak_cert_validation) {
-      opt->allow_invalid_hostname = true;
-   }
+    /* !client is only used for testing,
+     * when the streams are pretending to be the server */
+    if (!client || opt->weak_cert_validation) {
+        opt->allow_invalid_hostname = true;
+    }
 
 #ifndef _WIN32
-   /* Silly check for Unix Domain Sockets */
-   if (!host || (host[0] == '/' && !access (host, F_OK))) {
-      opt->allow_invalid_hostname = true;
-   }
+    /* Silly check for Unix Domain Sockets */
+    if (!host || (host[0] == '/' && !access(host, F_OK))) {
+        opt->allow_invalid_hostname = true;
+    }
 #endif
 
 #if defined(MONGOC_ENABLE_SSL_OPENSSL)
-   return mongoc_stream_tls_openssl_new (base_stream, host, opt, client);
+    return mongoc_stream_tls_openssl_new(base_stream, host, opt, client);
 #elif defined(MONGOC_ENABLE_SSL_LIBRESSL)
-   return mongoc_stream_tls_libressl_new (base_stream, host, opt, client);
+    return mongoc_stream_tls_libressl_new(base_stream, host, opt, client);
 #elif defined(MONGOC_ENABLE_SSL_SECURE_TRANSPORT)
-   return mongoc_stream_tls_secure_transport_new (
-      base_stream, host, opt, client);
+    return mongoc_stream_tls_secure_transport_new(base_stream, host, opt, client);
 #elif defined(MONGOC_ENABLE_SSL_SECURE_CHANNEL)
-   return mongoc_stream_tls_secure_channel_new (base_stream, host, opt, client);
+    return mongoc_stream_tls_secure_channel_new(base_stream, host, opt, client);
 #else
 #error "Don't know how to create TLS stream"
 #endif
 }
 
-mongoc_stream_t *
-mongoc_stream_tls_new (mongoc_stream_t *base_stream,
-                       mongoc_ssl_opt_t *opt,
-                       int client)
-{
-   return mongoc_stream_tls_new_with_hostname (base_stream, NULL, opt, client);
+mongoc_stream_t *mongoc_stream_tls_new(mongoc_stream_t *base_stream, mongoc_ssl_opt_t *opt, int client) {
+    return mongoc_stream_tls_new_with_hostname(base_stream, NULL, opt, client);
 }
 
 #endif

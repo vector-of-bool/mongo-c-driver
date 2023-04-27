@@ -22,128 +22,103 @@
 #include "kms_port.h"
 #include "sort.h"
 
-static void
-kv_init (kms_kv_t *kv, kms_request_str_t *key, kms_request_str_t *value)
-{
-   kv->key = kms_request_str_dup (key);
-   kv->value = kms_request_str_dup (value);
+static void kv_init(kms_kv_t *kv, kms_request_str_t *key, kms_request_str_t *value) {
+    kv->key = kms_request_str_dup(key);
+    kv->value = kms_request_str_dup(value);
 }
 
-static void
-kv_cleanup (kms_kv_t *kv)
-{
-   kms_request_str_destroy (kv->key);
-   kms_request_str_destroy (kv->value);
+static void kv_cleanup(kms_kv_t *kv) {
+    kms_request_str_destroy(kv->key);
+    kms_request_str_destroy(kv->value);
 }
 
-kms_kv_list_t *
-kms_kv_list_new (void)
-{
-   kms_kv_list_t *lst = malloc (sizeof (kms_kv_list_t));
-   KMS_ASSERT (lst);
+kms_kv_list_t *kms_kv_list_new(void) {
+    kms_kv_list_t *lst = malloc(sizeof(kms_kv_list_t));
+    KMS_ASSERT(lst);
 
-   lst->size = 16;
-   lst->kvs = malloc (lst->size * sizeof (kms_kv_t));
-   KMS_ASSERT (lst->kvs);
+    lst->size = 16;
+    lst->kvs = malloc(lst->size * sizeof(kms_kv_t));
+    KMS_ASSERT(lst->kvs);
 
-   lst->len = 0;
+    lst->len = 0;
 
-   return lst;
+    return lst;
 }
 
-void
-kms_kv_list_destroy (kms_kv_list_t *lst)
-{
-   size_t i;
+void kms_kv_list_destroy(kms_kv_list_t *lst) {
+    size_t i;
 
-   if (!lst) {
-      return;
-   }
+    if (!lst) {
+        return;
+    }
 
-   for (i = 0; i < lst->len; i++) {
-      kv_cleanup (&lst->kvs[i]);
-   }
+    for (i = 0; i < lst->len; i++) {
+        kv_cleanup(&lst->kvs[i]);
+    }
 
-   free (lst->kvs);
-   free (lst);
+    free(lst->kvs);
+    free(lst);
 }
 
-void
-kms_kv_list_add (kms_kv_list_t *lst,
-                 kms_request_str_t *key,
-                 kms_request_str_t *value)
-{
-   if (lst->len == lst->size) {
-      lst->size *= 2;
-      lst->kvs = realloc (lst->kvs, lst->size * sizeof (kms_kv_t));
-      KMS_ASSERT (lst->kvs);
-   }
+void kms_kv_list_add(kms_kv_list_t *lst, kms_request_str_t *key, kms_request_str_t *value) {
+    if (lst->len == lst->size) {
+        lst->size *= 2;
+        lst->kvs = realloc(lst->kvs, lst->size * sizeof(kms_kv_t));
+        KMS_ASSERT(lst->kvs);
+    }
 
-   kv_init (&lst->kvs[lst->len], key, value);
-   ++lst->len;
+    kv_init(&lst->kvs[lst->len], key, value);
+    ++lst->len;
 }
 
-const kms_kv_t *
-kms_kv_list_find (const kms_kv_list_t *lst, const char *key)
-{
-   size_t i;
+const kms_kv_t *kms_kv_list_find(const kms_kv_list_t *lst, const char *key) {
+    size_t i;
 
-   for (i = 0; i < lst->len; i++) {
-      if (0 == kms_strcasecmp (lst->kvs[i].key->str, key)) {
-         return &lst->kvs[i];
-      }
-   }
+    for (i = 0; i < lst->len; i++) {
+        if (0 == kms_strcasecmp(lst->kvs[i].key->str, key)) {
+            return &lst->kvs[i];
+        }
+    }
 
-   return NULL;
+    return NULL;
 }
 
-void
-kms_kv_list_del (kms_kv_list_t *lst, const char *key)
-{
-   size_t i;
+void kms_kv_list_del(kms_kv_list_t *lst, const char *key) {
+    size_t i;
 
-   for (i = 0; i < lst->len; i++) {
-      if (0 == strcmp (lst->kvs[i].key->str, key)) {
-         kv_cleanup (&lst->kvs[i]);
-         memmove (&lst->kvs[i],
-                  &lst->kvs[i + 1],
-                  sizeof (kms_kv_t) * (lst->len - i - 1));
-         lst->len--;
-      }
-   }
+    for (i = 0; i < lst->len; i++) {
+        if (0 == strcmp(lst->kvs[i].key->str, key)) {
+            kv_cleanup(&lst->kvs[i]);
+            memmove(&lst->kvs[i], &lst->kvs[i + 1], sizeof(kms_kv_t) * (lst->len - i - 1));
+            lst->len--;
+        }
+    }
 }
 
-kms_kv_list_t *
-kms_kv_list_dup (const kms_kv_list_t *lst)
-{
-   kms_kv_list_t *dup;
-   size_t i;
+kms_kv_list_t *kms_kv_list_dup(const kms_kv_list_t *lst) {
+    kms_kv_list_t *dup;
+    size_t i;
 
-   if (lst->len == 0) {
-      return kms_kv_list_new ();
-   }
+    if (lst->len == 0) {
+        return kms_kv_list_new();
+    }
 
-   dup = malloc (sizeof (kms_kv_list_t));
-   KMS_ASSERT (dup);
+    dup = malloc(sizeof(kms_kv_list_t));
+    KMS_ASSERT(dup);
 
-   dup->size = dup->len = lst->len;
-   dup->kvs = malloc (lst->len * sizeof (kms_kv_t));
-   KMS_ASSERT (dup->kvs);
+    dup->size = dup->len = lst->len;
+    dup->kvs = malloc(lst->len * sizeof(kms_kv_t));
+    KMS_ASSERT(dup->kvs);
 
+    for (i = 0; i < lst->len; i++) {
+        kv_init(&dup->kvs[i], lst->kvs[i].key, lst->kvs[i].value);
+    }
 
-   for (i = 0; i < lst->len; i++) {
-      kv_init (&dup->kvs[i], lst->kvs[i].key, lst->kvs[i].value);
-   }
-
-   return dup;
+    return dup;
 }
 
-
-void
-kms_kv_list_sort (kms_kv_list_t *lst, int (*cmp) (const void *, const void *))
-{
-   /* A stable sort is required to sort headers when creating canonical
-    * requests. qsort is not stable. */
-   insertionsort (
-      (unsigned char *) (lst->kvs), lst->len, sizeof (kms_kv_t), cmp);
+void kms_kv_list_sort(kms_kv_list_t *lst, int (*cmp)(const void *, const void *)) {
+    /* A stable sort is required to sort headers when creating canonical
+     * requests. qsort is not stable. */
+    insertionsort((unsigned char *)(lst->kvs), lst->len, sizeof(kms_kv_t), cmp);
 }

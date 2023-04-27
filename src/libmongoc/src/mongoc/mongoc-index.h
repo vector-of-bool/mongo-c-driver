@@ -23,67 +23,64 @@
 
 #include "mongoc-macros.h"
 
-
 BSON_BEGIN_DECLS
 
 typedef struct {
-   uint8_t twod_sphere_version;
-   uint8_t twod_bits_precision;
-   double twod_location_min;
-   double twod_location_max;
-   double haystack_bucket_size;
-   uint8_t *padding[32];
+    uint8_t twod_sphere_version;
+    uint8_t twod_bits_precision;
+    double twod_location_min;
+    double twod_location_max;
+    double haystack_bucket_size;
+    uint8_t *padding[32];
 } mongoc_index_opt_geo_t;
 
 typedef struct {
-   int type;
+    int type;
 } mongoc_index_opt_storage_t;
 
 typedef enum {
-   MONGOC_INDEX_STORAGE_OPT_MMAPV1,
-   MONGOC_INDEX_STORAGE_OPT_WIREDTIGER,
+    MONGOC_INDEX_STORAGE_OPT_MMAPV1,
+    MONGOC_INDEX_STORAGE_OPT_WIREDTIGER,
 } mongoc_index_storage_opt_type_t;
 
 typedef struct {
-   mongoc_index_opt_storage_t base;
-   const char *config_str;
-   void *padding[8];
+    mongoc_index_opt_storage_t base;
+    const char *config_str;
+    void *padding[8];
 } mongoc_index_opt_wt_t;
 
 typedef struct {
-   bool is_initialized;
-   bool background;
-   bool unique;
-   const char *name;
-   bool drop_dups;
-   bool sparse;
-   int32_t expire_after_seconds;
-   int32_t v;
-   const bson_t *weights;
-   const char *default_language;
-   const char *language_override;
-   mongoc_index_opt_geo_t *geo_options;
-   mongoc_index_opt_storage_t *storage_options;
-   const bson_t *partial_filter_expression;
-   const bson_t *collation;
-   void *padding[4];
+    bool is_initialized;
+    bool background;
+    bool unique;
+    const char *name;
+    bool drop_dups;
+    bool sparse;
+    int32_t expire_after_seconds;
+    int32_t v;
+    const bson_t *weights;
+    const char *default_language;
+    const char *language_override;
+    mongoc_index_opt_geo_t *geo_options;
+    mongoc_index_opt_storage_t *storage_options;
+    const bson_t *partial_filter_expression;
+    const bson_t *collation;
+    void *padding[4];
 } mongoc_index_opt_t;
 
-
-MONGOC_EXPORT (const mongoc_index_opt_t *)
-mongoc_index_opt_get_default (void) BSON_GNUC_PURE;
-MONGOC_EXPORT (const mongoc_index_opt_geo_t *)
-mongoc_index_opt_geo_get_default (void) BSON_GNUC_PURE;
-MONGOC_EXPORT (const mongoc_index_opt_wt_t *)
-mongoc_index_opt_wt_get_default (void) BSON_GNUC_PURE;
-MONGOC_EXPORT (void)
-mongoc_index_opt_init (mongoc_index_opt_t *opt);
-MONGOC_EXPORT (void)
-mongoc_index_opt_geo_init (mongoc_index_opt_geo_t *opt);
-MONGOC_EXPORT (void)
-mongoc_index_opt_wt_init (mongoc_index_opt_wt_t *opt);
+MONGOC_EXPORT(const mongoc_index_opt_t *)
+mongoc_index_opt_get_default(void) BSON_GNUC_PURE;
+MONGOC_EXPORT(const mongoc_index_opt_geo_t *)
+mongoc_index_opt_geo_get_default(void) BSON_GNUC_PURE;
+MONGOC_EXPORT(const mongoc_index_opt_wt_t *)
+mongoc_index_opt_wt_get_default(void) BSON_GNUC_PURE;
+MONGOC_EXPORT(void)
+mongoc_index_opt_init(mongoc_index_opt_t *opt);
+MONGOC_EXPORT(void)
+mongoc_index_opt_geo_init(mongoc_index_opt_geo_t *opt);
+MONGOC_EXPORT(void)
+mongoc_index_opt_wt_init(mongoc_index_opt_wt_t *opt);
 
 BSON_END_DECLS
-
 
 #endif /* MONGOC_INDEX_H */

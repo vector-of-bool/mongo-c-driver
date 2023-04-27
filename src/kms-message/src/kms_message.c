@@ -23,25 +23,19 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-void
-set_error (char *error, size_t size, const char *fmt, ...)
-{
-   va_list va;
+void set_error(char *error, size_t size, const char *fmt, ...) {
+    va_list va;
 
-   va_start (va, fmt);
-   (void) vsnprintf (error, size, fmt, va);
-   va_end (va);
+    va_start(va, fmt);
+    (void)vsnprintf(error, size, fmt, va);
+    va_end(va);
 }
 
-int
-kms_message_init (void)
-{
-   kms_message_b64_initialize_rmap ();
-   return kms_crypto_init ();
+int kms_message_init(void) {
+    kms_message_b64_initialize_rmap();
+    return kms_crypto_init();
 }
 
-void
-kms_message_cleanup (void)
-{
-   kms_crypto_cleanup ();
+void kms_message_cleanup(void) {
+    kms_crypto_cleanup();
 }

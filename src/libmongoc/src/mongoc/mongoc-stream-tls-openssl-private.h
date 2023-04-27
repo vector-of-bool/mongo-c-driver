@@ -25,17 +25,16 @@
 BSON_BEGIN_DECLS
 
 typedef struct {
-   char *host;
-   bool allow_invalid_hostname;
-   bool weak_cert_validation;
-   bool disable_endpoint_check;
-   /* If reaching out to an OCSP responder requires TLS,
-    * use the same TLS options that the user provided. */
-   mongoc_ssl_opt_t ssl_opts;
+    char *host;
+    bool allow_invalid_hostname;
+    bool weak_cert_validation;
+    bool disable_endpoint_check;
+    /* If reaching out to an OCSP responder requires TLS,
+     * use the same TLS options that the user provided. */
+    mongoc_ssl_opt_t ssl_opts;
 } mongoc_openssl_ocsp_opt_t;
 
-void
-mongoc_openssl_ocsp_opt_destroy (void *ocsp_opt);
+void mongoc_openssl_ocsp_opt_destroy(void *ocsp_opt);
 
 /**
  * mongoc_stream_tls_openssl_t:
@@ -43,12 +42,11 @@ mongoc_openssl_ocsp_opt_destroy (void *ocsp_opt);
  * Private storage for handling callbacks from mongoc_stream and BIO_*
  */
 typedef struct {
-   BIO *bio;
-   BIO_METHOD *meth;
-   SSL_CTX *ctx;
-   mongoc_openssl_ocsp_opt_t *ocsp_opts;
+    BIO *bio;
+    BIO_METHOD *meth;
+    SSL_CTX *ctx;
+    mongoc_openssl_ocsp_opt_t *ocsp_opts;
 } mongoc_stream_tls_openssl_t;
-
 
 BSON_END_DECLS
 

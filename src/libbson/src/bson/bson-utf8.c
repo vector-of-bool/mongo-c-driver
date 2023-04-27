@@ -14,13 +14,11 @@
  * limitations under the License.
  */
 
-
 #include <string.h>
 
 #include "bson-memory.h"
 #include "bson-string.h"
 #include "bson-utf8.h"
-
 
 /*
  *--------------------------------------------------------------------------
@@ -41,45 +39,43 @@
  *--------------------------------------------------------------------------
  */
 
-static BSON_INLINE void
-_bson_utf8_get_sequence (const char *utf8,    /* IN */
-                         uint8_t *seq_length, /* OUT */
-                         uint8_t *first_mask) /* OUT */
+static BSON_INLINE void _bson_utf8_get_sequence(const char *utf8,    /* IN */
+                                                uint8_t *seq_length, /* OUT */
+                                                uint8_t *first_mask) /* OUT */
 {
-   unsigned char c = *(const unsigned char *) utf8;
-   uint8_t m;
-   uint8_t n;
+    unsigned char c = *(const unsigned char *)utf8;
+    uint8_t m;
+    uint8_t n;
 
-   /*
-    * See the following[1] for a description of what the given multi-byte
-    * sequences will be based on the bits set of the first byte. We also need
-    * to mask the first byte based on that.  All subsequent bytes are masked
-    * against 0x3F.
-    *
-    * [1] http://www.joelonsoftware.com/articles/Unicode.html
-    */
+    /*
+     * See the following[1] for a description of what the given multi-byte
+     * sequences will be based on the bits set of the first byte. We also need
+     * to mask the first byte based on that.  All subsequent bytes are masked
+     * against 0x3F.
+     *
+     * [1] http://www.joelonsoftware.com/articles/Unicode.html
+     */
 
-   if ((c & 0x80) == 0) {
-      n = 1;
-      m = 0x7F;
-   } else if ((c & 0xE0) == 0xC0) {
-      n = 2;
-      m = 0x1F;
-   } else if ((c & 0xF0) == 0xE0) {
-      n = 3;
-      m = 0x0F;
-   } else if ((c & 0xF8) == 0xF0) {
-      n = 4;
-      m = 0x07;
-   } else {
-      n = 0;
-      m = 0;
-   }
+    if ((c & 0x80) == 0) {
+        n = 1;
+        m = 0x7F;
+    } else if ((c & 0xE0) == 0xC0) {
+        n = 2;
+        m = 0x1F;
+    } else if ((c & 0xF0) == 0xE0) {
+        n = 3;
+        m = 0x0F;
+    } else if ((c & 0xF8) == 0xF0) {
+        n = 4;
+        m = 0x07;
+    } else {
+        n = 0;
+        m = 0;
+    }
 
-   *seq_length = n;
-   *first_mask = m;
+    *seq_length = n;
+    *first_mask = m;
 }
-
 
 /*
  *--------------------------------------------------------------------------
@@ -110,128 +106,123 @@ _bson_utf8_get_sequence (const char *utf8,    /* IN */
  *--------------------------------------------------------------------------
  */
 
-bool
-bson_utf8_validate (const char *utf8, /* IN */
-                    size_t utf8_len,  /* IN */
-                    bool allow_null)  /* IN */
+bool bson_utf8_validate(const char *utf8, /* IN */
+                        size_t utf8_len,  /* IN */
+                        bool allow_null)  /* IN */
 {
-   bson_unichar_t c;
-   uint8_t first_mask;
-   uint8_t seq_length;
-   unsigned i;
-   unsigned j;
+    bson_unichar_t c;
+    uint8_t first_mask;
+    uint8_t seq_length;
+    unsigned i;
+    unsigned j;
 
-   BSON_ASSERT (utf8);
+    BSON_ASSERT(utf8);
 
-   for (i = 0; i < utf8_len; i += seq_length) {
-      _bson_utf8_get_sequence (&utf8[i], &seq_length, &first_mask);
+    for (i = 0; i < utf8_len; i += seq_length) {
+        _bson_utf8_get_sequence(&utf8[i], &seq_length, &first_mask);
 
-      /*
-       * Ensure we have a valid multi-byte sequence length.
-       */
-      if (!seq_length) {
-         return false;
-      }
-
-      /*
-       * Ensure we have enough bytes left.
-       */
-      if ((utf8_len - i) < seq_length) {
-         return false;
-      }
-
-      /*
-       * Also calculate the next char as a unichar so we can
-       * check code ranges for non-shortest form.
-       */
-      c = utf8[i] & first_mask;
-
-      /*
-       * Check the high-bits for each additional sequence byte.
-       */
-      for (j = i + 1; j < (i + seq_length); j++) {
-         c = (c << 6) | (utf8[j] & 0x3F);
-         if ((utf8[j] & 0xC0) != 0x80) {
+        /*
+         * Ensure we have a valid multi-byte sequence length.
+         */
+        if (!seq_length) {
             return false;
-         }
-      }
+        }
 
-      /*
-       * Check for NULL bytes afterwards.
-       *
-       * Hint: if you want to optimize this function, starting here to do
-       * this in the same pass as the data above would probably be a good
-       * idea. You would add a branch into the inner loop, but save possibly
-       * on cache-line bouncing on larger strings. Just a thought.
-       */
-      if (!allow_null) {
-         for (j = 0; j < seq_length; j++) {
-            if (((i + j) > utf8_len) || !utf8[i + j]) {
-               return false;
+        /*
+         * Ensure we have enough bytes left.
+         */
+        if ((utf8_len - i) < seq_length) {
+            return false;
+        }
+
+        /*
+         * Also calculate the next char as a unichar so we can
+         * check code ranges for non-shortest form.
+         */
+        c = utf8[i] & first_mask;
+
+        /*
+         * Check the high-bits for each additional sequence byte.
+         */
+        for (j = i + 1; j < (i + seq_length); j++) {
+            c = (c << 6) | (utf8[j] & 0x3F);
+            if ((utf8[j] & 0xC0) != 0x80) {
+                return false;
             }
-         }
-      }
+        }
 
-      /*
-       * Code point won't fit in utf-16, not allowed.
-       */
-      if (c > 0x0010FFFF) {
-         return false;
-      }
-
-      /*
-       * Byte is in reserved range for UTF-16 high-marks
-       * for surrogate pairs.
-       */
-      if ((c & 0xFFFFF800) == 0xD800) {
-         return false;
-      }
-
-      /*
-       * Check non-shortest form unicode.
-       */
-      switch (seq_length) {
-      case 1:
-         if (c <= 0x007F) {
-            continue;
-         }
-         return false;
-
-      case 2:
-         if ((c >= 0x0080) && (c <= 0x07FF)) {
-            continue;
-         } else if (c == 0) {
-            /* Two-byte representation for NULL. */
-            if (!allow_null) {
-               return false;
+        /*
+         * Check for NULL bytes afterwards.
+         *
+         * Hint: if you want to optimize this function, starting here to do
+         * this in the same pass as the data above would probably be a good
+         * idea. You would add a branch into the inner loop, but save possibly
+         * on cache-line bouncing on larger strings. Just a thought.
+         */
+        if (!allow_null) {
+            for (j = 0; j < seq_length; j++) {
+                if (((i + j) > utf8_len) || !utf8[i + j]) {
+                    return false;
+                }
             }
-            continue;
-         }
-         return false;
+        }
 
-      case 3:
-         if (((c >= 0x0800) && (c <= 0x0FFF)) ||
-             ((c >= 0x1000) && (c <= 0xFFFF))) {
-            continue;
-         }
-         return false;
+        /*
+         * Code point won't fit in utf-16, not allowed.
+         */
+        if (c > 0x0010FFFF) {
+            return false;
+        }
 
-      case 4:
-         if (((c >= 0x10000) && (c <= 0x3FFFF)) ||
-             ((c >= 0x40000) && (c <= 0xFFFFF)) ||
-             ((c >= 0x100000) && (c <= 0x10FFFF))) {
-            continue;
-         }
-         return false;
+        /*
+         * Byte is in reserved range for UTF-16 high-marks
+         * for surrogate pairs.
+         */
+        if ((c & 0xFFFFF800) == 0xD800) {
+            return false;
+        }
 
-      default:
-         return false;
-      }
-   }
+        /*
+         * Check non-shortest form unicode.
+         */
+        switch (seq_length) {
+        case 1:
+            if (c <= 0x007F) {
+                continue;
+            }
+            return false;
 
-   return true;
+        case 2:
+            if ((c >= 0x0080) && (c <= 0x07FF)) {
+                continue;
+            } else if (c == 0) {
+                /* Two-byte representation for NULL. */
+                if (!allow_null) {
+                    return false;
+                }
+                continue;
+            }
+            return false;
+
+        case 3:
+            if (((c >= 0x0800) && (c <= 0x0FFF)) || ((c >= 0x1000) && (c <= 0xFFFF))) {
+                continue;
+            }
+            return false;
+
+        case 4:
+            if (((c >= 0x10000) && (c <= 0x3FFFF)) || ((c >= 0x40000) && (c <= 0xFFFFF))
+                || ((c >= 0x100000) && (c <= 0x10FFFF))) {
+                continue;
+            }
+            return false;
+
+        default: return false;
+        }
+    }
+
+    return true;
 }
-
 
 /*
  *--------------------------------------------------------------------------
@@ -259,76 +250,64 @@ bson_utf8_validate (const char *utf8, /* IN */
  *--------------------------------------------------------------------------
  */
 
-char *
-bson_utf8_escape_for_json (const char *utf8, /* IN */
-                           ssize_t utf8_len) /* IN */
+char *bson_utf8_escape_for_json(const char *utf8, /* IN */
+                                ssize_t utf8_len) /* IN */
 {
-   bson_unichar_t c;
-   bson_string_t *str;
-   bool length_provided = true;
-   const char *end;
+    bson_unichar_t c;
+    bson_string_t *str;
+    bool length_provided = true;
+    const char *end;
 
-   BSON_ASSERT (utf8);
+    BSON_ASSERT(utf8);
 
-   str = bson_string_new (NULL);
+    str = bson_string_new(NULL);
 
-   if (utf8_len < 0) {
-      length_provided = false;
-      utf8_len = strlen (utf8);
-   }
+    if (utf8_len < 0) {
+        length_provided = false;
+        utf8_len = strlen(utf8);
+    }
 
-   end = utf8 + utf8_len;
+    end = utf8 + utf8_len;
 
-   while (utf8 < end) {
-      c = bson_utf8_get_char (utf8);
+    while (utf8 < end) {
+        c = bson_utf8_get_char(utf8);
 
-      switch (c) {
-      case '\\':
-      case '"':
-         bson_string_append_c (str, '\\');
-         bson_string_append_unichar (str, c);
-         break;
-      case '\b':
-         bson_string_append (str, "\\b");
-         break;
-      case '\f':
-         bson_string_append (str, "\\f");
-         break;
-      case '\n':
-         bson_string_append (str, "\\n");
-         break;
-      case '\r':
-         bson_string_append (str, "\\r");
-         break;
-      case '\t':
-         bson_string_append (str, "\\t");
-         break;
-      default:
-         if (c < ' ') {
-            bson_string_append_printf (str, "\\u%04x", (unsigned) c);
-         } else {
-            bson_string_append_unichar (str, c);
-         }
-         break;
-      }
+        switch (c) {
+        case '\\':
+        case '"':
+            bson_string_append_c(str, '\\');
+            bson_string_append_unichar(str, c);
+            break;
+        case '\b': bson_string_append(str, "\\b"); break;
+        case '\f': bson_string_append(str, "\\f"); break;
+        case '\n': bson_string_append(str, "\\n"); break;
+        case '\r': bson_string_append(str, "\\r"); break;
+        case '\t': bson_string_append(str, "\\t"); break;
+        default:
+            if (c < ' ') {
+                bson_string_append_printf(str, "\\u%04x", (unsigned)c);
+            } else {
+                bson_string_append_unichar(str, c);
+            }
+            break;
+        }
 
-      if (c) {
-         utf8 = bson_utf8_next_char (utf8);
-      } else {
-         if (length_provided && !*utf8) {
-            /* we escaped nil as '\u0000', now advance past it */
-            utf8++;
-         } else {
-            /* invalid UTF-8 */
-            bson_string_free (str, true);
-            return NULL;
-         }
-      }
-   }
+        if (c) {
+            utf8 = bson_utf8_next_char(utf8);
+        } else {
+            if (length_provided && !*utf8) {
+                /* we escaped nil as '\u0000', now advance past it */
+                utf8++;
+            } else {
+                /* invalid UTF-8 */
+                bson_string_free(str, true);
+                return NULL;
+            }
+        }
+    }
 
-   return bson_string_free (str, false);
+    return bson_string_free(str, false);
 }
-
 
 /*
  *--------------------------------------------------------------------------
@@ -349,26 +328,24 @@ bson_utf8_escape_for_json (const char *utf8, /* IN */
  *--------------------------------------------------------------------------
  */
 
-bson_unichar_t
-bson_utf8_get_char (const char *utf8) /* IN */
+bson_unichar_t bson_utf8_get_char(const char *utf8) /* IN */
 {
-   bson_unichar_t c;
-   uint8_t mask;
-   uint8_t num;
-   int i;
+    bson_unichar_t c;
+    uint8_t mask;
+    uint8_t num;
+    int i;
 
-   BSON_ASSERT (utf8);
+    BSON_ASSERT(utf8);
 
-   _bson_utf8_get_sequence (utf8, &num, &mask);
-   c = (*utf8) & mask;
+    _bson_utf8_get_sequence(utf8, &num, &mask);
+    c = (*utf8) & mask;
 
-   for (i = 1; i < num; i++) {
-      c = (c << 6) | (utf8[i] & 0x3F);
-   }
+    for (i = 1; i < num; i++) {
+        c = (c << 6) | (utf8[i] & 0x3F);
+    }
 
-   return c;
+    return c;
 }
-
 
 /*
  *--------------------------------------------------------------------------
@@ -390,19 +367,17 @@ bson_utf8_get_char (const char *utf8) /* IN */
  *--------------------------------------------------------------------------
  */
 
-const char *
-bson_utf8_next_char (const char *utf8) /* IN */
+const char *bson_utf8_next_char(const char *utf8) /* IN */
 {
-   uint8_t mask;
-   uint8_t num;
+    uint8_t mask;
+    uint8_t num;
 
-   BSON_ASSERT (utf8);
+    BSON_ASSERT(utf8);
 
-   _bson_utf8_get_sequence (utf8, &num, &mask);
+    _bson_utf8_get_sequence(utf8, &num, &mask);
 
-   return utf8 + num;
+    return utf8 + num;
 }
-
 
 /*
  *--------------------------------------------------------------------------
@@ -427,33 +402,32 @@ bson_utf8_next_char (const char *utf8) /* IN */
  *--------------------------------------------------------------------------
  */
 
-void
-bson_utf8_from_unichar (bson_unichar_t unichar,                      /* IN */
-                        char utf8[BSON_ENSURE_ARRAY_PARAM_SIZE (6)], /* OUT */
-                        uint32_t *len)                               /* OUT */
+void bson_utf8_from_unichar(bson_unichar_t unichar,                     /* IN */
+                            char utf8[BSON_ENSURE_ARRAY_PARAM_SIZE(6)], /* OUT */
+                            uint32_t *len)                              /* OUT */
 {
-   BSON_ASSERT (utf8);
-   BSON_ASSERT (len);
+    BSON_ASSERT(utf8);
+    BSON_ASSERT(len);
 
-   if (unichar <= 0x7F) {
-      utf8[0] = unichar;
-      *len = 1;
-   } else if (unichar <= 0x7FF) {
-      *len = 2;
-      utf8[0] = 0xC0 | ((unichar >> 6) & 0x3F);
-      utf8[1] = 0x80 | ((unichar) &0x3F);
-   } else if (unichar <= 0xFFFF) {
-      *len = 3;
-      utf8[0] = 0xE0 | ((unichar >> 12) & 0xF);
-      utf8[1] = 0x80 | ((unichar >> 6) & 0x3F);
-      utf8[2] = 0x80 | ((unichar) &0x3F);
-   } else if (unichar <= 0x1FFFFF) {
-      *len = 4;
-      utf8[0] = 0xF0 | ((unichar >> 18) & 0x7);
-      utf8[1] = 0x80 | ((unichar >> 12) & 0x3F);
-      utf8[2] = 0x80 | ((unichar >> 6) & 0x3F);
-      utf8[3] = 0x80 | ((unichar) &0x3F);
-   } else {
-      *len = 0;
-   }
+    if (unichar <= 0x7F) {
+        utf8[0] = unichar;
+        *len = 1;
+    } else if (unichar <= 0x7FF) {
+        *len = 2;
+        utf8[0] = 0xC0 | ((unichar >> 6) & 0x3F);
+        utf8[1] = 0x80 | ((unichar)&0x3F);
+    } else if (unichar <= 0xFFFF) {
+        *len = 3;
+        utf8[0] = 0xE0 | ((unichar >> 12) & 0xF);
+        utf8[1] = 0x80 | ((unichar >> 6) & 0x3F);
+        utf8[2] = 0x80 | ((unichar)&0x3F);
+    } else if (unichar <= 0x1FFFFF) {
+        *len = 4;
+        utf8[0] = 0xF0 | ((unichar >> 18) & 0x7);
+        utf8[1] = 0x80 | ((unichar >> 12) & 0x3F);
+        utf8[2] = 0x80 | ((unichar >> 6) & 0x3F);
+        utf8[3] = 0x80 | ((unichar)&0x3F);
+    } else {
+        *len = 0;
+    }
 }

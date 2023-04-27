@@ -44,31 +44,31 @@
  * last 4 elements.
  */
 
-typedef int (*cmp_t) (const void *, const void *);
-#define CMP(x, y) cmp (x, y)
-#define swap(a, b)   \
-   {                 \
-      s = b;         \
-      i = size;      \
-      do {           \
-         tmp = *a;   \
-         *a++ = *s;  \
-         *s++ = tmp; \
-      } while (--i); \
-      a -= size;     \
-   }
+typedef int (*cmp_t)(const void *, const void *);
+#define CMP(x, y) cmp(x, y)
+#define swap(a, b)                                                                                                     \
+    {                                                                                                                  \
+        s = b;                                                                                                         \
+        i = size;                                                                                                      \
+        do {                                                                                                           \
+            tmp = *a;                                                                                                  \
+            *a++ = *s;                                                                                                 \
+            *s++ = tmp;                                                                                                \
+        } while (--i);                                                                                                 \
+        a -= size;                                                                                                     \
+    }
 
-void
-insertionsort (unsigned char *a, size_t n, size_t size, cmp_t cmp)
-{
-   unsigned char *ai, *s, *t, *u, tmp;
-   size_t i;
+void insertionsort(unsigned char *a, size_t n, size_t size, cmp_t cmp) {
+    unsigned char *ai, *s, *t, *u, tmp;
+    size_t i;
 
-   for (ai = a + size; --n >= 1; ai += size)
-      for (t = ai; t > a; t -= size) {
-         u = t - size;
-         if (CMP (u, t) <= 0)
-            break;
-         swap (u, t);
-      }
+    for (ai = a + size; --n >= 1; ai += size) {
+        for (t = ai; t > a; t -= size) {
+            u = t - size;
+            if (CMP(u, t) <= 0) {
+                break;
+            }
+            swap(u, t);
+        }
+    }
 }

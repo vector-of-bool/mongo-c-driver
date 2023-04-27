@@ -24,16 +24,11 @@
 #include "mongoc-macros.h"
 #include "mongoc-stream.h"
 
-
 BSON_BEGIN_DECLS
 
-
-MONGOC_EXPORT (mongoc_stream_t *)
-mongoc_stream_buffered_new (mongoc_stream_t *base_stream,
-                        size_t buffer_size) BSON_GNUC_WARN_UNUSED_RESULT;
-
+MONGOC_EXPORT(mongoc_stream_t *)
+mongoc_stream_buffered_new(mongoc_stream_t *base_stream, size_t buffer_size) BSON_GNUC_WARN_UNUSED_RESULT;
 
 BSON_END_DECLS
-
 
 #endif /* MONGOC_STREAM_BUFFERED_H */

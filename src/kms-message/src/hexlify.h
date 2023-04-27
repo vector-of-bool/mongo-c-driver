@@ -17,5 +17,4 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-char *
-hexlify (const uint8_t *buf, size_t len);
+char *hexlify(const uint8_t *buf, size_t len);

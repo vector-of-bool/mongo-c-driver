@@ -25,14 +25,11 @@
 
 BSON_BEGIN_DECLS
 
-
-MONGOC_EXPORT (void)
-mongoc_init (void);
-MONGOC_EXPORT (void)
-mongoc_cleanup (void);
-
+MONGOC_EXPORT(void)
+mongoc_init(void);
+MONGOC_EXPORT(void)
+mongoc_cleanup(void);
 
 BSON_END_DECLS
-
 
 #endif /* MONGOC_INIT_H */

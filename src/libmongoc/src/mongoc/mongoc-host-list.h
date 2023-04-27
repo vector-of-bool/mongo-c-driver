@@ -21,9 +21,7 @@
 
 #include <bson/bson.h>
 
-
 BSON_BEGIN_DECLS
-
 
 #ifdef _POSIX_HOST_NAME_MAX
 #define BSON_HOST_NAME_MAX _POSIX_HOST_NAME_MAX
@@ -31,20 +29,17 @@ BSON_BEGIN_DECLS
 #define BSON_HOST_NAME_MAX 255
 #endif
 
-
 typedef struct _mongoc_host_list_t mongoc_host_list_t;
 
-
 struct _mongoc_host_list_t {
-   mongoc_host_list_t *next;
-   char host[BSON_HOST_NAME_MAX + 1];
-   char host_and_port[BSON_HOST_NAME_MAX + 7];
-   uint16_t port;
-   int family;
-   void *padding[4];
+    mongoc_host_list_t *next;
+    char host[BSON_HOST_NAME_MAX + 1];
+    char host_and_port[BSON_HOST_NAME_MAX + 7];
+    uint16_t port;
+    int family;
+    void *padding[4];
 };
 
 BSON_END_DECLS
-
 
 #endif /* MONGOC_HOST_LIST_H */

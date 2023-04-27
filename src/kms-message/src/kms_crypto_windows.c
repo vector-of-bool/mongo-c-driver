@@ -42,95 +42,81 @@
 static BCRYPT_ALG_HANDLE _algoSHA256 = 0;
 static BCRYPT_ALG_HANDLE _algoSHA256Hmac = 0;
 
-int
-kms_crypto_init (void)
-{
-   if (BCryptOpenAlgorithmProvider (
-          &_algoSHA256, BCRYPT_SHA256_ALGORITHM, MS_PRIMITIVE_PROVIDER, 0) !=
-       STATUS_SUCCESS) {
-      return 1;
-   }
+int kms_crypto_init(void) {
+    if (BCryptOpenAlgorithmProvider(&_algoSHA256, BCRYPT_SHA256_ALGORITHM, MS_PRIMITIVE_PROVIDER, 0)
+        != STATUS_SUCCESS) {
+        return 1;
+    }
 
-   if (BCryptOpenAlgorithmProvider (&_algoSHA256Hmac,
+    if (BCryptOpenAlgorithmProvider(&_algoSHA256Hmac,
                                     BCRYPT_SHA256_ALGORITHM,
                                     MS_PRIMITIVE_PROVIDER,
-                                    BCRYPT_ALG_HANDLE_HMAC_FLAG) !=
-       STATUS_SUCCESS) {
-      return 2;
-   }
+                                    BCRYPT_ALG_HANDLE_HMAC_FLAG)
+        != STATUS_SUCCESS) {
+        return 2;
+    }
 
-   return 0;
+    return 0;
 }
 
-void
-kms_crypto_cleanup (void)
-{
-   (void) BCryptCloseAlgorithmProvider (_algoSHA256, 0);
-   (void) BCryptCloseAlgorithmProvider (_algoSHA256Hmac, 0);
+void kms_crypto_cleanup(void) {
+    (void)BCryptCloseAlgorithmProvider(_algoSHA256, 0);
+    (void)BCryptCloseAlgorithmProvider(_algoSHA256Hmac, 0);
 }
 
-bool
-kms_sha256 (void *unused_ctx,
-            const char *input,
-            size_t len,
-            unsigned char *hash_out)
-{
-   BCRYPT_HASH_HANDLE hHash;
+bool kms_sha256(void *unused_ctx, const char *input, size_t len, unsigned char *hash_out) {
+    BCRYPT_HASH_HANDLE hHash;
 
-   NTSTATUS status =
-      BCryptCreateHash (_algoSHA256, &hHash, NULL, 0, NULL, 0, 0);
-   if (status != STATUS_SUCCESS) {
-      return 0;
-   }
+    NTSTATUS status = BCryptCreateHash(_algoSHA256, &hHash, NULL, 0, NULL, 0, 0);
+    if (status != STATUS_SUCCESS) {
+        return 0;
+    }
 
-   status = BCryptHashData (hHash, (PUCHAR) (input), (ULONG) len, 0);
-   if (status != STATUS_SUCCESS) {
-      goto cleanup;
-   }
+    status = BCryptHashData(hHash, (PUCHAR)(input), (ULONG)len, 0);
+    if (status != STATUS_SUCCESS) {
+        goto cleanup;
+    }
 
-   // Hardcode output length
-   status = BCryptFinishHash (hHash, hash_out, 256 / 8, 0);
-   if (status != STATUS_SUCCESS) {
-      goto cleanup;
-   }
+    // Hardcode output length
+    status = BCryptFinishHash(hHash, hash_out, 256 / 8, 0);
+    if (status != STATUS_SUCCESS) {
+        goto cleanup;
+    }
 
 cleanup:
-   (void) BCryptDestroyHash (hHash);
+    (void)BCryptDestroyHash(hHash);
 
-   return status == STATUS_SUCCESS ? 1 : 0;
+    return status == STATUS_SUCCESS ? 1 : 0;
 }
 
-bool
-kms_sha256_hmac (void *unused_ctx,
-                 const char *key_input,
-                 size_t key_len,
-                 const char *input,
-                 size_t len,
-                 unsigned char *hash_out)
-{
-   BCRYPT_HASH_HANDLE hHash;
+bool kms_sha256_hmac(void *unused_ctx,
+                     const char *key_input,
+                     size_t key_len,
+                     const char *input,
+                     size_t len,
+                     unsigned char *hash_out) {
+    BCRYPT_HASH_HANDLE hHash;
 
-   NTSTATUS status = BCryptCreateHash (
-      _algoSHA256Hmac, &hHash, NULL, 0, (PUCHAR) key_input, (ULONG) key_len, 0);
-   if (status != STATUS_SUCCESS) {
-      return 0;
-   }
+    NTSTATUS status = BCryptCreateHash(_algoSHA256Hmac, &hHash, NULL, 0, (PUCHAR)key_input, (ULONG)key_len, 0);
+    if (status != STATUS_SUCCESS) {
+        return 0;
+    }
 
-   status = BCryptHashData (hHash, (PUCHAR) input, (ULONG) len, 0);
-   if (status != STATUS_SUCCESS) {
-      goto cleanup;
-   }
+    status = BCryptHashData(hHash, (PUCHAR)input, (ULONG)len, 0);
+    if (status != STATUS_SUCCESS) {
+        goto cleanup;
+    }
 
-   // Hardcode output length
-   status = BCryptFinishHash (hHash, hash_out, 256 / 8, 0);
-   if (status != STATUS_SUCCESS) {
-      goto cleanup;
-   }
+    // Hardcode output length
+    status = BCryptFinishHash(hHash, hash_out, 256 / 8, 0);
+    if (status != STATUS_SUCCESS) {
+        goto cleanup;
+    }
 
 cleanup:
-   (void) BCryptDestroyHash (hHash);
+    (void)BCryptDestroyHash(hHash);
 
-   return status == STATUS_SUCCESS ? 1 : 0;
+    return status == STATUS_SUCCESS ? 1 : 0;
 }
 
 #endif /* KMS_MESSAGE_ENABLE_CRYPTO_CNG */

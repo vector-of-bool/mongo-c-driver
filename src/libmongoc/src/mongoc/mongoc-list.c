@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-
 #include "mongoc-list-private.h"
-
 
 /**
  * mongoc_list_append:
@@ -27,25 +25,21 @@
  *
  * Returns: @list or a new list if @list is NULL.
  */
-mongoc_list_t *
-_mongoc_list_append (mongoc_list_t *list, void *data)
-{
-   mongoc_list_t *item;
-   mongoc_list_t *iter;
+mongoc_list_t *_mongoc_list_append(mongoc_list_t *list, void *data) {
+    mongoc_list_t *item;
+    mongoc_list_t *iter;
 
-   item = (mongoc_list_t *) bson_malloc0 (sizeof *item);
-   item->data = (void *) data;
-   if (!list) {
-      return item;
-   }
+    item = (mongoc_list_t *)bson_malloc0(sizeof *item);
+    item->data = (void *)data;
+    if (!list) {
+        return item;
+    }
 
-   for (iter = list; iter->next; iter = iter->next) {
-   }
-   iter->next = item;
+    for (iter = list; iter->next; iter = iter->next) {}
+    iter->next = item;
 
-   return list;
+    return list;
 }
-
 
 /**
  * mongoc_list_prepend:
@@ -56,18 +50,15 @@ _mongoc_list_append (mongoc_list_t *list, void *data)
  *
  * Returns: A new link containing data with @list following.
  */
-mongoc_list_t *
-_mongoc_list_prepend (mongoc_list_t *list, void *data)
-{
-   mongoc_list_t *item;
+mongoc_list_t *_mongoc_list_prepend(mongoc_list_t *list, void *data) {
+    mongoc_list_t *item;
 
-   item = (mongoc_list_t *) bson_malloc0 (sizeof *item);
-   item->data = (void *) data;
-   item->next = list;
+    item = (mongoc_list_t *)bson_malloc0(sizeof *item);
+    item->data = (void *)data;
+    item->next = list;
 
-   return item;
+    return item;
 }
-
 
 /**
  * mongoc_list_remove:
@@ -78,31 +69,28 @@ _mongoc_list_prepend (mongoc_list_t *list, void *data)
  *
  * Returns: @list with the link containing @data removed.
  */
-mongoc_list_t *
-_mongoc_list_remove (mongoc_list_t *list, void *data)
-{
-   mongoc_list_t *iter;
-   mongoc_list_t *prev = NULL;
-   mongoc_list_t *ret = list;
+mongoc_list_t *_mongoc_list_remove(mongoc_list_t *list, void *data) {
+    mongoc_list_t *iter;
+    mongoc_list_t *prev = NULL;
+    mongoc_list_t *ret = list;
 
-   BSON_ASSERT (list);
+    BSON_ASSERT(list);
 
-   for (iter = list; iter; iter = iter->next) {
-      if (iter->data == data) {
-         if (iter != list) {
-            prev->next = iter->next;
-         } else {
-            ret = iter->next;
-         }
-         bson_free (iter);
-         break;
-      }
-      prev = iter;
-   }
+    for (iter = list; iter; iter = iter->next) {
+        if (iter->data == data) {
+            if (iter != list) {
+                prev->next = iter->next;
+            } else {
+                ret = iter->next;
+            }
+            bson_free(iter);
+            break;
+        }
+        prev = iter;
+    }
 
-   return ret;
+    return ret;
 }
-
 
 /**
  * mongoc_list_foreach:
@@ -112,20 +100,15 @@ _mongoc_list_remove (mongoc_list_t *list, void *data)
  *
  * Calls @func for each item in @list.
  */
-void
-_mongoc_list_foreach (mongoc_list_t *list,
-                      void (*func) (void *data, void *user_data),
-                      void *user_data)
-{
-   mongoc_list_t *iter;
+void _mongoc_list_foreach(mongoc_list_t *list, void (*func)(void *data, void *user_data), void *user_data) {
+    mongoc_list_t *iter;
 
-   BSON_ASSERT (func);
+    BSON_ASSERT(func);
 
-   for (iter = list; iter; iter = iter->next) {
-      func (iter->data, user_data);
-   }
+    for (iter = list; iter; iter = iter->next) {
+        func(iter->data, user_data);
+    }
 }
-
 
 /**
  * mongoc_list_destroy:
@@ -133,14 +116,12 @@ _mongoc_list_foreach (mongoc_list_t *list,
  *
  * Destroys @list and releases any resources.
  */
-void
-_mongoc_list_destroy (mongoc_list_t *list)
-{
-   mongoc_list_t *tmp = list;
+void _mongoc_list_destroy(mongoc_list_t *list) {
+    mongoc_list_t *tmp = list;
 
-   while (list) {
-      tmp = list->next;
-      bson_free (list);
-      list = tmp;
-   }
+    while (list) {
+        tmp = list->next;
+        bson_free(list);
+        list = tmp;
+    }
 }

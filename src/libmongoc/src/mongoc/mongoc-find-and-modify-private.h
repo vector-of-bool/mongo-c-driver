@@ -25,17 +25,15 @@
 BSON_BEGIN_DECLS
 
 struct _mongoc_find_and_modify_opts_t {
-   bson_t *sort;
-   bson_t *update;
-   bson_t *fields;
-   mongoc_find_and_modify_flags_t flags;
-   bool bypass_document_validation;
-   uint32_t max_time_ms;
-   bson_t extra;
+    bson_t *sort;
+    bson_t *update;
+    bson_t *fields;
+    mongoc_find_and_modify_flags_t flags;
+    bool bypass_document_validation;
+    uint32_t max_time_ms;
+    bson_t extra;
 };
 
-
 BSON_END_DECLS
-
 
 #endif /* MONGOC_FIND_AND_MODIFY_PRIVATE_H */

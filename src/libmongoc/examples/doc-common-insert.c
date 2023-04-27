@@ -2,47 +2,44 @@
    by example code */
 
 /* Insert some sample data */
-bool
-insert_data (mongoc_collection_t *collection)
-{
-   mongoc_bulk_operation_t *bulk;
-   enum N { ndocs = 4 };
-   bson_t *docs[ndocs];
-   bson_error_t error;
-   int i = 0;
-   bool ret;
+bool insert_data(mongoc_collection_t *collection) {
+    mongoc_bulk_operation_t *bulk;
 
-   bulk = mongoc_collection_create_bulk_operation_with_opts (collection, NULL);
+    enum N { ndocs = 4 };
 
-   docs[0] = BCON_NEW ("x", BCON_DOUBLE (1.0), "tags", "[", "dog", "cat", "]");
-   docs[1] = BCON_NEW ("x", BCON_DOUBLE (2.0), "tags", "[", "cat", "]");
-   docs[2] = BCON_NEW (
-      "x", BCON_DOUBLE (2.0), "tags", "[", "mouse", "cat", "dog", "]");
-   docs[3] = BCON_NEW ("x", BCON_DOUBLE (3.0), "tags", "[", "]");
+    bson_t *docs[ndocs];
+    bson_error_t error;
+    int i = 0;
+    bool ret;
 
-   for (i = 0; i < ndocs; i++) {
-      mongoc_bulk_operation_insert (bulk, docs[i]);
-      bson_destroy (docs[i]);
-      docs[i] = NULL;
-   }
+    bulk = mongoc_collection_create_bulk_operation_with_opts(collection, NULL);
 
-   ret = mongoc_bulk_operation_execute (bulk, NULL, &error);
+    docs[0] = BCON_NEW("x", BCON_DOUBLE(1.0), "tags", "[", "dog", "cat", "]");
+    docs[1] = BCON_NEW("x", BCON_DOUBLE(2.0), "tags", "[", "cat", "]");
+    docs[2] = BCON_NEW("x", BCON_DOUBLE(2.0), "tags", "[", "mouse", "cat", "dog", "]");
+    docs[3] = BCON_NEW("x", BCON_DOUBLE(3.0), "tags", "[", "]");
 
-   if (!ret) {
-      fprintf (stderr, "Error inserting data: %s\n", error.message);
-   }
+    for (i = 0; i < ndocs; i++) {
+        mongoc_bulk_operation_insert(bulk, docs[i]);
+        bson_destroy(docs[i]);
+        docs[i] = NULL;
+    }
 
-   mongoc_bulk_operation_destroy (bulk);
-   return ret;
+    ret = mongoc_bulk_operation_execute(bulk, NULL, &error);
+
+    if (!ret) {
+        fprintf(stderr, "Error inserting data: %s\n", error.message);
+    }
+
+    mongoc_bulk_operation_destroy(bulk);
+    return ret;
 }
 
 /* A helper which we'll use a lot later on */
-void
-print_res (const bson_t *reply)
-{
-   char *str;
-   BSON_ASSERT (reply);
-   str = bson_as_canonical_extended_json (reply, NULL);
-   printf ("%s\n", str);
-   bson_free (str);
+void print_res(const bson_t *reply) {
+    char *str;
+    BSON_ASSERT(reply);
+    str = bson_as_canonical_extended_json(reply, NULL);
+    printf("%s\n", str);
+    bson_free(str);
 }

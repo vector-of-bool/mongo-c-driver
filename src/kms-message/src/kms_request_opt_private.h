@@ -24,8 +24,8 @@
 #include <stdbool.h>
 
 struct _kms_request_opt_t {
-   bool connection_close;
-   _kms_crypto_t crypto;
+    bool connection_close;
+    _kms_crypto_t crypto;
 };
 
 #endif /* KMS_REQUEST_OPT_PRIVATE_H */

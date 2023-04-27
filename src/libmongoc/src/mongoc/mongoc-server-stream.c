@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 #include "mongoc-cluster-private.h"
 #include "mongoc-server-stream-private.h"
 #include "mongoc-util-private.h"
@@ -22,35 +21,31 @@
 #undef MONGOC_LOG_DOMAIN
 #define MONGOC_LOG_DOMAIN "server-stream"
 
-mongoc_server_stream_t *
-mongoc_server_stream_new (const mongoc_topology_description_t *td,
-                          mongoc_server_description_t *sd,
-                          mongoc_stream_t *stream)
-{
-   mongoc_server_stream_t *server_stream;
+mongoc_server_stream_t *mongoc_server_stream_new(const mongoc_topology_description_t *td,
+                                                 mongoc_server_description_t *sd,
+                                                 mongoc_stream_t *stream) {
+    mongoc_server_stream_t *server_stream;
 
-   BSON_ASSERT (sd);
-   BSON_ASSERT (stream);
+    BSON_ASSERT(sd);
+    BSON_ASSERT(stream);
 
-   server_stream = BSON_ALIGNED_ALLOC (mongoc_server_stream_t);
-   server_stream->topology_type = td->type;
-   bson_copy_to (&td->cluster_time, &server_stream->cluster_time);
-   server_stream->sd = sd;         /* becomes owned */
-   server_stream->stream = stream; /* merely borrowed */
-   server_stream->must_use_primary = false;
-   server_stream->retry_attempted = false;
+    server_stream = BSON_ALIGNED_ALLOC(mongoc_server_stream_t);
+    server_stream->topology_type = td->type;
+    bson_copy_to(&td->cluster_time, &server_stream->cluster_time);
+    server_stream->sd = sd;         /* becomes owned */
+    server_stream->stream = stream; /* merely borrowed */
+    server_stream->must_use_primary = false;
+    server_stream->retry_attempted = false;
 
-   return server_stream;
+    return server_stream;
 }
 
-void
-mongoc_server_stream_cleanup (mongoc_server_stream_t *server_stream)
-{
-   if (server_stream) {
-      mongoc_server_description_destroy (server_stream->sd);
-      bson_destroy (&server_stream->cluster_time);
-      bson_free (server_stream);
-   }
+void mongoc_server_stream_cleanup(mongoc_server_stream_t *server_stream) {
+    if (server_stream) {
+        mongoc_server_description_destroy(server_stream->sd);
+        bson_destroy(&server_stream->cluster_time);
+        bson_free(server_stream);
+    }
 }
 
 /*
@@ -63,11 +58,8 @@ mongoc_server_stream_cleanup (mongoc_server_stream_t *server_stream)
  *--------------------------------------------------------------------------
  */
 
-int32_t
-mongoc_server_stream_max_bson_obj_size (mongoc_server_stream_t *server_stream)
-{
-   return COALESCE (server_stream->sd->max_bson_obj_size,
-                    MONGOC_DEFAULT_BSON_OBJ_SIZE);
+int32_t mongoc_server_stream_max_bson_obj_size(mongoc_server_stream_t *server_stream) {
+    return COALESCE(server_stream->sd->max_bson_obj_size, MONGOC_DEFAULT_BSON_OBJ_SIZE);
 }
 
 /*
@@ -80,11 +72,8 @@ mongoc_server_stream_max_bson_obj_size (mongoc_server_stream_t *server_stream)
  *--------------------------------------------------------------------------
  */
 
-int32_t
-mongoc_server_stream_max_msg_size (mongoc_server_stream_t *server_stream)
-{
-   return COALESCE (server_stream->sd->max_msg_size,
-                    MONGOC_DEFAULT_MAX_MSG_SIZE);
+int32_t mongoc_server_stream_max_msg_size(mongoc_server_stream_t *server_stream) {
+    return COALESCE(server_stream->sd->max_msg_size, MONGOC_DEFAULT_MAX_MSG_SIZE);
 }
 
 /*
@@ -97,10 +86,6 @@ mongoc_server_stream_max_msg_size (mongoc_server_stream_t *server_stream)
  *--------------------------------------------------------------------------
  */
 
-int32_t
-mongoc_server_stream_max_write_batch_size (
-   mongoc_server_stream_t *server_stream)
-{
-   return COALESCE (server_stream->sd->max_write_batch_size,
-                    MONGOC_DEFAULT_WRITE_BATCH_SIZE);
+int32_t mongoc_server_stream_max_write_batch_size(mongoc_server_stream_t *server_stream) {
+    return COALESCE(server_stream->sd->max_write_batch_size, MONGOC_DEFAULT_WRITE_BATCH_SIZE);
 }

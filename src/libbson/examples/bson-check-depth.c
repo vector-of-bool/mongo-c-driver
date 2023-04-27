@@ -24,113 +24,99 @@
 #include <stdlib.h>
 
 typedef struct {
-   uint32_t depth;
-   uint32_t max_depth;
-   bool valid;
+    uint32_t depth;
+    uint32_t max_depth;
+    bool valid;
 } check_depth_t;
 
-bool
-_check_depth_document (const bson_iter_t *iter,
-                       const char *key,
-                       const bson_t *v_document,
-                       void *data);
+bool _check_depth_document(const bson_iter_t *iter, const char *key, const bson_t *v_document, void *data);
 
 static const bson_visitor_t check_depth_funcs = {
-   NULL,
-   NULL,
-   NULL,
-   NULL,
-   NULL,
-   _check_depth_document,
-   _check_depth_document,
-   NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    _check_depth_document,
+    _check_depth_document,
+    NULL,
 };
 
-bool
-_check_depth_document (const bson_iter_t *iter,
-                       const char *key,
-                       const bson_t *v_document,
-                       void *data)
-{
-   check_depth_t *state = (check_depth_t *) data;
-   bson_iter_t child;
+bool _check_depth_document(const bson_iter_t *iter, const char *key, const bson_t *v_document, void *data) {
+    check_depth_t *state = (check_depth_t *)data;
+    bson_iter_t child;
 
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
+    BSON_UNUSED(iter);
+    BSON_UNUSED(key);
 
-   if (!bson_iter_init (&child, v_document)) {
-      fprintf (stderr, "corrupt\n");
-      return true; /* cancel */
-   }
+    if (!bson_iter_init(&child, v_document)) {
+        fprintf(stderr, "corrupt\n");
+        return true; /* cancel */
+    }
 
-   state->depth++;
-   if (state->depth > state->max_depth) {
-      state->valid = false;
-      return true; /* cancel */
-   }
+    state->depth++;
+    if (state->depth > state->max_depth) {
+        state->valid = false;
+        return true; /* cancel */
+    }
 
-   bson_iter_visit_all (&child, &check_depth_funcs, state);
-   state->depth--;
-   return false; /* continue */
+    bson_iter_visit_all(&child, &check_depth_funcs, state);
+    state->depth--;
+    return false; /* continue */
 }
 
-void
-check_depth (const bson_t *bson, uint32_t max_depth)
-{
-   bson_iter_t iter;
-   check_depth_t state = {0};
+void check_depth(const bson_t *bson, uint32_t max_depth) {
+    bson_iter_t iter;
+    check_depth_t state = {0};
 
-   if (!bson_iter_init (&iter, bson)) {
-      fprintf (stderr, "corrupt\n");
-   }
+    if (!bson_iter_init(&iter, bson)) {
+        fprintf(stderr, "corrupt\n");
+    }
 
-   state.valid = true;
-   state.max_depth = max_depth;
-   _check_depth_document (&iter, NULL, bson, &state);
-   if (!state.valid) {
-      printf ("document exceeds maximum depth of %" PRIu32 "\n",
-              state.max_depth);
-   } else {
-      char *as_json = bson_as_canonical_extended_json (bson, NULL);
-      printf ("document %s ", as_json);
-      printf ("is valid\n");
-      bson_free (as_json);
-   }
+    state.valid = true;
+    state.max_depth = max_depth;
+    _check_depth_document(&iter, NULL, bson, &state);
+    if (!state.valid) {
+        printf("document exceeds maximum depth of %" PRIu32 "\n", state.max_depth);
+    } else {
+        char *as_json = bson_as_canonical_extended_json(bson, NULL);
+        printf("document %s ", as_json);
+        printf("is valid\n");
+        bson_free(as_json);
+    }
 }
 
-int
-main (int argc, char **argv)
-{
-   bson_reader_t *bson_reader;
-   const bson_t *bson;
-   bool reached_eof;
-   bson_error_t error;
+int main(int argc, char **argv) {
+    bson_reader_t *bson_reader;
+    const bson_t *bson;
+    bool reached_eof;
+    bson_error_t error;
 
-   if (argc != 3) {
-      fprintf (stderr, "usage: %s FILE MAX_DEPTH\n", argv[0]);
-      fprintf (stderr, "Checks that the depth of the BSON contained in FILE\n");
-      fprintf (stderr, "does not exceed MAX_DEPTH\n");
-   }
+    if (argc != 3) {
+        fprintf(stderr, "usage: %s FILE MAX_DEPTH\n", argv[0]);
+        fprintf(stderr, "Checks that the depth of the BSON contained in FILE\n");
+        fprintf(stderr, "does not exceed MAX_DEPTH\n");
+    }
 
-   const char *const filename = argv[1];
-   const int max_depth = atoi (argv[2]);
+    const char *const filename = argv[1];
+    const int max_depth = atoi(argv[2]);
 
-   bson_reader = bson_reader_new_from_file (filename, &error);
-   if (!bson_reader) {
-      printf ("could not read %s: %s\n", filename, error.message);
-      return 1;
-   }
+    bson_reader = bson_reader_new_from_file(filename, &error);
+    if (!bson_reader) {
+        printf("could not read %s: %s\n", filename, error.message);
+        return 1;
+    }
 
-   BSON_ASSERT (bson_in_range_signed (uint32_t, max_depth));
+    BSON_ASSERT(bson_in_range_signed(uint32_t, max_depth));
 
-   while ((bson = bson_reader_read (bson_reader, &reached_eof))) {
-      check_depth (bson, (uint32_t) max_depth);
-   }
+    while ((bson = bson_reader_read(bson_reader, &reached_eof))) {
+        check_depth(bson, (uint32_t)max_depth);
+    }
 
-   if (!reached_eof) {
-      printf ("error reading BSON\n");
-   }
+    if (!reached_eof) {
+        printf("error reading BSON\n");
+    }
 
-   bson_reader_destroy (bson_reader);
-   return 0;
+    bson_reader_destroy(bson_reader);
+    return 0;
 }

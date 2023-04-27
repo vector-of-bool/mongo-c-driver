@@ -25,28 +25,23 @@
 
 BSON_BEGIN_DECLS
 
-
 typedef struct _mongoc_ssl_opt_t mongoc_ssl_opt_t;
 
-
 struct _mongoc_ssl_opt_t {
-   const char *pem_file;
-   const char *pem_pwd;
-   const char *ca_file;
-   const char *ca_dir;
-   const char *crl_file;
-   bool weak_cert_validation;
-   bool allow_invalid_hostname;
-   void *internal;
-   void *padding[6];
+    const char *pem_file;
+    const char *pem_pwd;
+    const char *ca_file;
+    const char *ca_dir;
+    const char *crl_file;
+    bool weak_cert_validation;
+    bool allow_invalid_hostname;
+    void *internal;
+    void *padding[6];
 };
 
-
-MONGOC_EXPORT (const mongoc_ssl_opt_t *)
-mongoc_ssl_opt_get_default (void) BSON_GNUC_PURE;
-
+MONGOC_EXPORT(const mongoc_ssl_opt_t *)
+mongoc_ssl_opt_get_default(void) BSON_GNUC_PURE;
 
 BSON_END_DECLS
-
 
 #endif /* MONGOC_SSL_H */

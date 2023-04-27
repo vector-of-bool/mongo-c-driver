@@ -17,7 +17,6 @@
 #ifndef KMS_MESSAGE_DEFINES_H
 #define KMS_MESSAGE_DEFINES_H
 
-
 #ifdef _MSC_VER
 #ifdef KMS_MSG_STATIC
 #define KMS_MSG_API
@@ -31,7 +30,7 @@
 #ifdef KMS_MSG_STATIC
 #define KMS_MSG_API
 #elif defined(KMS_MSG_COMPILATION)
-#define KMS_MSG_API __attribute__ ((visibility ("default")))
+#define KMS_MSG_API __attribute__((visibility("default")))
 #else
 #define KMS_MSG_API
 #endif
@@ -44,10 +43,10 @@
 extern "C" {
 #endif
 
-KMS_MSG_EXPORT (int)
-kms_message_init (void);
-KMS_MSG_EXPORT (void)
-kms_message_cleanup (void);
+KMS_MSG_EXPORT(int)
+kms_message_init(void);
+KMS_MSG_EXPORT(void)
+kms_message_cleanup(void);
 
 #ifdef __cplusplus
 } /* extern "C" */

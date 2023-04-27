@@ -3,10 +3,8 @@
 
 #include <mongoc/mongoc.h>
 
-
 #include "mongoc/mongoc-cluster-private.h"
 #include "mongoc/mongoc-topology-private.h"
-
 
 /**************************************************
  *

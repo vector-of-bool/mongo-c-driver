@@ -16,7 +16,6 @@
 
 #include "mongoc-prelude.h"
 
-
 #ifndef MONGOC_COMPRESSION_PRIVATE_H
 #define MONGOC_COMPRESSION_PRIVATE_H
 
@@ -35,36 +34,28 @@
 #define MONGOC_COMPRESSOR_ZSTD_ID 3
 #define MONGOC_COMPRESSOR_ZSTD_STR "zstd"
 
-
 BSON_BEGIN_DECLS
 
+size_t mongoc_compressor_max_compressed_length(int32_t compressor_id, size_t size);
 
-size_t
-mongoc_compressor_max_compressed_length (int32_t compressor_id, size_t size);
+bool mongoc_compressor_supported(const char *compressor);
 
-bool
-mongoc_compressor_supported (const char *compressor);
+const char *mongoc_compressor_id_to_name(int32_t compressor_id);
 
-const char *
-mongoc_compressor_id_to_name (int32_t compressor_id);
+int mongoc_compressor_name_to_id(const char *compressor);
 
-int
-mongoc_compressor_name_to_id (const char *compressor);
+bool mongoc_uncompress(int32_t compressor_id,
+                       const uint8_t *compressed,
+                       size_t compressed_len,
+                       uint8_t *uncompressed,
+                       size_t *uncompressed_size);
 
-bool
-mongoc_uncompress (int32_t compressor_id,
-                   const uint8_t *compressed,
-                   size_t compressed_len,
-                   uint8_t *uncompressed,
-                   size_t *uncompressed_size);
-
-bool
-mongoc_compress (int32_t compressor_id,
-                 int32_t compression_level,
-                 char *uncompressed,
-                 size_t uncompressed_len,
-                 char *compressed,
-                 size_t *compressed_len);
+bool mongoc_compress(int32_t compressor_id,
+                     int32_t compression_level,
+                     char *uncompressed,
+                     size_t uncompressed_len,
+                     char *compressed,
+                     size_t *compressed_len);
 
 BSON_END_DECLS
 

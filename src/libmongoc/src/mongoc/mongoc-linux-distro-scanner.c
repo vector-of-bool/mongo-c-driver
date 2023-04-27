@@ -35,99 +35,92 @@
  * fgets() wrapper which removes '\n' at the end of the string
  * Return 0 on failure or EOF.
  */
-static size_t
-_fgets_wrapper (char *buffer, size_t buffer_size, FILE *f)
-{
-   char *fgets_res;
-   size_t len;
+static size_t _fgets_wrapper(char *buffer, size_t buffer_size, FILE *f) {
+    char *fgets_res;
+    size_t len;
 
-   fgets_res = fgets (buffer, buffer_size, f);
+    fgets_res = fgets(buffer, buffer_size, f);
 
-   if (!fgets_res) {
-      /* Didn't read anything. Empty file or error. */
-      if (ferror (f)) {
-         TRACE ("fgets() failed with error %d", errno);
-      }
+    if (!fgets_res) {
+        /* Didn't read anything. Empty file or error. */
+        if (ferror(f)) {
+            TRACE("fgets() failed with error %d", errno);
+        }
 
-      return 0;
-   }
+        return 0;
+    }
 
-   /* Chop off trailing \n */
-   len = strlen (buffer);
+    /* Chop off trailing \n */
+    len = strlen(buffer);
 
-   if (len > 0 && buffer[len - 1] == '\n') {
-      buffer[len - 1] = '\0';
-      len--;
-   } else if (len == buffer_size - 1) {
-      /* We read buffer_size bytes without hitting a newline
-       * therefore the line is super long, so we say this file is invalid.
-       * This is important since if we are in this situation, the NEXT call to
-       * fgets() will keep reading where we left off.
-       *
-       * This protects us from files like:
-       * aaaaa...DISTRIB_ID=nasal demons
-       */
-      TRACE ("Found line of length %ld, bailing out", len);
-      return 0;
-   }
+    if (len > 0 && buffer[len - 1] == '\n') {
+        buffer[len - 1] = '\0';
+        len--;
+    } else if (len == buffer_size - 1) {
+        /* We read buffer_size bytes without hitting a newline
+         * therefore the line is super long, so we say this file is invalid.
+         * This is important since if we are in this situation, the NEXT call to
+         * fgets() will keep reading where we left off.
+         *
+         * This protects us from files like:
+         * aaaaa...DISTRIB_ID=nasal demons
+         */
+        TRACE("Found line of length %ld, bailing out", len);
+        return 0;
+    }
 
-   return len;
+    return len;
 }
 
-static void
-_process_line (const char *name_key,
-               size_t name_key_len,
-               char **name,
-               const char *version_key,
-               size_t version_key_len,
-               char **version,
-               const char *line,
-               size_t line_len)
-{
-   size_t key_len;
-   const char *equal_sign;
-   const char *value;
-   const char *needle = "=";
-   size_t value_len = 0;
+static void _process_line(const char *name_key,
+                          size_t name_key_len,
+                          char **name,
+                          const char *version_key,
+                          size_t version_key_len,
+                          char **version,
+                          const char *line,
+                          size_t line_len) {
+    size_t key_len;
+    const char *equal_sign;
+    const char *value;
+    const char *needle = "=";
+    size_t value_len = 0;
 
-   ENTRY;
+    ENTRY;
 
-   /* Figure out where = is. Everything before is the key,
-    * and everything after is the value */
-   equal_sign = strstr (line, needle);
+    /* Figure out where = is. Everything before is the key,
+     * and everything after is the value */
+    equal_sign = strstr(line, needle);
 
-   if (equal_sign == NULL) {
-      TRACE ("Encountered malformed line: %s", line);
-      /* This line is malformed/incomplete, so skip it */
-      EXIT;
-   }
+    if (equal_sign == NULL) {
+        TRACE("Encountered malformed line: %s", line);
+        /* This line is malformed/incomplete, so skip it */
+        EXIT;
+    }
 
-   /* Should never happen since we null terminated this line */
-   BSON_ASSERT (equal_sign < line + line_len);
+    /* Should never happen since we null terminated this line */
+    BSON_ASSERT(equal_sign < line + line_len);
 
-   key_len = equal_sign - line;
-   value = equal_sign + strlen (needle);
-   value_len = strlen (value);
-   if (value_len > 2 && value[0] == '"' && value[value_len - 1] == '"') {
-      value_len -= 2;
-      value++;
-   }
+    key_len = equal_sign - line;
+    value = equal_sign + strlen(needle);
+    value_len = strlen(value);
+    if (value_len > 2 && value[0] == '"' && value[value_len - 1] == '"') {
+        value_len -= 2;
+        value++;
+    }
 
-   /* If we find two copies of either key, the *name == NULL check will fail
-    * so we will just keep the first value encountered. */
-   if (name_key_len == key_len && strncmp (line, name_key, key_len) == 0 &&
-       !(*name)) {
-      *name = bson_strndup (value, value_len);
-      TRACE ("Found name: %s", *name);
-   } else if (version_key_len == key_len &&
-              strncmp (line, version_key, key_len) == 0 && !(*version)) {
-      *version = bson_strndup (value, value_len);
-      TRACE ("Found version: %s", *version);
-   }
+    /* If we find two copies of either key, the *name == NULL check will fail
+     * so we will just keep the first value encountered. */
+    if (name_key_len == key_len && strncmp(line, name_key, key_len) == 0 && !(*name)) {
+        *name = bson_strndup(value, value_len);
+        TRACE("Found name: %s", *name);
+    } else if (version_key_len == key_len && strncmp(line, version_key, key_len) == 0 && !(*version)) {
+        *version = bson_strndup(value, value_len);
+        TRACE("Found version: %s", *version);
+    }
 
-   EXIT;
+    EXIT;
 }
-
 
 /*
  * Parse a file of the form:
@@ -136,103 +129,91 @@ _process_line (const char *name_key,
  * their values into *name and *version.
  * The values in *name and *version must be freed with bson_free.
  */
-void
-_mongoc_linux_distro_scanner_read_key_value_file (const char *path,
-                                                  const char *name_key,
-                                                  ssize_t name_key_len,
-                                                  char **name,
-                                                  const char *version_key,
-                                                  ssize_t version_key_len,
-                                                  char **version)
-{
-   const int max_lines = 100;
-   int lines_read = 0;
-   char buffer[LINE_BUFFER_SIZE];
-   size_t buflen;
-   FILE *f;
+void _mongoc_linux_distro_scanner_read_key_value_file(const char *path,
+                                                      const char *name_key,
+                                                      ssize_t name_key_len,
+                                                      char **name,
+                                                      const char *version_key,
+                                                      ssize_t version_key_len,
+                                                      char **version) {
+    const int max_lines = 100;
+    int lines_read = 0;
+    char buffer[LINE_BUFFER_SIZE];
+    size_t buflen;
+    FILE *f;
 
-   ENTRY;
+    ENTRY;
 
-   *name = NULL;
-   *version = NULL;
+    *name = NULL;
+    *version = NULL;
 
-   if (name_key_len < 0) {
-      name_key_len = strlen (name_key);
-   }
+    if (name_key_len < 0) {
+        name_key_len = strlen(name_key);
+    }
 
-   if (version_key_len < 0) {
-      version_key_len = strlen (version_key);
-   }
+    if (version_key_len < 0) {
+        version_key_len = strlen(version_key);
+    }
 
-   if (access (path, R_OK)) {
-      TRACE ("No permission to read from %s: errno: %d", path, errno);
-      EXIT;
-   }
+    if (access(path, R_OK)) {
+        TRACE("No permission to read from %s: errno: %d", path, errno);
+        EXIT;
+    }
 
-   f = fopen (path, "r");
+    f = fopen(path, "r");
 
-   if (!f) {
-      TRACE ("fopen failed on %s: %d", path, errno);
-      EXIT;
-   }
+    if (!f) {
+        TRACE("fopen failed on %s: %d", path, errno);
+        EXIT;
+    }
 
-   while (lines_read < max_lines) {
-      buflen = _fgets_wrapper (buffer, sizeof (buffer), f);
+    while (lines_read < max_lines) {
+        buflen = _fgets_wrapper(buffer, sizeof(buffer), f);
 
-      if (buflen == 0) {
-         /* Error or eof */
-         break;
-      }
+        if (buflen == 0) {
+            /* Error or eof */
+            break;
+        }
 
-      _process_line (name_key,
-                     name_key_len,
-                     name,
-                     version_key,
-                     version_key_len,
-                     version,
-                     buffer,
-                     buflen);
+        _process_line(name_key, name_key_len, name, version_key, version_key_len, version, buffer, buflen);
 
-      if (*version && *name) {
-         /* No point in reading any more */
-         break;
-      }
+        if (*version && *name) {
+            /* No point in reading any more */
+            break;
+        }
 
-      lines_read++;
-   }
+        lines_read++;
+    }
 
-   fclose (f);
-   EXIT;
+    fclose(f);
+    EXIT;
 }
 
 /*
  * Find the first string in a list which is a valid file. Assumes
  * passed in list is NULL terminated!
  */
-const char *
-_get_first_existing (const char **paths)
-{
-   const char **p = &paths[0];
+const char *_get_first_existing(const char **paths) {
+    const char **p = &paths[0];
 
-   ENTRY;
+    ENTRY;
 
-   for (; *p != NULL; p++) {
-      if (access (*p, F_OK)) {
-         /* Just doesn't exist */
-         continue;
-      }
+    for (; *p != NULL; p++) {
+        if (access(*p, F_OK)) {
+            /* Just doesn't exist */
+            continue;
+        }
 
-      if (access (*p, R_OK)) {
-         TRACE ("file %s exists, but cannot be read: error %d", *p, errno);
-         continue;
-      }
+        if (access(*p, R_OK)) {
+            TRACE("file %s exists, but cannot be read: error %d", *p, errno);
+            continue;
+        }
 
-      RETURN (*p);
-   }
+        RETURN(*p);
+    }
 
-   RETURN (NULL);
+    RETURN(NULL);
 }
-
 
 /*
  * Given a line of text, split it by the word "release." For example:
@@ -242,103 +223,94 @@ _get_first_existing (const char **paths)
  * If the word "release" isn't found then we put the whole string into *name
  * (even if the string is empty).
  */
-void
-_mongoc_linux_distro_scanner_split_line_by_release (const char *line,
-                                                    ssize_t line_len,
-                                                    char **name,
-                                                    char **version)
-{
-   const char *needle_loc;
-   const char *const needle = " release ";
-   const char *version_string;
+void _mongoc_linux_distro_scanner_split_line_by_release(const char *line,
+                                                        ssize_t line_len,
+                                                        char **name,
+                                                        char **version) {
+    const char *needle_loc;
+    const char *const needle = " release ";
+    const char *version_string;
 
-   *name = NULL;
-   *version = NULL;
+    *name = NULL;
+    *version = NULL;
 
-   if (line_len < 0) {
-      line_len = strlen (line);
-   }
+    if (line_len < 0) {
+        line_len = strlen(line);
+    }
 
-   needle_loc = strstr (line, needle);
+    needle_loc = strstr(line, needle);
 
-   if (!needle_loc) {
-      *name = bson_strdup (line);
-      return;
-   } else if (needle_loc == line) {
-      /* The file starts with the word " release "
-       * This file is weird enough we will just abandon it. */
-      return;
-   }
+    if (!needle_loc) {
+        *name = bson_strdup(line);
+        return;
+    } else if (needle_loc == line) {
+        /* The file starts with the word " release "
+         * This file is weird enough we will just abandon it. */
+        return;
+    }
 
-   *name = bson_strndup (line, needle_loc - line);
+    *name = bson_strndup(line, needle_loc - line);
 
-   version_string = needle_loc + strlen (needle);
+    version_string = needle_loc + strlen(needle);
 
-   if (version_string == line + line_len) {
-      /* Weird. The file just ended with "release " */
-      return;
-   }
+    if (version_string == line + line_len) {
+        /* Weird. The file just ended with "release " */
+        return;
+    }
 
-   *version = bson_strdup (version_string);
+    *version = bson_strdup(version_string);
 }
 
 /*
  * Search for a *-release file, and read its contents.
  */
-void
-_mongoc_linux_distro_scanner_read_generic_release_file (const char **paths,
-                                                        char **name,
-                                                        char **version)
-{
-   const char *path;
-   size_t buflen;
-   char buffer[LINE_BUFFER_SIZE];
-   FILE *f;
+void _mongoc_linux_distro_scanner_read_generic_release_file(const char **paths, char **name, char **version) {
+    const char *path;
+    size_t buflen;
+    char buffer[LINE_BUFFER_SIZE];
+    FILE *f;
 
-   ENTRY;
+    ENTRY;
 
-   *name = NULL;
-   *version = NULL;
+    *name = NULL;
+    *version = NULL;
 
-   path = _get_first_existing (paths);
+    path = _get_first_existing(paths);
 
-   if (!path) {
-      EXIT;
-   }
+    if (!path) {
+        EXIT;
+    }
 
-   f = fopen (path, "r");
+    f = fopen(path, "r");
 
-   if (!f) {
-      TRACE ("Found %s exists and readable but couldn't open: %d", path, errno);
-      EXIT;
-   }
+    if (!f) {
+        TRACE("Found %s exists and readable but couldn't open: %d", path, errno);
+        EXIT;
+    }
 
-   /* Read the first line of the file, look for the word "release" */
-   buflen = _fgets_wrapper (buffer, sizeof (buffer), f);
+    /* Read the first line of the file, look for the word "release" */
+    buflen = _fgets_wrapper(buffer, sizeof(buffer), f);
 
-   if (buflen > 0) {
-      TRACE ("Trying to split buffer with contents %s", buffer);
-      /* Try splitting the string. If we can't it'll store everything in
-       * *name. */
-      _mongoc_linux_distro_scanner_split_line_by_release (
-         buffer, buflen, name, version);
-   }
+    if (buflen > 0) {
+        TRACE("Trying to split buffer with contents %s", buffer);
+        /* Try splitting the string. If we can't it'll store everything in
+         * *name. */
+        _mongoc_linux_distro_scanner_split_line_by_release(buffer, buflen, name, version);
+    }
 
-   fclose (f);
+    fclose(f);
 
-   EXIT;
+    EXIT;
 }
 
-static void
-_get_kernel_version_from_uname (char **version)
-{
-   struct utsname system_info;
+static void _get_kernel_version_from_uname(char **version) {
+    struct utsname system_info;
 
-   if (uname (&system_info) >= 0) {
-      *version = bson_strdup_printf ("kernel %s", system_info.release);
-   } else {
-      *version = NULL;
-   }
+    if (uname(&system_info) >= 0) {
+        *version = bson_strdup_printf("kernel %s", system_info.release);
+    } else {
+        *version = NULL;
+    }
 }
 
 /*
@@ -346,59 +318,51 @@ _get_kernel_version_from_uname (char **version)
  * and new_version if it's not already set. Values of new_name and new_version
  * should not be used after this call.
  */
-static bool
-_set_name_and_version_if_needed (char **name,
-                                 char **version,
-                                 char *new_name,
-                                 char *new_version)
-{
-   if (new_name && !(*name)) {
-      *name = new_name;
-   } else {
-      bson_free (new_name);
-   }
+static bool _set_name_and_version_if_needed(char **name, char **version, char *new_name, char *new_version) {
+    if (new_name && !(*name)) {
+        *name = new_name;
+    } else {
+        bson_free(new_name);
+    }
 
-   if (new_version && !(*version)) {
-      *version = new_version;
-   } else {
-      bson_free (new_version);
-   }
+    if (new_version && !(*version)) {
+        *version = new_version;
+    } else {
+        bson_free(new_version);
+    }
 
-   return (*name) && (*version);
+    return (*name) && (*version);
 }
 
-bool
-_mongoc_linux_distro_scanner_get_distro (char **name, char **version)
-{
-   /* In case we decide to try looking up name/version again */
-   char *new_name;
-   char *new_version;
-   const char *generic_release_paths[] = {
-      "/etc/redhat-release",
-      "/etc/novell-release",
-      "/etc/gentoo-release",
-      "/etc/SuSE-release",
-      "/etc/SUSE-release",
-      "/etc/sles-release",
-      "/etc/debian_release",
-      "/etc/slackware-version",
-      "/etc/centos-release",
-      NULL,
-   };
+bool _mongoc_linux_distro_scanner_get_distro(char **name, char **version) {
+    /* In case we decide to try looking up name/version again */
+    char *new_name;
+    char *new_version;
+    const char *generic_release_paths[] = {
+        "/etc/redhat-release",
+        "/etc/novell-release",
+        "/etc/gentoo-release",
+        "/etc/SuSE-release",
+        "/etc/SUSE-release",
+        "/etc/sles-release",
+        "/etc/debian_release",
+        "/etc/slackware-version",
+        "/etc/centos-release",
+        NULL,
+    };
 
-   ENTRY;
+    ENTRY;
 
-   *name = NULL;
-   *version = NULL;
+    *name = NULL;
+    *version = NULL;
 
-   _mongoc_linux_distro_scanner_read_key_value_file (
-      "/etc/os-release", "NAME", -1, name, "VERSION_ID", -1, version);
+    _mongoc_linux_distro_scanner_read_key_value_file("/etc/os-release", "NAME", -1, name, "VERSION_ID", -1, version);
 
-   if (*name && *version) {
-      RETURN (true);
-   }
+    if (*name && *version) {
+        RETURN(true);
+    }
 
-   _mongoc_linux_distro_scanner_read_key_value_file ("/etc/lsb-release",
+    _mongoc_linux_distro_scanner_read_key_value_file("/etc/lsb-release",
                                                      "DISTRIB_ID",
                                                      -1,
                                                      &new_name,
@@ -406,33 +370,32 @@ _mongoc_linux_distro_scanner_get_distro (char **name, char **version)
                                                      -1,
                                                      &new_version);
 
-   if (_set_name_and_version_if_needed (name, version, new_name, new_version)) {
-      RETURN (true);
-   }
+    if (_set_name_and_version_if_needed(name, version, new_name, new_version)) {
+        RETURN(true);
+    }
 
-   /* Try to read from a generic release file */
-   _mongoc_linux_distro_scanner_read_generic_release_file (
-      generic_release_paths, &new_name, &new_version);
+    /* Try to read from a generic release file */
+    _mongoc_linux_distro_scanner_read_generic_release_file(generic_release_paths, &new_name, &new_version);
 
-   if (_set_name_and_version_if_needed (name, version, new_name, new_version)) {
-      RETURN (true);
-   }
+    if (_set_name_and_version_if_needed(name, version, new_name, new_version)) {
+        RETURN(true);
+    }
 
-   if (*version == NULL) {
-      _get_kernel_version_from_uname (version);
-   }
+    if (*version == NULL) {
+        _get_kernel_version_from_uname(version);
+    }
 
-   if (*name && *version) {
-      RETURN (true);
-   }
+    if (*name && *version) {
+        RETURN(true);
+    }
 
-   bson_free (*name);
-   bson_free (*version);
+    bson_free(*name);
+    bson_free(*version);
 
-   *name = NULL;
-   *version = NULL;
+    *name = NULL;
+    *version = NULL;
 
-   RETURN (false);
+    RETURN(false);
 }
 
 #else

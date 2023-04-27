@@ -21,34 +21,27 @@
 #include <stdlib.h>
 
 typedef struct {
-   bool (*sha256) (void *ctx,
-                   const char *input,
-                   size_t len,
-                   unsigned char *hash_out);
-   bool (*sha256_hmac) (void *ctx,
+    bool (*sha256)(void *ctx, const char *input, size_t len, unsigned char *hash_out);
+    bool (*sha256_hmac)(void *ctx,
                         const char *key_input,
                         size_t key_len,
                         const char *input,
                         size_t len,
                         unsigned char *hash_out);
-   void *ctx;
+    void *ctx;
 } _kms_crypto_t;
 
-int
-kms_crypto_init (void);
+int kms_crypto_init(void);
 
-void
-kms_crypto_cleanup (void);
+void kms_crypto_cleanup(void);
 
-bool
-kms_sha256 (void *ctx, const char *input, size_t len, unsigned char *hash_out);
+bool kms_sha256(void *ctx, const char *input, size_t len, unsigned char *hash_out);
 
-bool
-kms_sha256_hmac (void *ctx,
-                 const char *key_input,
-                 size_t key_len,
-                 const char *input,
-                 size_t len,
-                 unsigned char *hash_out);
+bool kms_sha256_hmac(void *ctx,
+                     const char *key_input,
+                     size_t key_len,
+                     const char *input,
+                     size_t len,
+                     unsigned char *hash_out);
 
 #endif /* KMS_MESSAGE_KMS_CRYPTO_H */

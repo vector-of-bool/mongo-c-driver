@@ -25,18 +25,11 @@
 #include "mongoc-stream-tls-libressl-private.h"
 #include <tls.h>
 
-
 BSON_BEGIN_DECLS
 
-
-bool
-mongoc_libressl_setup_ca (mongoc_stream_tls_libressl_t *libressl,
-                          mongoc_ssl_opt_t *opt);
-bool
-mongoc_libressl_setup_certificate (mongoc_stream_tls_libressl_t *libressl,
-                                   mongoc_ssl_opt_t *opt);
+bool mongoc_libressl_setup_ca(mongoc_stream_tls_libressl_t *libressl, mongoc_ssl_opt_t *opt);
+bool mongoc_libressl_setup_certificate(mongoc_stream_tls_libressl_t *libressl, mongoc_ssl_opt_t *opt);
 
 BSON_END_DECLS
-
 
 #endif /* MONGOC_LIBRESSL_PRIVATE_H */

@@ -14,12 +14,10 @@
  * limitations under the License.
  */
 
-
 /*
  * This program will print each BSON document contained in the provided files
  * as a JSON string to STDOUT.
  */
-
 
 #include <bson/bson.h>
 #include <stdio.h>
@@ -28,54 +26,51 @@
 #define STDIN_FILENO 0
 #endif
 
-int
-main (int argc, char *argv[])
-{
-   bson_reader_t *reader;
-   const bson_t *b;
-   bson_error_t error;
-   const char *filename;
-   char *str;
-   int i;
+int main(int argc, char *argv[]) {
+    bson_reader_t *reader;
+    const bson_t *b;
+    bson_error_t error;
+    const char *filename;
+    char *str;
+    int i;
 
-   /*
-    * Print program usage if no arguments are provided.
-    */
-   if (argc == 1) {
-      fprintf (stderr, "usage: %s [FILE | -]...\nUse - for STDIN.\n", argv[0]);
-      return 1;
-   }
+    /*
+     * Print program usage if no arguments are provided.
+     */
+    if (argc == 1) {
+        fprintf(stderr, "usage: %s [FILE | -]...\nUse - for STDIN.\n", argv[0]);
+        return 1;
+    }
 
-   /*
-    * Process command line arguments expecting each to be a filename.
-    */
-   for (i = 1; i < argc; i++) {
-      filename = argv[i];
+    /*
+     * Process command line arguments expecting each to be a filename.
+     */
+    for (i = 1; i < argc; i++) {
+        filename = argv[i];
 
-      if (strcmp (filename, "-") == 0) {
-         reader = bson_reader_new_from_fd (STDIN_FILENO, false);
-      } else {
-         if (!(reader = bson_reader_new_from_file (filename, &error))) {
-            fprintf (
-               stderr, "Failed to open \"%s\": %s\n", filename, error.message);
-            continue;
-         }
-      }
+        if (strcmp(filename, "-") == 0) {
+            reader = bson_reader_new_from_fd(STDIN_FILENO, false);
+        } else {
+            if (!(reader = bson_reader_new_from_file(filename, &error))) {
+                fprintf(stderr, "Failed to open \"%s\": %s\n", filename, error.message);
+                continue;
+            }
+        }
 
-      /*
-       * Convert each incoming document to JSON and print to stdout.
-       */
-      while ((b = bson_reader_read (reader, NULL))) {
-         str = bson_as_canonical_extended_json (b, NULL);
-         fprintf (stdout, "%s\n", str);
-         bson_free (str);
-      }
+        /*
+         * Convert each incoming document to JSON and print to stdout.
+         */
+        while ((b = bson_reader_read(reader, NULL))) {
+            str = bson_as_canonical_extended_json(b, NULL);
+            fprintf(stdout, "%s\n", str);
+            bson_free(str);
+        }
 
-      /*
-       * Cleanup after our reader, which closes the file descriptor.
-       */
-      bson_reader_destroy (reader);
-   }
+        /*
+         * Cleanup after our reader, which closes the file descriptor.
+         */
+        bson_reader_destroy(reader);
+    }
 
-   return 0;
+    return 0;
 }

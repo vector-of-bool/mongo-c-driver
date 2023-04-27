@@ -47,7 +47,6 @@
   1999-05-03 lpd Original version.
  */
 
-
 /*
  * The following MD5 implementation has been modified to use types as
  * specified in libbson.
@@ -55,35 +54,26 @@
 
 #include "bson-prelude.h"
 
-
 #ifndef BSON_MD5_H
 #define BSON_MD5_H
 
-
 #include "bson-endian.h"
-
 
 BSON_BEGIN_DECLS
 
-
 typedef struct {
-   uint32_t count[2]; /* message length in bits, lsw first */
-   uint32_t abcd[4];  /* digest buffer */
-   uint8_t buf[64];   /* accumulate block */
+    uint32_t count[2]; /* message length in bits, lsw first */
+    uint32_t abcd[4];  /* digest buffer */
+    uint8_t buf[64];   /* accumulate block */
 } bson_md5_t;
 
-
-BSON_EXPORT (void)
-bson_md5_init (bson_md5_t *pms) BSON_GNUC_DEPRECATED;
-BSON_EXPORT (void)
-bson_md5_append (bson_md5_t *pms,
-                 const uint8_t *data,
-                 uint32_t nbytes) BSON_GNUC_DEPRECATED;
-BSON_EXPORT (void)
-bson_md5_finish (bson_md5_t *pms, uint8_t digest[16]) BSON_GNUC_DEPRECATED;
-
+BSON_EXPORT(void)
+bson_md5_init(bson_md5_t *pms) BSON_GNUC_DEPRECATED;
+BSON_EXPORT(void)
+bson_md5_append(bson_md5_t *pms, const uint8_t *data, uint32_t nbytes) BSON_GNUC_DEPRECATED;
+BSON_EXPORT(void)
+bson_md5_finish(bson_md5_t *pms, uint8_t digest[16]) BSON_GNUC_DEPRECATED;
 
 BSON_END_DECLS
-
 
 #endif /* BSON_MD5_H */

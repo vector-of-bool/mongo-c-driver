@@ -28,51 +28,44 @@
 
 /* cse is an abbreviation for "Client Side Encryption" */
 
-bool
-_mongoc_cse_auto_encrypt (mongoc_client_t *client,
-                          const mongoc_cmd_t *cmd,
-                          mongoc_cmd_t *encrypted_cmd,
-                          bson_t *encrypted,
-                          bson_error_t *error);
+bool _mongoc_cse_auto_encrypt(mongoc_client_t *client,
+                              const mongoc_cmd_t *cmd,
+                              mongoc_cmd_t *encrypted_cmd,
+                              bson_t *encrypted,
+                              bson_error_t *error);
 
-bool
-_mongoc_cse_auto_decrypt (mongoc_client_t *client,
-                          const char *db_name,
-                          const bson_t *reply,
-                          bson_t *decrypted,
-                          bson_error_t *error);
+bool _mongoc_cse_auto_decrypt(mongoc_client_t *client,
+                              const char *db_name,
+                              const bson_t *reply,
+                              bson_t *decrypted,
+                              bson_error_t *error);
 
-bool
-_mongoc_cse_client_enable_auto_encryption (
-   mongoc_client_t *client,
-   mongoc_auto_encryption_opts_t *opts /* may be NULL */,
-   bson_error_t *error);
+bool _mongoc_cse_client_enable_auto_encryption(mongoc_client_t *client,
+                                               mongoc_auto_encryption_opts_t *opts /* may be NULL */,
+                                               bson_error_t *error);
 
-bool
-_mongoc_cse_client_pool_enable_auto_encryption (
-   mongoc_topology_t *topology,
-   mongoc_auto_encryption_opts_t *opts /* may be NULL */,
-   bson_error_t *error);
+bool _mongoc_cse_client_pool_enable_auto_encryption(mongoc_topology_t *topology,
+                                                    mongoc_auto_encryption_opts_t *opts /* may be NULL */,
+                                                    bson_error_t *error);
 
 /* If this returns true, client side encryption is enabled
  * on the client (or it's parent client pool), and cannot
  * be disabled. This check is done while holding the
  * topology lock. So if this returns true, callers are
  * guaranteed that CSE remains enabled afterwards. */
-bool
-_mongoc_cse_is_enabled (mongoc_client_t *client);
+bool _mongoc_cse_is_enabled(mongoc_client_t *client);
 
 /**
  * @brief The context for the automatic creation of a datakey
  */
 struct auto_datakey_context {
-   /// The output destination for the new key ID. Never NULL.
-   bson_value_t *out_keyid;
-   /// An error output destination for the key generation. May be NULL.
-   bson_error_t *out_error;
-   /// The userdata pointer given to @ref
-   /// _mongoc_encryptedFields_fill_auto_datakeys
-   void *userdata;
+    /// The output destination for the new key ID. Never NULL.
+    bson_value_t *out_keyid;
+    /// An error output destination for the key generation. May be NULL.
+    bson_error_t *out_error;
+    /// The userdata pointer given to @ref
+    /// _mongoc_encryptedFields_fill_auto_datakeys
+    void *userdata;
 };
 
 /**
@@ -84,7 +77,7 @@ struct auto_datakey_context {
  *
  * @note Errors should be written into `ctx->out_error`.
  */
-typedef bool (*auto_datakey_factory) (struct auto_datakey_context *ctx);
+typedef bool (*auto_datakey_factory)(struct auto_datakey_context *ctx);
 
 /**
  * @brief Process an array of encryptedFields.fields, automatically filling null
@@ -99,11 +92,10 @@ typedef bool (*auto_datakey_factory) (struct auto_datakey_context *ctx);
  * @retval true On success
  * @retval false Otherwise
  */
-bool
-_mongoc_encryptedFields_fill_auto_datakeys (bson_t *out_fields,
-                                            const bson_t *in_fields,
-                                            auto_datakey_factory factory,
-                                            void *userdata,
-                                            bson_error_t *error);
+bool _mongoc_encryptedFields_fill_auto_datakeys(bson_t *out_fields,
+                                                const bson_t *in_fields,
+                                                auto_datakey_factory factory,
+                                                void *userdata,
+                                                bson_error_t *error);
 
 #endif /* MONGOC_CLIENT_SIDE_ENCRYPTION_PRIVATE_H */

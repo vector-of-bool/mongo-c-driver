@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 #include <stdio.h>
 #include <stdarg.h>
 
@@ -24,7 +23,6 @@
 #include "bson-memory.h"
 #include "bson-string.h"
 #include "bson-types.h"
-
 
 /*
  *--------------------------------------------------------------------------
@@ -57,27 +55,25 @@
  *--------------------------------------------------------------------------
  */
 
-void
-bson_set_error (bson_error_t *error, /* OUT */
-                uint32_t domain,     /* IN */
-                uint32_t code,       /* IN */
-                const char *format,  /* IN */
-                ...)                 /* IN */
+void bson_set_error(bson_error_t *error, /* OUT */
+                    uint32_t domain,     /* IN */
+                    uint32_t code,       /* IN */
+                    const char *format,  /* IN */
+                    ...)                 /* IN */
 {
-   va_list args;
+    va_list args;
 
-   if (error) {
-      error->domain = domain;
-      error->code = code;
+    if (error) {
+        error->domain = domain;
+        error->code = code;
 
-      va_start (args, format);
-      bson_vsnprintf (error->message, sizeof error->message, format, args);
-      va_end (args);
+        va_start(args, format);
+        bson_vsnprintf(error->message, sizeof error->message, format, args);
+        va_end(args);
 
-      error->message[sizeof error->message - 1] = '\0';
-   }
+        error->message[sizeof error->message - 1] = '\0';
+    }
 }
-
 
 /*
  *--------------------------------------------------------------------------
@@ -97,30 +93,29 @@ bson_set_error (bson_error_t *error, /* OUT */
  *--------------------------------------------------------------------------
  */
 
-char *
-bson_strerror_r (int err_code,  /* IN */
-                 char *buf,     /* IN */
-                 size_t buflen) /* IN */
+char *bson_strerror_r(int err_code,  /* IN */
+                      char *buf,     /* IN */
+                      size_t buflen) /* IN */
 {
-   static const char *unknown_msg = "Unknown error";
-   char *ret = NULL;
+    static const char *unknown_msg = "Unknown error";
+    char *ret = NULL;
 
 #if defined(_WIN32)
-   if (strerror_s (buf, buflen, err_code) != 0) {
-      ret = buf;
-   }
+    if (strerror_s(buf, buflen, err_code) != 0) {
+        ret = buf;
+    }
 #elif defined(__GNUC__) && defined(_GNU_SOURCE)
-   ret = strerror_r (err_code, buf, buflen);
+    ret = strerror_r(err_code, buf, buflen);
 #else /* XSI strerror_r */
-   if (strerror_r (err_code, buf, buflen) == 0) {
-      ret = buf;
-   }
+    if (strerror_r(err_code, buf, buflen) == 0) {
+        ret = buf;
+    }
 #endif
 
-   if (!ret) {
-      bson_strncpy (buf, unknown_msg, buflen);
-      ret = buf;
-   }
+    if (!ret) {
+        bson_strncpy(buf, unknown_msg, buflen);
+        ret = buf;
+    }
 
-   return ret;
+    return ret;
 }

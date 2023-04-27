@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-
 #ifndef MONGOC_H
 #define MONGOC_H
-
 
 #include <bson/bson.h>
 
@@ -64,6 +62,5 @@
 #include "mongoc-ssl.h"
 #endif
 #undef MONGOC_INSIDE
-
 
 #endif /* MONGOC_H */

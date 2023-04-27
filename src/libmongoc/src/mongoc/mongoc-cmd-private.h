@@ -16,7 +16,6 @@
 
 #include "mongoc-prelude.h"
 
-
 /*
  * Internal struct to represent a command we will send to the server - command
  * parameters are collected in a mongoc_cmd_parts_t until we know the server's
@@ -46,111 +45,89 @@ BSON_BEGIN_DECLS
 #endif
 
 typedef enum {
-   MONGOC_CMD_PARTS_ALLOW_TXN_NUMBER_UNKNOWN,
-   MONGOC_CMD_PARTS_ALLOW_TXN_NUMBER_YES,
-   MONGOC_CMD_PARTS_ALLOW_TXN_NUMBER_NO
+    MONGOC_CMD_PARTS_ALLOW_TXN_NUMBER_UNKNOWN,
+    MONGOC_CMD_PARTS_ALLOW_TXN_NUMBER_YES,
+    MONGOC_CMD_PARTS_ALLOW_TXN_NUMBER_NO
 } mongoc_cmd_parts_allow_txn_number_t;
 
 typedef struct _mongoc_cmd_t {
-   const char *db_name;
-   mongoc_query_flags_t query_flags;
-   const bson_t *command;
-   const char *command_name;
-   const uint8_t *payload;
-   int32_t payload_size;
-   const char *payload_identifier;
-   mongoc_server_stream_t *server_stream;
-   int64_t operation_id;
-   mongoc_client_session_t *session;
-   mongoc_server_api_t *api;
-   bool is_acknowledged;
-   bool is_txn_finish;
+    const char *db_name;
+    mongoc_query_flags_t query_flags;
+    const bson_t *command;
+    const char *command_name;
+    const uint8_t *payload;
+    int32_t payload_size;
+    const char *payload_identifier;
+    mongoc_server_stream_t *server_stream;
+    int64_t operation_id;
+    mongoc_client_session_t *session;
+    mongoc_server_api_t *api;
+    bool is_acknowledged;
+    bool is_txn_finish;
 } mongoc_cmd_t;
 
-
 typedef struct _mongoc_cmd_parts_t {
-   mongoc_cmd_t assembled;
-   mongoc_query_flags_t user_query_flags;
-   const bson_t *body;
-   bson_t read_concern_document;
-   bson_t write_concern_document;
-   bson_t extra;
-   const mongoc_read_prefs_t *read_prefs;
-   bson_t assembled_body;
-   bool is_read_command;
-   bool is_write_command;
-   bool prohibit_lsid;
-   mongoc_cmd_parts_allow_txn_number_t allow_txn_number;
-   bool is_retryable_read;
-   bool is_retryable_write;
-   bool has_temp_session;
-   mongoc_client_t *client;
-   mongoc_server_api_t *api;
+    mongoc_cmd_t assembled;
+    mongoc_query_flags_t user_query_flags;
+    const bson_t *body;
+    bson_t read_concern_document;
+    bson_t write_concern_document;
+    bson_t extra;
+    const mongoc_read_prefs_t *read_prefs;
+    bson_t assembled_body;
+    bool is_read_command;
+    bool is_write_command;
+    bool prohibit_lsid;
+    mongoc_cmd_parts_allow_txn_number_t allow_txn_number;
+    bool is_retryable_read;
+    bool is_retryable_write;
+    bool has_temp_session;
+    mongoc_client_t *client;
+    mongoc_server_api_t *api;
 } mongoc_cmd_parts_t;
 
+void mongoc_cmd_parts_init(mongoc_cmd_parts_t *op,
+                           mongoc_client_t *client,
+                           const char *db_name,
+                           mongoc_query_flags_t user_query_flags,
+                           const bson_t *command_body);
 
-void
-mongoc_cmd_parts_init (mongoc_cmd_parts_t *op,
-                       mongoc_client_t *client,
-                       const char *db_name,
-                       mongoc_query_flags_t user_query_flags,
-                       const bson_t *command_body);
+void mongoc_cmd_parts_set_session(mongoc_cmd_parts_t *parts, mongoc_client_session_t *cs);
 
-void
-mongoc_cmd_parts_set_session (mongoc_cmd_parts_t *parts,
-                              mongoc_client_session_t *cs);
+void mongoc_cmd_parts_set_server_api(mongoc_cmd_parts_t *parts, mongoc_server_api_t *api);
 
-void
-mongoc_cmd_parts_set_server_api (mongoc_cmd_parts_t *parts,
-                                 mongoc_server_api_t *api);
+bool mongoc_cmd_parts_append_opts(mongoc_cmd_parts_t *parts,
+                                  bson_iter_t *iter,
+                                  int max_wire_version,
+                                  bson_error_t *error);
 
-bool
-mongoc_cmd_parts_append_opts (mongoc_cmd_parts_t *parts,
-                              bson_iter_t *iter,
-                              int max_wire_version,
-                              bson_error_t *error);
+bool mongoc_cmd_parts_set_read_concern(mongoc_cmd_parts_t *parts,
+                                       const mongoc_read_concern_t *rc,
+                                       int max_wire_version,
+                                       bson_error_t *error);
 
-bool
-mongoc_cmd_parts_set_read_concern (mongoc_cmd_parts_t *parts,
-                                   const mongoc_read_concern_t *rc,
-                                   int max_wire_version,
-                                   bson_error_t *error);
+bool mongoc_cmd_parts_set_write_concern(mongoc_cmd_parts_t *parts,
+                                        const mongoc_write_concern_t *wc,
+                                        int max_wire_version,
+                                        bson_error_t *error);
 
-bool
-mongoc_cmd_parts_set_write_concern (mongoc_cmd_parts_t *parts,
-                                    const mongoc_write_concern_t *wc,
-                                    int max_wire_version,
-                                    bson_error_t *error);
+bool mongoc_cmd_parts_append_read_write(mongoc_cmd_parts_t *parts,
+                                        mongoc_read_write_opts_t *rw_opts,
+                                        int max_wire_version,
+                                        bson_error_t *error);
 
-bool
-mongoc_cmd_parts_append_read_write (mongoc_cmd_parts_t *parts,
-                                    mongoc_read_write_opts_t *rw_opts,
-                                    int max_wire_version,
-                                    bson_error_t *error);
+bool mongoc_cmd_parts_assemble(mongoc_cmd_parts_t *parts, mongoc_server_stream_t *server_stream, bson_error_t *error);
 
-bool
-mongoc_cmd_parts_assemble (mongoc_cmd_parts_t *parts,
-                           mongoc_server_stream_t *server_stream,
-                           bson_error_t *error);
+bool mongoc_cmd_is_compressible(mongoc_cmd_t *cmd);
 
-bool
-mongoc_cmd_is_compressible (mongoc_cmd_t *cmd);
+void mongoc_cmd_parts_cleanup(mongoc_cmd_parts_t *op);
 
-void
-mongoc_cmd_parts_cleanup (mongoc_cmd_parts_t *op);
+bool _is_retryable_read(const mongoc_cmd_parts_t *parts, const mongoc_server_stream_t *server_stream);
 
-bool
-_is_retryable_read (const mongoc_cmd_parts_t *parts,
-                    const mongoc_server_stream_t *server_stream);
+void _mongoc_cmd_append_payload_as_array(const mongoc_cmd_t *cmd, bson_t *out);
 
-void
-_mongoc_cmd_append_payload_as_array (const mongoc_cmd_t *cmd, bson_t *out);
-
-void
-_mongoc_cmd_append_server_api (bson_t *command_body,
-                               const mongoc_server_api_t *api);
+void _mongoc_cmd_append_server_api(bson_t *command_body, const mongoc_server_api_t *api);
 
 BSON_END_DECLS
-
 
 #endif /* MONGOC_CMD_PRIVATE_H */

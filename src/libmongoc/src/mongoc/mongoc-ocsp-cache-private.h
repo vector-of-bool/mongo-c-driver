@@ -26,28 +26,23 @@
 #ifdef MONGOC_ENABLE_OCSP_OPENSSL
 #include <openssl/ocsp.h>
 
-void
-_mongoc_ocsp_cache_init (void);
+void _mongoc_ocsp_cache_init(void);
 
-void
-_mongoc_ocsp_cache_set_resp (OCSP_CERTID *id,
-                             int cert_status,
-                             int reason,
-                             ASN1_GENERALIZEDTIME *this_update,
-                             ASN1_GENERALIZEDTIME *next_update);
+void _mongoc_ocsp_cache_set_resp(OCSP_CERTID *id,
+                                 int cert_status,
+                                 int reason,
+                                 ASN1_GENERALIZEDTIME *this_update,
+                                 ASN1_GENERALIZEDTIME *next_update);
 
-int
-_mongoc_ocsp_cache_length (void);
+int _mongoc_ocsp_cache_length(void);
 
-bool
-_mongoc_ocsp_cache_get_status (OCSP_CERTID *id,
-                               int *cert_status,
-                               int *reason,
-                               ASN1_GENERALIZEDTIME **this_update,
-                               ASN1_GENERALIZEDTIME **next_update);
+bool _mongoc_ocsp_cache_get_status(OCSP_CERTID *id,
+                                   int *cert_status,
+                                   int *reason,
+                                   ASN1_GENERALIZEDTIME **this_update,
+                                   ASN1_GENERALIZEDTIME **next_update);
 
-void
-_mongoc_ocsp_cache_cleanup (void);
+void _mongoc_ocsp_cache_cleanup(void);
 
 #endif /* MONGOC_ENABLE_OCSP_OPENSSL */
 #endif /* MONGOC_ENABLE_SSL_OPENSSL */

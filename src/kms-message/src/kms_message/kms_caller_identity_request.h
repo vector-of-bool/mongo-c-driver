@@ -23,12 +23,11 @@
 extern "C" {
 #endif
 
-KMS_MSG_EXPORT (kms_request_t *)
-kms_caller_identity_request_new (const kms_request_opt_t *opt);
+KMS_MSG_EXPORT(kms_request_t *)
+kms_caller_identity_request_new(const kms_request_opt_t *opt);
 
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
-
 
 #endif /* KMS_CALLER_IDENTITY_REQUEST_H */

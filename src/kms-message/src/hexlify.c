@@ -20,20 +20,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-char *
-hexlify (const uint8_t *buf, size_t len)
-{
-   char *hex_chars = malloc (len * 2 + 1);
-   KMS_ASSERT (hex_chars);
+char *hexlify(const uint8_t *buf, size_t len) {
+    char *hex_chars = malloc(len * 2 + 1);
+    KMS_ASSERT(hex_chars);
 
-   char *p = hex_chars;
-   size_t i;
+    char *p = hex_chars;
+    size_t i;
 
-   for (i = 0; i < len; i++) {
-      p += sprintf (p, "%02x", buf[i]);
-   }
+    for (i = 0; i < len; i++) {
+        p += sprintf(p, "%02x", buf[i]);
+    }
 
-   *p = '\0';
+    *p = '\0';
 
-   return hex_chars;
+    return hex_chars;
 }

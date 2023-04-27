@@ -26,18 +26,16 @@
 
 BSON_BEGIN_DECLS
 
-
 /**
  * mongoc_stream_tls_secure_transport_t:
  *
  * Private storage for Secure Transport Streams
  */
 typedef struct {
-   SSLContextRef ssl_ctx_ref;
-   CFArrayRef anchors;
-   CFMutableArrayRef my_cert;
+    SSLContextRef ssl_ctx_ref;
+    CFArrayRef anchors;
+    CFMutableArrayRef my_cert;
 } mongoc_stream_tls_secure_transport_t;
-
 
 BSON_END_DECLS
 

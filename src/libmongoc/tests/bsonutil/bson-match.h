@@ -21,24 +21,19 @@
 
 /* Matches bson values in accordance with the unified test format's "Evaluating
  * Matches" rules. */
-bool
-bson_match (const bson_val_t *expected,
-            const bson_val_t *actual,
-            bool array_of_root_docs,
-            bson_error_t *error);
+bool bson_match(const bson_val_t *expected, const bson_val_t *actual, bool array_of_root_docs, bson_error_t *error);
 
 /* A bson_matcher_t may be used to extend the default matching behavior. */
 typedef struct _bson_matcher_t bson_matcher_t;
 
-bson_matcher_t *
-bson_matcher_new (void);
+bson_matcher_t *bson_matcher_new(void);
 
-typedef bool (*special_fn) (bson_matcher_t *matcher,
-                            const bson_t *assertion,
-                            const bson_val_t *actual,
-                            void *ctx,
-                            const char *path,
-                            bson_error_t *error);
+typedef bool (*special_fn)(bson_matcher_t *matcher,
+                           const bson_t *assertion,
+                           const bson_val_t *actual,
+                           void *ctx,
+                           const char *path,
+                           bson_error_t *error);
 
 /* Adds a handler function for matching a special $$ operator.
  *
@@ -47,21 +42,15 @@ typedef bool (*special_fn) (bson_matcher_t *matcher,
  * This would call custom_matcher whenever a "$$custom" key is encountered in an
  * expectation.
  */
-void
-bson_matcher_add_special (bson_matcher_t *matcher,
-                          const char *keyword,
-                          special_fn special,
-                          void *ctx);
+void bson_matcher_add_special(bson_matcher_t *matcher, const char *keyword, special_fn special, void *ctx);
 
-bool
-bson_matcher_match (bson_matcher_t *matcher,
-                    const bson_val_t *expected,
-                    const bson_val_t *actual,
-                    const char *path,
-                    bool array_of_root_docs,
-                    bson_error_t *error);
+bool bson_matcher_match(bson_matcher_t *matcher,
+                        const bson_val_t *expected,
+                        const bson_val_t *actual,
+                        const char *path,
+                        bool array_of_root_docs,
+                        bson_error_t *error);
 
-void
-bson_matcher_destroy (bson_matcher_t *matcher);
+void bson_matcher_destroy(bson_matcher_t *matcher);
 
 #endif /* BSONUTIL_BSON_MATCH_H */

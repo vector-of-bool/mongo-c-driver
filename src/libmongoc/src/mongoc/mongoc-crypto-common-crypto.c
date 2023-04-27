@@ -21,58 +21,43 @@
 #include <CommonCrypto/CommonHMAC.h>
 #include <CommonCrypto/CommonDigest.h>
 
-
-void
-mongoc_crypto_common_crypto_hmac_sha1 (mongoc_crypto_t *crypto,
-                                       const void *key,
-                                       int key_len,
-                                       const unsigned char *data,
-                                       int data_len,
-                                       unsigned char *hmac_out)
-{
-   /* U1 = HMAC(input, salt + 0001) */
-   CCHmac (
-      kCCHmacAlgSHA1, key, (size_t) key_len, data, (size_t) data_len, hmac_out);
+void mongoc_crypto_common_crypto_hmac_sha1(mongoc_crypto_t *crypto,
+                                           const void *key,
+                                           int key_len,
+                                           const unsigned char *data,
+                                           int data_len,
+                                           unsigned char *hmac_out) {
+    /* U1 = HMAC(input, salt + 0001) */
+    CCHmac(kCCHmacAlgSHA1, key, (size_t)key_len, data, (size_t)data_len, hmac_out);
 }
 
-bool
-mongoc_crypto_common_crypto_sha1 (mongoc_crypto_t *crypto,
-                                  const unsigned char *input,
-                                  const size_t input_len,
-                                  unsigned char *hash_out)
-{
-   if (CC_SHA1 (input, (CC_LONG) input_len, hash_out)) {
-      return true;
-   }
-   return false;
+bool mongoc_crypto_common_crypto_sha1(mongoc_crypto_t *crypto,
+                                      const unsigned char *input,
+                                      const size_t input_len,
+                                      unsigned char *hash_out) {
+    if (CC_SHA1(input, (CC_LONG)input_len, hash_out)) {
+        return true;
+    }
+    return false;
 }
 
-void
-mongoc_crypto_common_crypto_hmac_sha256 (mongoc_crypto_t *crypto,
-                                         const void *key,
-                                         int key_len,
-                                         const unsigned char *data,
-                                         int data_len,
-                                         unsigned char *hmac_out)
-{
-   CCHmac (kCCHmacAlgSHA256,
-           key,
-           (size_t) key_len,
-           data,
-           (size_t) data_len,
-           hmac_out);
+void mongoc_crypto_common_crypto_hmac_sha256(mongoc_crypto_t *crypto,
+                                             const void *key,
+                                             int key_len,
+                                             const unsigned char *data,
+                                             int data_len,
+                                             unsigned char *hmac_out) {
+    CCHmac(kCCHmacAlgSHA256, key, (size_t)key_len, data, (size_t)data_len, hmac_out);
 }
 
-bool
-mongoc_crypto_common_crypto_sha256 (mongoc_crypto_t *crypto,
-                                    const unsigned char *input,
-                                    const size_t input_len,
-                                    unsigned char *hash_out)
-{
-   if (CC_SHA256 (input, (CC_LONG) input_len, hash_out)) {
-      return true;
-   }
-   return false;
+bool mongoc_crypto_common_crypto_sha256(mongoc_crypto_t *crypto,
+                                        const unsigned char *input,
+                                        const size_t input_len,
+                                        unsigned char *hash_out) {
+    if (CC_SHA256(input, (CC_LONG)input_len, hash_out)) {
+        return true;
+    }
+    return false;
 }
 
 #endif

@@ -22,8 +22,7 @@
 
 #if defined(_WIN32)
 #define kms_strcasecmp _stricmp
-char *
-kms_strndup (const char *src, size_t len);
+char *kms_strndup(const char *src, size_t len);
 #else
 #define kms_strndup strndup
 #define kms_strcasecmp strcasecmp

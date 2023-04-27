@@ -26,17 +26,15 @@
 
 BSON_BEGIN_DECLS
 
-
 /**
  * mongoc_stream_tls_libressl_t:
  *
  * Private storage for LibreSSL Streams
  */
 typedef struct {
-   struct tls *ctx;
-   struct tls_config *config;
+    struct tls *ctx;
+    struct tls_config *config;
 } mongoc_stream_tls_libressl_t;
-
 
 BSON_END_DECLS
 

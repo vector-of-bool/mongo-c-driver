@@ -20,17 +20,15 @@
 #include <string.h>
 
 #if defined(_WIN32)
-char *
-kms_strndup (const char *src, size_t len)
-{
-   char *dst = (char *) malloc (len + 1);
-   if (!dst) {
-      return 0;
-   }
+char *kms_strndup(const char *src, size_t len) {
+    char *dst = (char *)malloc(len + 1);
+    if (!dst) {
+        return 0;
+    }
 
-   memcpy (dst, src, len);
-   dst[len] = '\0';
+    memcpy(dst, src, len);
+    dst[len] = '\0';
 
-   return dst;
+    return dst;
 }
 #endif

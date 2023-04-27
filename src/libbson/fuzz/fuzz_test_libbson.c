@@ -4,7 +4,7 @@
 #include <bson/bson.h>
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-    char *nt = malloc(size+1);
+    char *nt = malloc(size + 1);
     memcpy(nt, data, size);
     nt[size] = '\0';
     bson_error_t error;

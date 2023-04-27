@@ -23,113 +23,96 @@
 #undef MONGOC_LOG_DOMAIN
 #define MONGOC_LOG_DOMAIN "stream-gridfs-upload"
 
-static void
-_mongoc_upload_stream_gridfs_destroy (mongoc_stream_t *stream)
-{
-   mongoc_gridfs_upload_stream_t *gridfs =
-      (mongoc_gridfs_upload_stream_t *) stream;
+static void _mongoc_upload_stream_gridfs_destroy(mongoc_stream_t *stream) {
+    mongoc_gridfs_upload_stream_t *gridfs = (mongoc_gridfs_upload_stream_t *)stream;
 
-   ENTRY;
+    ENTRY;
 
-   BSON_ASSERT (stream);
+    BSON_ASSERT(stream);
 
-   mongoc_stream_close (stream);
+    mongoc_stream_close(stream);
 
-   _mongoc_gridfs_bucket_file_destroy (gridfs->file);
-   bson_free (stream);
+    _mongoc_gridfs_bucket_file_destroy(gridfs->file);
+    bson_free(stream);
 
-   mongoc_counter_streams_active_dec ();
-   mongoc_counter_streams_disposed_inc ();
+    mongoc_counter_streams_active_dec();
+    mongoc_counter_streams_disposed_inc();
 
-   EXIT;
+    EXIT;
 }
 
-static void
-_mongoc_upload_stream_gridfs_failed (mongoc_stream_t *stream)
-{
-   ENTRY;
+static void _mongoc_upload_stream_gridfs_failed(mongoc_stream_t *stream) {
+    ENTRY;
 
-   _mongoc_upload_stream_gridfs_destroy (stream);
+    _mongoc_upload_stream_gridfs_destroy(stream);
 
-   EXIT;
+    EXIT;
 }
 
-static int
-_mongoc_upload_stream_gridfs_close (mongoc_stream_t *stream)
-{
-   mongoc_gridfs_upload_stream_t *gridfs =
-      (mongoc_gridfs_upload_stream_t *) stream;
-   int ret = 0;
+static int _mongoc_upload_stream_gridfs_close(mongoc_stream_t *stream) {
+    mongoc_gridfs_upload_stream_t *gridfs = (mongoc_gridfs_upload_stream_t *)stream;
+    int ret = 0;
 
-   ENTRY;
+    ENTRY;
 
-   BSON_ASSERT (stream);
+    BSON_ASSERT(stream);
 
-   ret = _mongoc_gridfs_bucket_file_save (gridfs->file);
+    ret = _mongoc_gridfs_bucket_file_save(gridfs->file);
 
-   RETURN (ret ? 0 : 1);
+    RETURN(ret ? 0 : 1);
 }
 
 static ssize_t
-_mongoc_upload_stream_gridfs_writev (mongoc_stream_t *stream,
-                                     mongoc_iovec_t *iov,
-                                     size_t iovcnt,
-                                     int32_t timeout_msec)
-{
-   mongoc_gridfs_upload_stream_t *gridfs =
-      (mongoc_gridfs_upload_stream_t *) stream;
-   ssize_t ret = 0;
+_mongoc_upload_stream_gridfs_writev(mongoc_stream_t *stream, mongoc_iovec_t *iov, size_t iovcnt, int32_t timeout_msec) {
+    mongoc_gridfs_upload_stream_t *gridfs = (mongoc_gridfs_upload_stream_t *)stream;
+    ssize_t ret = 0;
 
-   ENTRY;
+    ENTRY;
 
-   BSON_ASSERT (stream);
-   BSON_ASSERT (iov);
-   BSON_ASSERT (iovcnt);
+    BSON_ASSERT(stream);
+    BSON_ASSERT(iov);
+    BSON_ASSERT(iovcnt);
 
-   (void) timeout_msec; /* unused. */
-   ret = _mongoc_gridfs_bucket_file_writev (gridfs->file, iov, iovcnt);
+    (void)timeout_msec; /* unused. */
+    ret = _mongoc_gridfs_bucket_file_writev(gridfs->file, iov, iovcnt);
 
-   if (!ret) {
-      RETURN (ret);
-   }
+    if (!ret) {
+        RETURN(ret);
+    }
 
-   mongoc_counter_streams_egress_add (ret);
+    mongoc_counter_streams_egress_add(ret);
 
-   RETURN (ret);
+    RETURN(ret);
 }
 
-static bool
-_mongoc_upload_stream_gridfs_check_closed (mongoc_stream_t *stream) /* IN */
+static bool _mongoc_upload_stream_gridfs_check_closed(mongoc_stream_t *stream) /* IN */
 {
-   mongoc_gridfs_upload_stream_t *gridfs =
-      (mongoc_gridfs_upload_stream_t *) stream;
+    mongoc_gridfs_upload_stream_t *gridfs = (mongoc_gridfs_upload_stream_t *)stream;
 
-   ENTRY;
+    ENTRY;
 
-   BSON_ASSERT (stream);
+    BSON_ASSERT(stream);
 
-   RETURN (gridfs->file->saved);
+    RETURN(gridfs->file->saved);
 }
 
-mongoc_stream_t *
-_mongoc_upload_stream_gridfs_new (mongoc_gridfs_bucket_file_t *file)
-{
-   mongoc_gridfs_upload_stream_t *stream;
+mongoc_stream_t *_mongoc_upload_stream_gridfs_new(mongoc_gridfs_bucket_file_t *file) {
+    mongoc_gridfs_upload_stream_t *stream;
 
-   ENTRY;
+    ENTRY;
 
-   BSON_ASSERT (file);
+    BSON_ASSERT(file);
 
-   stream = (mongoc_gridfs_upload_stream_t *) bson_malloc0 (sizeof *stream);
-   stream->file = file;
-   stream->stream.type = MONGOC_STREAM_GRIDFS_UPLOAD;
-   stream->stream.destroy = _mongoc_upload_stream_gridfs_destroy;
-   stream->stream.failed = _mongoc_upload_stream_gridfs_failed;
-   stream->stream.close = _mongoc_upload_stream_gridfs_close;
-   stream->stream.writev = _mongoc_upload_stream_gridfs_writev;
-   stream->stream.check_closed = _mongoc_upload_stream_gridfs_check_closed;
+    stream = (mongoc_gridfs_upload_stream_t *)bson_malloc0(sizeof *stream);
+    stream->file = file;
+    stream->stream.type = MONGOC_STREAM_GRIDFS_UPLOAD;
+    stream->stream.destroy = _mongoc_upload_stream_gridfs_destroy;
+    stream->stream.failed = _mongoc_upload_stream_gridfs_failed;
+    stream->stream.close = _mongoc_upload_stream_gridfs_close;
+    stream->stream.writev = _mongoc_upload_stream_gridfs_writev;
+    stream->stream.check_closed = _mongoc_upload_stream_gridfs_check_closed;
 
-   mongoc_counter_streams_active_inc ();
+    mongoc_counter_streams_active_inc();
 
-   RETURN ((mongoc_stream_t *) stream);
+    RETURN((mongoc_stream_t *)stream);
 }

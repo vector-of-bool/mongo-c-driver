@@ -33,46 +33,37 @@
 #undef MONGOC_LOG_DOMAIN
 #define MONGOC_LOG_DOMAIN "stream-libressl"
 
+bool mongoc_libressl_setup_certificate(mongoc_stream_tls_libressl_t *libressl, mongoc_ssl_opt_t *opt) {
+    uint8_t *file;
+    size_t file_len;
 
-bool
-mongoc_libressl_setup_certificate (mongoc_stream_tls_libressl_t *libressl,
-                                   mongoc_ssl_opt_t *opt)
-{
-   uint8_t *file;
-   size_t file_len;
+    if (!opt->pem_file) {
+        return false;
+    }
 
-   if (!opt->pem_file) {
-      return false;
-   }
+    file = tls_load_file(opt->pem_file, &file_len, (char *)opt->pem_pwd);
+    if (!file) {
+        MONGOC_ERROR("Cannot load private key: '%s'", opt->pem_file);
+        return false;
+    }
 
-   file = tls_load_file (opt->pem_file, &file_len, (char *) opt->pem_pwd);
-   if (!file) {
-      MONGOC_ERROR ("Cannot load private key: '%s'", opt->pem_file);
-      return false;
-   }
+    if (tls_config_set_keypair_mem(libressl->config, file, file_len, file, file_len) == -1) {
+        MONGOC_ERROR("%s", tls_config_error(libressl->config));
+        return false;
+    }
 
-   if (tls_config_set_keypair_mem (
-          libressl->config, file, file_len, file, file_len) == -1) {
-      MONGOC_ERROR ("%s", tls_config_error (libressl->config));
-      return false;
-   }
-
-   return true;
+    return true;
 }
 
-bool
-mongoc_libressl_setup_ca (mongoc_stream_tls_libressl_t *libressl,
-                          mongoc_ssl_opt_t *opt)
-{
-   if (opt->ca_file) {
-      tls_config_set_ca_file (libressl->config, opt->ca_file);
-   }
-   if (opt->ca_dir) {
-      tls_config_set_ca_path (libressl->config, opt->ca_dir);
-   }
+bool mongoc_libressl_setup_ca(mongoc_stream_tls_libressl_t *libressl, mongoc_ssl_opt_t *opt) {
+    if (opt->ca_file) {
+        tls_config_set_ca_file(libressl->config, opt->ca_file);
+    }
+    if (opt->ca_dir) {
+        tls_config_set_ca_path(libressl->config, opt->ca_dir);
+    }
 
-
-   return true;
+    return true;
 }
 
 #endif

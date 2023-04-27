@@ -27,22 +27,22 @@
  * @brief A GCP access token obtained from the GCP metadata server
  */
 typedef struct gcp_service_account_token {
-   /// The access token string
-   char *access_token;
-   // The HTTP type of the token
-   char *token_type;
+    /// The access token string
+    char *access_token;
+    // The HTTP type of the token
+    char *token_type;
 } gcp_service_account_token;
 
 /**
  * @brief A GCP request
  */
 typedef struct gcp_request {
-   /// The underlying HTTP request object to be sent
-   mongoc_http_request_t req;
-   // optional parameters (used in testing) to override defaults
-   char *_owned_path;
-   char *_owned_host;
-   char *_owned_headers;
+    /// The underlying HTTP request object to be sent
+    mongoc_http_request_t req;
+    // optional parameters (used in testing) to override defaults
+    char *_owned_path;
+    char *_owned_host;
+    char *_owned_headers;
 } gcp_request;
 
 /**
@@ -56,29 +56,21 @@ typedef struct gcp_request {
  *
  * @note the request must later be destroyed with gcp_request_destroy
  */
-void
-gcp_request_init (gcp_request *req,
-                  const char *const opt_host,
-                  int opt_port,
-                  const char *const opt_extra_headers);
-
+void gcp_request_init(gcp_request *req, const char *const opt_host, int opt_port, const char *const opt_extra_headers);
 
 /**
  * @brief Destroy an GCP request created with gcp_request_init()
  *
  * @param req
  */
-void
-gcp_request_destroy (gcp_request *req);
+void gcp_request_destroy(gcp_request *req);
 
 /**
  * @brief Destroy and zero-fill GCP service account token
  *
  * @param token The service account token to destory
  */
-void
-gcp_access_token_destroy (gcp_service_account_token *token);
-
+void gcp_access_token_destroy(gcp_service_account_token *token);
 
 /**
  * @brief Try to parse a GCP access token from the metadata server JSON response
@@ -93,11 +85,10 @@ gcp_access_token_destroy (gcp_service_account_token *token);
  *
  * @note The 'out' token must later be given to gcp_access_token_destroy
  */
-bool
-gcp_access_token_try_parse_from_json (gcp_service_account_token *out,
-                                      const char *json,
-                                      int len,
-                                      bson_error_t *error);
+bool gcp_access_token_try_parse_from_json(gcp_service_account_token *out,
+                                          const char *json,
+                                          int len,
+                                          bson_error_t *error);
 
 /**
  * @brief Attempt to obtain a new GCP service account token from a GCP metadata
@@ -116,11 +107,10 @@ gcp_access_token_try_parse_from_json (gcp_service_account_token *out,
  * @retval false Otherwise. Sets an error via `error`
  *
  */
-bool
-gcp_access_token_from_gcp_server (gcp_service_account_token *out,
-                                  const char *opt_host,
-                                  int opt_port,
-                                  const char *opt_extra_headers,
-                                  bson_error_t *error);
+bool gcp_access_token_from_gcp_server(gcp_service_account_token *out,
+                                      const char *opt_host,
+                                      int opt_port,
+                                      const char *opt_extra_headers,
+                                      bson_error_t *error);
 
 #endif /* SERVICE_GCP_H */

@@ -27,25 +27,20 @@
 #include "mongoc-read-prefs.h"
 #include "mongoc-write-concern.h"
 
-
 BSON_BEGIN_DECLS
 
+mongoc_cursor_t *_mongoc_aggregate(mongoc_client_t *client,
+                                   const char *ns,
+                                   mongoc_query_flags_t flags,
+                                   const bson_t *pipeline,
+                                   const bson_t *opts,
+                                   const mongoc_read_prefs_t *user_rp,
+                                   const mongoc_read_prefs_t *default_rp,
+                                   const mongoc_read_concern_t *default_rc,
+                                   const mongoc_write_concern_t *default_wc);
 
-mongoc_cursor_t *
-_mongoc_aggregate (mongoc_client_t *client,
-                   const char *ns,
-                   mongoc_query_flags_t flags,
-                   const bson_t *pipeline,
-                   const bson_t *opts,
-                   const mongoc_read_prefs_t *user_rp,
-                   const mongoc_read_prefs_t *default_rp,
-                   const mongoc_read_concern_t *default_rc,
-                   const mongoc_write_concern_t *default_wc);
-
-bool
-_has_write_key (bson_iter_t *iter);
+bool _has_write_key(bson_iter_t *iter);
 
 BSON_END_DECLS
-
 
 #endif /* MONGOC_AGGREGATE_PRIVATE_H */

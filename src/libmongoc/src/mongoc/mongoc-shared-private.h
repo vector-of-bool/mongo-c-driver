@@ -51,20 +51,20 @@
  * resetting/assigning a shared pointer.
  */
 typedef struct mongoc_shared_ptr {
-   /** Pointed-to data */
-   void *ptr;
-   /** Auxilary book-keeping. Do not touch. */
-   struct _mongoc_shared_ptr_aux *_aux;
+    /** Pointed-to data */
+    void *ptr;
+    /** Auxilary book-keeping. Do not touch. */
+    struct _mongoc_shared_ptr_aux *_aux;
 } mongoc_shared_ptr;
 
 /**
  * @brief A "null" pointer constant for a mongoc_shared_ptr.
  */
-#define MONGOC_SHARED_PTR_NULL \
-   ((mongoc_shared_ptr){       \
-      .ptr = NULL,             \
-      ._aux = NULL,            \
-   })
+#define MONGOC_SHARED_PTR_NULL                                                                                         \
+    ((mongoc_shared_ptr){                                                                                              \
+        .ptr = NULL,                                                                                                   \
+        ._aux = NULL,                                                                                                  \
+    })
 
 /**
  * @brief Reassign a shared pointer to manage the given resource
@@ -79,10 +79,7 @@ typedef struct mongoc_shared_ptr {
  *    mongoc_shared_ptr_reset_null(ptr);
  *    *ptr = mongoc_shared_ptr_create(pointee, deleter);
  */
-extern void
-mongoc_shared_ptr_reset (mongoc_shared_ptr *ptr,
-                         void *pointee,
-                         void (*deleter) (void *));
+extern void mongoc_shared_ptr_reset(mongoc_shared_ptr *ptr, void *pointee, void (*deleter)(void *));
 
 /**
  * @brief Reassign the given shared pointer to manage the same resource as
@@ -100,8 +97,7 @@ mongoc_shared_ptr_reset (mongoc_shared_ptr *ptr,
  *    mongoc_shared_ptr_reset_null(dest);
  *    *dest = mongoc_shared_ptr_copy(from);
  */
-extern void
-mongoc_shared_ptr_assign (mongoc_shared_ptr *dest, mongoc_shared_ptr from);
+extern void mongoc_shared_ptr_assign(mongoc_shared_ptr *dest, mongoc_shared_ptr from);
 
 /**
  * @brief Reassign the given shared pointer to manage the same resource as
@@ -118,9 +114,7 @@ mongoc_shared_ptr_assign (mongoc_shared_ptr *dest, mongoc_shared_ptr from);
  *
  * Thread-safe equivalent of `mongoc_shared_ptr_assign`
  */
-extern void
-mongoc_atomic_shared_ptr_store (mongoc_shared_ptr *dest,
-                                mongoc_shared_ptr from);
+extern void mongoc_atomic_shared_ptr_store(mongoc_shared_ptr *dest, mongoc_shared_ptr from);
 
 /**
  * @brief Create a copy of the given shared pointer. Increases the reference
@@ -131,8 +125,7 @@ mongoc_atomic_shared_ptr_store (mongoc_shared_ptr *dest,
  *
  * @note Must later reset/reassign the returned shared pointer
  */
-extern mongoc_shared_ptr
-mongoc_shared_ptr_copy (mongoc_shared_ptr ptr);
+extern mongoc_shared_ptr mongoc_shared_ptr_copy(mongoc_shared_ptr ptr);
 
 /**
  * @brief Like `mongoc_shared_ptr_copy`, but is thread-safe in case `*ptr`
@@ -144,8 +137,7 @@ mongoc_shared_ptr_copy (mongoc_shared_ptr ptr);
  *
  * @note Must later reset/reassign the returned shared pointer
  */
-extern mongoc_shared_ptr
-mongoc_atomic_shared_ptr_load (mongoc_shared_ptr const *ptr);
+extern mongoc_shared_ptr mongoc_atomic_shared_ptr_load(const mongoc_shared_ptr *ptr);
 
 /**
  * @brief Release the ownership of the given shared pointer.
@@ -163,8 +155,7 @@ mongoc_atomic_shared_ptr_load (mongoc_shared_ptr const *ptr);
  * pointer, use mongoc_atomic_shared_ptr_store() with a null
  * mongoc_shared_ptr as the 'from' argument
  */
-extern void
-mongoc_shared_ptr_reset_null (mongoc_shared_ptr *ptr);
+extern void mongoc_shared_ptr_reset_null(mongoc_shared_ptr *ptr);
 
 /**
  * @brief Obtain the number of hard references to the resource managed by the
@@ -174,8 +165,7 @@ mongoc_shared_ptr_reset_null (mongoc_shared_ptr *ptr);
  * @param ptr A non-null shared pointer to check
  * @return int A positive integer reference count
  */
-extern int
-mongoc_shared_ptr_use_count (mongoc_shared_ptr ptr);
+extern int mongoc_shared_ptr_use_count(mongoc_shared_ptr ptr);
 
 /**
  * @brief Check whether the given shared pointer is managing a resource.
@@ -186,10 +176,8 @@ mongoc_shared_ptr_use_count (mongoc_shared_ptr ptr);
  * @return true If the pointer is managing a resource
  * @return false Otherwise
  */
-static BSON_INLINE int
-mongoc_shared_ptr_is_null (mongoc_shared_ptr ptr)
-{
-   return ptr._aux == 0;
+static BSON_INLINE int mongoc_shared_ptr_is_null(mongoc_shared_ptr ptr) {
+    return ptr._aux == 0;
 }
 
 /**
@@ -201,7 +189,6 @@ mongoc_shared_ptr_is_null (mongoc_shared_ptr ptr)
  * `deleter` must be non-NULL. This deleter will be called when the reference
  * count reaches zero. If should release the resources referred-to by `pointee`.
  */
-extern mongoc_shared_ptr
-mongoc_shared_ptr_create (void *pointee, void (*deleter) (void *));
+extern mongoc_shared_ptr mongoc_shared_ptr_create(void *pointee, void (*deleter)(void *));
 
 #endif /* MONGOC_SHARED_H */

@@ -25,49 +25,38 @@
 #include <bson/bson.h>
 #include <sasl/sasl.h>
 
-
 BSON_BEGIN_DECLS
-
 
 typedef struct _mongoc_cyrus_t mongoc_cyrus_t;
 
-
 struct _mongoc_cyrus_t {
-   mongoc_sasl_t credentials;
-   sasl_callback_t callbacks[6];
-   sasl_conn_t *conn;
-   bool done;
-   int step;
-   sasl_interact_t *interact;
+    mongoc_sasl_t credentials;
+    sasl_callback_t callbacks[6];
+    sasl_conn_t *conn;
+    bool done;
+    int step;
+    sasl_interact_t *interact;
 };
 
-
 #ifndef SASL_CALLBACK_FN
-#define SASL_CALLBACK_FN(_f) ((int (*) (void)) (_f))
+#define SASL_CALLBACK_FN(_f) ((int (*)(void))(_f))
 #endif
 
-void
-_mongoc_cyrus_init (mongoc_cyrus_t *sasl);
-bool
-_mongoc_cyrus_new_from_cluster (mongoc_cyrus_t *sasl,
-                                mongoc_cluster_t *cluster,
-                                mongoc_stream_t *stream,
-                                const char *hostname,
-                                bson_error_t *error);
-int
-_mongoc_cyrus_log (mongoc_cyrus_t *sasl, int level, const char *message);
-void
-_mongoc_cyrus_destroy (mongoc_cyrus_t *sasl);
-bool
-_mongoc_cyrus_step (mongoc_cyrus_t *sasl,
-                    const uint8_t *inbuf,
-                    uint32_t inbuflen,
-                    uint8_t **outbuf,
-                    uint32_t *outbuflen,
-                    bson_error_t *error);
-
+void _mongoc_cyrus_init(mongoc_cyrus_t *sasl);
+bool _mongoc_cyrus_new_from_cluster(mongoc_cyrus_t *sasl,
+                                    mongoc_cluster_t *cluster,
+                                    mongoc_stream_t *stream,
+                                    const char *hostname,
+                                    bson_error_t *error);
+int _mongoc_cyrus_log(mongoc_cyrus_t *sasl, int level, const char *message);
+void _mongoc_cyrus_destroy(mongoc_cyrus_t *sasl);
+bool _mongoc_cyrus_step(mongoc_cyrus_t *sasl,
+                        const uint8_t *inbuf,
+                        uint32_t inbuflen,
+                        uint8_t **outbuf,
+                        uint32_t *outbuflen,
+                        bson_error_t *error);
 
 BSON_END_DECLS
-
 
 #endif /* MONGOC_CYRUS_PRIVATE_H */

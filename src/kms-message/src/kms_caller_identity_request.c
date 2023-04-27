@@ -20,30 +20,25 @@
 #include "kms_message/kms_b64.h"
 #include "kms_request_str.h"
 
+kms_request_t *kms_caller_identity_request_new(const kms_request_opt_t *opt) {
+    kms_request_t *request;
+    kms_request_str_t *payload = NULL;
 
-kms_request_t *
-kms_caller_identity_request_new (const kms_request_opt_t *opt)
-{
-   kms_request_t *request;
-   kms_request_str_t *payload = NULL;
+    request = kms_request_new("POST", "/", opt);
+    if (kms_request_get_error(request)) {
+        goto done;
+    }
 
-   request = kms_request_new ("POST", "/", opt);
-   if (kms_request_get_error (request)) {
-      goto done;
-   }
+    if (!(kms_request_add_header_field(request, "Content-Type", "application/x-www-form-urlencoded"))) {
+        goto done;
+    }
 
-   if (!(kms_request_add_header_field (
-          request, "Content-Type", "application/x-www-form-urlencoded"))) {
-      goto done;
-   }
-
-   payload = kms_request_str_new ();
-   kms_request_str_appendf (payload,
-                            "Action=GetCallerIdentity&Version=2011-06-15");
-   kms_request_append_payload (request, payload->str, payload->len);
+    payload = kms_request_str_new();
+    kms_request_str_appendf(payload, "Action=GetCallerIdentity&Version=2011-06-15");
+    kms_request_append_payload(request, payload->str, payload->len);
 
 done:
-   kms_request_str_destroy (payload);
+    kms_request_str_destroy(payload);
 
-   return request;
+    return request;
 }

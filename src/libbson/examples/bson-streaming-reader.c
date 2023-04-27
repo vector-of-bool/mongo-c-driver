@@ -29,10 +29,8 @@
 #include <sys/types.h>
 #endif
 
-
 #define DEFAULT_PORT "5000"
 #define DEFAULT_HOST "localhost"
-
 
 /*
  * bson-streaming-remote-open --
@@ -49,67 +47,60 @@
  *       A valid file descriptor ready for reading on success.
  *       -1 on failure.
  */
-int
-bson_streaming_remote_open (const char *hostname, const char *port)
-{
-   int error, sock;
-   struct addrinfo hints, *ptr, *server_list;
+int bson_streaming_remote_open(const char *hostname, const char *port) {
+    int error, sock;
+    struct addrinfo hints, *ptr, *server_list;
 
-   /*
-    * Look up the host's address information, hinting that we'd like to use a
-    * TCP/IP connection.
-    */
-   memset (&hints, 0, sizeof hints);
-   hints.ai_family = PF_UNSPEC;
-   hints.ai_socktype = SOCK_STREAM;
-   hints.ai_protocol = IPPROTO_TCP;
-   error =
-      getaddrinfo ((!hostname || !strlen (hostname)) ? DEFAULT_HOST : hostname,
-                   (!port || !strlen (port)) ? DEFAULT_PORT : port,
-                   &hints,
-                   &server_list);
+    /*
+     * Look up the host's address information, hinting that we'd like to use a
+     * TCP/IP connection.
+     */
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = PF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+    error = getaddrinfo((!hostname || !strlen(hostname)) ? DEFAULT_HOST : hostname,
+                        (!port || !strlen(port)) ? DEFAULT_PORT : port,
+                        &hints,
+                        &server_list);
 
-   if (error) {
-      fprintf (stderr,
-               "bson-streaming-remote-open: Failed to get server info: %s\n",
-               gai_strerror (error));
-      return -1;
-   }
+    if (error) {
+        fprintf(stderr, "bson-streaming-remote-open: Failed to get server info: %s\n", gai_strerror(error));
+        return -1;
+    }
 
-   /*
-    * Iterate through the results of getaddrinfo, attempting to connect to the
-    * first possible result.
-    */
-   for (ptr = server_list; ptr != NULL; ptr = ptr->ai_next) {
-      sock = socket (ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
+    /*
+     * Iterate through the results of getaddrinfo, attempting to connect to the
+     * first possible result.
+     */
+    for (ptr = server_list; ptr != NULL; ptr = ptr->ai_next) {
+        sock = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
 
-      if (sock < 0) {
-         perror ("bson-streaming-remote-open: socket creation failed");
-         continue;
-      }
+        if (sock < 0) {
+            perror("bson-streaming-remote-open: socket creation failed");
+            continue;
+        }
 
-      if (connect (sock, ptr->ai_addr, ptr->ai_addrlen) < 0) {
-         close (sock);
-         perror ("bson-streaming-remote-open: connect failure");
-         continue;
-      }
+        if (connect(sock, ptr->ai_addr, ptr->ai_addrlen) < 0) {
+            close(sock);
+            perror("bson-streaming-remote-open: connect failure");
+            continue;
+        }
 
-      /*
-       * Connection success.
-       */
-      break;
-   }
+        /*
+         * Connection success.
+         */
+        break;
+    }
 
-   freeaddrinfo (server_list);
-   if (ptr == NULL) {
-      fprintf (stderr,
-               "bson-streaming-remote-open: failed to connect to server\n");
-      return -1;
-   }
+    freeaddrinfo(server_list);
+    if (ptr == NULL) {
+        fprintf(stderr, "bson-streaming-remote-open: failed to connect to server\n");
+        return -1;
+    }
 
-   return sock;
+    return sock;
 }
-
 
 /*
  * main --
@@ -121,71 +112,67 @@ bson_streaming_remote_open (const char *hostname, const char *port)
  *          -s SERVER_NAME  Specify the host name of the server.
  *          -p PORT_NUM     Specify the port number to connect to on the server.
  */
-int
-main (int argc, char *argv[])
-{
-   bson_reader_t *reader;
-   char *hostname = NULL;
-   char *json;
-   char *port = NULL;
-   const bson_t *document;
-   int fd;
-   int opt;
+int main(int argc, char *argv[]) {
+    bson_reader_t *reader;
+    char *hostname = NULL;
+    char *json;
+    char *port = NULL;
+    const bson_t *document;
+    int fd;
+    int opt;
 
-   opterr = 1;
+    opterr = 1;
 
-   /*
-    * Parse command line arguments.
-    */
-   while ((opt = getopt (argc, argv, "hs:p:")) != -1) {
-      switch (opt) {
-      case 'h':
-         fprintf (
-            stdout, "Usage: %s [-s SERVER_NAME] [-p PORT_NUM]\n", argv[0]);
-         free (hostname);
-         free (port);
-         return EXIT_SUCCESS;
-      case 'p':
-         free (port);
-         port = (char *) malloc (strlen (optarg) + 1);
-         strcpy (port, optarg);
-         break;
-      case 's':
-         free (hostname);
-         hostname = (char *) malloc (strlen (optarg) + 1);
-         strcpy (hostname, optarg);
-         break;
-      default:
-         fprintf (stderr, "Unknown option: %s\n", optarg);
-      }
-   }
+    /*
+     * Parse command line arguments.
+     */
+    while ((opt = getopt(argc, argv, "hs:p:")) != -1) {
+        switch (opt) {
+        case 'h':
+            fprintf(stdout, "Usage: %s [-s SERVER_NAME] [-p PORT_NUM]\n", argv[0]);
+            free(hostname);
+            free(port);
+            return EXIT_SUCCESS;
+        case 'p':
+            free(port);
+            port = (char *)malloc(strlen(optarg) + 1);
+            strcpy(port, optarg);
+            break;
+        case 's':
+            free(hostname);
+            hostname = (char *)malloc(strlen(optarg) + 1);
+            strcpy(hostname, optarg);
+            break;
+        default: fprintf(stderr, "Unknown option: %s\n", optarg);
+        }
+    }
 
-   /*
-    * Open a file descriptor on the remote and read in BSON documents, one by
-    * one. As an example of processing, this prints the incoming documents as
-    * JSON onto STDOUT.
-    */
-   fd = bson_streaming_remote_open (hostname, port);
-   if (fd == -1) {
-      free (hostname);
-      free (port);
-      return EXIT_FAILURE;
-   }
+    /*
+     * Open a file descriptor on the remote and read in BSON documents, one by
+     * one. As an example of processing, this prints the incoming documents as
+     * JSON onto STDOUT.
+     */
+    fd = bson_streaming_remote_open(hostname, port);
+    if (fd == -1) {
+        free(hostname);
+        free(port);
+        return EXIT_FAILURE;
+    }
 
-   reader = bson_reader_new_from_fd (fd, true);
-   while ((document = bson_reader_read (reader, NULL))) {
-      json = bson_as_canonical_extended_json (document, NULL);
-      fprintf (stdout, "%s\n", json);
-      bson_free (json);
-   }
+    reader = bson_reader_new_from_fd(fd, true);
+    while ((document = bson_reader_read(reader, NULL))) {
+        json = bson_as_canonical_extended_json(document, NULL);
+        fprintf(stdout, "%s\n", json);
+        bson_free(json);
+    }
 
-   /*
-    * Destroy the reader, which performs cleanup. The ``true'' argument passed
-    * to bson_reader_new_from_fd tells libbson to close the file descriptor on
-    * destruction.
-    */
-   bson_reader_destroy (reader);
-   free (hostname);
-   free (port);
-   return EXIT_SUCCESS;
+    /*
+     * Destroy the reader, which performs cleanup. The ``true'' argument passed
+     * to bson_reader_new_from_fd tells libbson to close the file descriptor on
+     * destruction.
+     */
+    bson_reader_destroy(reader);
+    free(hostname);
+    free(port);
+    return EXIT_SUCCESS;
 }

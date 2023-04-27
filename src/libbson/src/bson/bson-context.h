@@ -16,17 +16,13 @@
 
 #include "bson-prelude.h"
 
-
 #ifndef BSON_CONTEXT_H
 #define BSON_CONTEXT_H
-
 
 #include "bson-macros.h"
 #include "bson-types.h"
 
-
 BSON_BEGIN_DECLS
-
 
 /**
  * @brief Initialize a new context with the given flags
@@ -40,25 +36,23 @@ BSON_BEGIN_DECLS
  * unexpected call to fork(), then specify BSON_CONTEXT_DISABLE_PID_CACHE in
  * `flags`.
  */
-BSON_EXPORT (bson_context_t *)
-bson_context_new (bson_context_flags_t flags);
+BSON_EXPORT(bson_context_t *)
+bson_context_new(bson_context_flags_t flags);
 
 /**
  * @brief Destroy and free a bson_context_t created by bson_context_new()
  */
-BSON_EXPORT (void)
-bson_context_destroy (bson_context_t *context);
+BSON_EXPORT(void)
+bson_context_destroy(bson_context_t *context);
 
 /**
  * @brief Obtain a pointer to the application-default bson_context_t
  *
  * @note This context_t MUST NOT be passed to bson_context_destroy()
  */
-BSON_EXPORT (bson_context_t *)
-bson_context_get_default (void);
-
+BSON_EXPORT(bson_context_t *)
+bson_context_get_default(void);
 
 BSON_END_DECLS
-
 
 #endif /* BSON_CONTEXT_H */

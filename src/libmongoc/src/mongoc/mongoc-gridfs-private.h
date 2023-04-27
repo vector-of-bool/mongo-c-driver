@@ -25,25 +25,16 @@
 #include "mongoc-write-concern.h"
 #include "mongoc-client.h"
 
-
 BSON_BEGIN_DECLS
 
-
 struct _mongoc_gridfs_t {
-   mongoc_client_t *client;
-   mongoc_collection_t *files;
-   mongoc_collection_t *chunks;
+    mongoc_client_t *client;
+    mongoc_collection_t *files;
+    mongoc_collection_t *chunks;
 };
 
-
-mongoc_gridfs_t *
-_mongoc_gridfs_new (mongoc_client_t *client,
-                    const char *db,
-                    const char *prefix,
-                    bson_error_t *error);
-
+mongoc_gridfs_t *_mongoc_gridfs_new(mongoc_client_t *client, const char *db, const char *prefix, bson_error_t *error);
 
 BSON_END_DECLS
-
 
 #endif /* MONGOC_GRIDFS_PRIVATE_H */

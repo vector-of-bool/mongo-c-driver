@@ -108,38 +108,38 @@ BSON_BEGIN_DECLS
 struct _mongoc_collection_t;
 
 struct _mongoc_client_t {
-   mongoc_uri_t *uri;
-   mongoc_cluster_t cluster;
-   bool in_exhaust;
-   bool is_pooled;
+    mongoc_uri_t *uri;
+    mongoc_cluster_t cluster;
+    bool in_exhaust;
+    bool is_pooled;
 
-   mongoc_stream_initiator_t initiator;
-   void *initiator_data;
+    mongoc_stream_initiator_t initiator;
+    void *initiator_data;
 
 #ifdef MONGOC_ENABLE_SSL
-   bool use_ssl;
-   mongoc_ssl_opt_t ssl_opts;
+    bool use_ssl;
+    mongoc_ssl_opt_t ssl_opts;
 #endif
 
-   mongoc_topology_t *topology;
+    mongoc_topology_t *topology;
 
-   mongoc_read_prefs_t *read_prefs;
-   mongoc_read_concern_t *read_concern;
-   mongoc_write_concern_t *write_concern;
+    mongoc_read_prefs_t *read_prefs;
+    mongoc_read_concern_t *read_concern;
+    mongoc_write_concern_t *write_concern;
 
-   mongoc_apm_callbacks_t apm_callbacks;
-   void *apm_context;
+    mongoc_apm_callbacks_t apm_callbacks;
+    void *apm_context;
 
-   int32_t error_api_version;
-   bool error_api_set;
+    int32_t error_api_version;
+    bool error_api_set;
 
-   mongoc_server_api_t *api;
+    mongoc_server_api_t *api;
 
-   /* mongoc_client_session_t's in use, to look up lsids and clusterTimes */
-   mongoc_set_t *client_sessions;
-   unsigned int csid_rand_seed;
+    /* mongoc_client_session_t's in use, to look up lsids and clusterTimes */
+    mongoc_set_t *client_sessions;
+    unsigned int csid_rand_seed;
 
-   uint32_t generation;
+    uint32_t generation;
 };
 
 /* Defines whether _mongoc_client_command_with_opts() is acting as a read
@@ -147,113 +147,89 @@ struct _mongoc_client_t {
  * a command like "createRole", or both, like "aggregate" with "$out".
  */
 typedef enum {
-   MONGOC_CMD_RAW = 0,
-   MONGOC_CMD_READ = 1,
-   MONGOC_CMD_WRITE = 2,
-   MONGOC_CMD_RW = 3,
+    MONGOC_CMD_RAW = 0,
+    MONGOC_CMD_READ = 1,
+    MONGOC_CMD_WRITE = 2,
+    MONGOC_CMD_RW = 3,
 } mongoc_command_mode_t;
 
-BSON_STATIC_ASSERT2 (mongoc_cmd_rw,
-                     MONGOC_CMD_RW == (MONGOC_CMD_READ | MONGOC_CMD_WRITE));
-
+BSON_STATIC_ASSERT2(mongoc_cmd_rw, MONGOC_CMD_RW == (MONGOC_CMD_READ | MONGOC_CMD_WRITE));
 
 /* TODO (CDRIVER-4052): Move MONGOC_RR_DEFAULT_BUFFER_SIZE and
  * _mongoc_client_get_rr to mongoc-topology-private.h or in a separate file.
  * There is no reason these should be in mongoc-client. */
 #define MONGOC_RR_DEFAULT_BUFFER_SIZE 1024
-bool
-_mongoc_client_get_rr (const char *hostname,
-                       mongoc_rr_type_t rr_type,
-                       mongoc_rr_data_t *rr_data,
-                       size_t initial_buffer_size,
-                       bson_error_t *error);
-
-mongoc_client_t *
-_mongoc_client_new_from_topology (mongoc_topology_t *topology);
-
-bool
-_mongoc_client_set_apm_callbacks_private (mongoc_client_t *client,
-                                          mongoc_apm_callbacks_t *callbacks,
-                                          void *context);
-
-mongoc_stream_t *
-mongoc_client_default_stream_initiator (const mongoc_uri_t *uri,
-                                        const mongoc_host_list_t *host,
-                                        void *user_data,
-                                        bson_error_t *error);
-
-mongoc_stream_t *
-_mongoc_client_create_stream (mongoc_client_t *client,
-                              const mongoc_host_list_t *host,
-                              bson_error_t *error);
-
-bool
-_mongoc_client_recv (mongoc_client_t *client,
-                     mongoc_rpc_t *rpc,
-                     mongoc_buffer_t *buffer,
-                     mongoc_server_stream_t *server_stream,
-                     bson_error_t *error);
-
-void
-_mongoc_client_kill_cursor (mongoc_client_t *client,
-                            uint32_t server_id,
-                            int64_t cursor_id,
-                            int64_t operation_id,
-                            const char *db,
-                            const char *collection,
-                            mongoc_client_session_t *cs);
-bool
-_mongoc_client_command_with_opts (mongoc_client_t *client,
-                                  const char *db_name,
-                                  const bson_t *command,
-                                  mongoc_command_mode_t mode,
-                                  const bson_t *opts,
-                                  mongoc_query_flags_t flags,
-                                  const mongoc_read_prefs_t *user_prefs,
-                                  const mongoc_read_prefs_t *default_prefs,
-                                  mongoc_read_concern_t *default_rc,
-                                  mongoc_write_concern_t *default_wc,
-                                  bson_t *reply,
-                                  bson_error_t *error);
-
-mongoc_server_session_t *
-_mongoc_client_pop_server_session (mongoc_client_t *client,
-                                   bson_error_t *error);
-
-bool
-_mongoc_client_lookup_session (const mongoc_client_t *client,
-                               uint32_t client_session_id,
-                               mongoc_client_session_t **cs,
-                               bson_error_t *error);
-
-void
-_mongoc_client_unregister_session (mongoc_client_t *client,
-                                   mongoc_client_session_t *session);
-
-void
-_mongoc_client_push_server_session (mongoc_client_t *client,
-                                    mongoc_server_session_t *server_session);
-void
-_mongoc_client_end_sessions (mongoc_client_t *client);
-
-mongoc_stream_t *
-mongoc_client_connect_tcp (int32_t connecttimeoutms,
-                           const mongoc_host_list_t *host,
+bool _mongoc_client_get_rr(const char *hostname,
+                           mongoc_rr_type_t rr_type,
+                           mongoc_rr_data_t *rr_data,
+                           size_t initial_buffer_size,
                            bson_error_t *error);
 
-mongoc_stream_t *
-mongoc_client_connect (bool buffered,
-                       bool use_ssl,
-                       void *ssl_opts_void,
-                       const mongoc_uri_t *uri,
-                       const mongoc_host_list_t *host,
-                       bson_error_t *error);
+mongoc_client_t *_mongoc_client_new_from_topology(mongoc_topology_t *topology);
 
+bool _mongoc_client_set_apm_callbacks_private(mongoc_client_t *client,
+                                              mongoc_apm_callbacks_t *callbacks,
+                                              void *context);
+
+mongoc_stream_t *mongoc_client_default_stream_initiator(const mongoc_uri_t *uri,
+                                                        const mongoc_host_list_t *host,
+                                                        void *user_data,
+                                                        bson_error_t *error);
+
+mongoc_stream_t *
+_mongoc_client_create_stream(mongoc_client_t *client, const mongoc_host_list_t *host, bson_error_t *error);
+
+bool _mongoc_client_recv(mongoc_client_t *client,
+                         mongoc_rpc_t *rpc,
+                         mongoc_buffer_t *buffer,
+                         mongoc_server_stream_t *server_stream,
+                         bson_error_t *error);
+
+void _mongoc_client_kill_cursor(mongoc_client_t *client,
+                                uint32_t server_id,
+                                int64_t cursor_id,
+                                int64_t operation_id,
+                                const char *db,
+                                const char *collection,
+                                mongoc_client_session_t *cs);
+bool _mongoc_client_command_with_opts(mongoc_client_t *client,
+                                      const char *db_name,
+                                      const bson_t *command,
+                                      mongoc_command_mode_t mode,
+                                      const bson_t *opts,
+                                      mongoc_query_flags_t flags,
+                                      const mongoc_read_prefs_t *user_prefs,
+                                      const mongoc_read_prefs_t *default_prefs,
+                                      mongoc_read_concern_t *default_rc,
+                                      mongoc_write_concern_t *default_wc,
+                                      bson_t *reply,
+                                      bson_error_t *error);
+
+mongoc_server_session_t *_mongoc_client_pop_server_session(mongoc_client_t *client, bson_error_t *error);
+
+bool _mongoc_client_lookup_session(const mongoc_client_t *client,
+                                   uint32_t client_session_id,
+                                   mongoc_client_session_t **cs,
+                                   bson_error_t *error);
+
+void _mongoc_client_unregister_session(mongoc_client_t *client, mongoc_client_session_t *session);
+
+void _mongoc_client_push_server_session(mongoc_client_t *client, mongoc_server_session_t *server_session);
+void _mongoc_client_end_sessions(mongoc_client_t *client);
+
+mongoc_stream_t *
+mongoc_client_connect_tcp(int32_t connecttimeoutms, const mongoc_host_list_t *host, bson_error_t *error);
+
+mongoc_stream_t *mongoc_client_connect(bool buffered,
+                                       bool use_ssl,
+                                       void *ssl_opts_void,
+                                       const mongoc_uri_t *uri,
+                                       const mongoc_host_list_t *host,
+                                       bson_error_t *error);
 
 /* Returns true if a versioned server API has been selected,
  * otherwise returns false. */
-bool
-mongoc_client_uses_server_api (const mongoc_client_t *client);
+bool mongoc_client_uses_server_api(const mongoc_client_t *client);
 
 BSON_END_DECLS
 

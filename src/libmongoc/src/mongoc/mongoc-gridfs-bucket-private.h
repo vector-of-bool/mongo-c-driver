@@ -23,11 +23,11 @@
 BSON_BEGIN_DECLS
 
 struct _mongoc_gridfs_bucket_t {
-   mongoc_collection_t *chunks;
-   mongoc_collection_t *files;
-   int32_t chunk_size;
-   char *bucket_name;
-   bool indexed;
+    mongoc_collection_t *chunks;
+    mongoc_collection_t *files;
+    int32_t chunk_size;
+    char *bucket_name;
+    bool indexed;
 };
 
 BSON_END_DECLS

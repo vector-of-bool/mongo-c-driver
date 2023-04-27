@@ -28,7 +28,6 @@
  * It returns 0 if the keys are equal, and -1 if they differ.
  * This function is not designed for lexicographical comparisons.
  */
-int
-mongoc_memcmp (const void *const b1, const void *const b2, size_t len);
+int mongoc_memcmp(const void *const b1, const void *const b2, size_t len);
 
 #endif /* MONGOC_MEMCMP_PRIVATE_H */

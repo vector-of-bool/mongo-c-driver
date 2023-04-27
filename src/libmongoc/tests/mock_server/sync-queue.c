@@ -19,104 +19,86 @@
 
 #include "sync-queue.h"
 
-
 struct _sync_queue_t {
-   mongoc_array_t array;
-   mongoc_cond_t cond;
-   bson_mutex_t mutex;
+    mongoc_array_t array;
+    mongoc_cond_t cond;
+    bson_mutex_t mutex;
 };
 
+sync_queue_t *q_new(void) {
+    sync_queue_t *q = (sync_queue_t *)bson_malloc(sizeof(sync_queue_t));
 
-sync_queue_t *
-q_new (void)
-{
-   sync_queue_t *q = (sync_queue_t *) bson_malloc (sizeof (sync_queue_t));
+    _mongoc_array_init(&q->array, sizeof(void *));
+    mongoc_cond_init(&q->cond);
+    bson_mutex_init(&q->mutex);
 
-   _mongoc_array_init (&q->array, sizeof (void *));
-   mongoc_cond_init (&q->cond);
-   bson_mutex_init (&q->mutex);
-
-   return q;
+    return q;
 }
 
-void
-q_put (sync_queue_t *q, void *item)
-{
-   bson_mutex_lock (&q->mutex);
-   _mongoc_array_append_val (&q->array, item);
-   mongoc_cond_signal (&q->cond);
-   bson_mutex_unlock (&q->mutex);
+void q_put(sync_queue_t *q, void *item) {
+    bson_mutex_lock(&q->mutex);
+    _mongoc_array_append_val(&q->array, item);
+    mongoc_cond_signal(&q->cond);
+    bson_mutex_unlock(&q->mutex);
 }
-
 
 /* call holding the lock */
-static void *
-_get (sync_queue_t *q)
-{
-   void **data;
-   void *item = NULL;
-   size_t i;
+static void *_get(sync_queue_t *q) {
+    void **data;
+    void *item = NULL;
+    size_t i;
 
-   if (q->array.len) {
-      data = (void **) q->array.data;
-      item = data[0];
+    if (q->array.len) {
+        data = (void **)q->array.data;
+        item = data[0];
 
-      /* shift the queue left */
-      q->array.len--;
-      for (i = 0; i < q->array.len; i++) {
-         data[i] = data[i + 1];
-      }
-   }
+        /* shift the queue left */
+        q->array.len--;
+        for (i = 0; i < q->array.len; i++) {
+            data[i] = data[i + 1];
+        }
+    }
 
-   return item;
+    return item;
 }
 
+void *q_get(sync_queue_t *q, int64_t timeout_msec) {
+    void *item = NULL;
+    int64_t remaining_usec = timeout_msec * 1000;
+    int64_t deadline = bson_get_monotonic_time() + timeout_msec * 1000;
 
-void *
-q_get (sync_queue_t *q, int64_t timeout_msec)
-{
-   void *item = NULL;
-   int64_t remaining_usec = timeout_msec * 1000;
-   int64_t deadline = bson_get_monotonic_time () + timeout_msec * 1000;
+    bson_mutex_lock(&q->mutex);
+    if (timeout_msec) {
+        while (!q->array.len && remaining_usec > 0) {
+            mongoc_cond_timedwait(&q->cond, &q->mutex, remaining_usec / 1000);
+            remaining_usec = deadline - bson_get_monotonic_time();
+        }
+    } else {
+        /* no deadline */
+        while (!q->array.len) {
+            mongoc_cond_wait(&q->cond, &q->mutex);
+        }
+    }
 
-   bson_mutex_lock (&q->mutex);
-   if (timeout_msec) {
-      while (!q->array.len && remaining_usec > 0) {
-         mongoc_cond_timedwait (&q->cond, &q->mutex, remaining_usec / 1000);
-         remaining_usec = deadline - bson_get_monotonic_time ();
-      }
-   } else {
-      /* no deadline */
-      while (!q->array.len) {
-         mongoc_cond_wait (&q->cond, &q->mutex);
-      }
-   }
+    item = _get(q);
+    bson_mutex_unlock(&q->mutex);
 
-   item = _get (q);
-   bson_mutex_unlock (&q->mutex);
-
-   return item;
+    return item;
 }
 
+void *q_get_nowait(sync_queue_t *q) {
+    void *item;
 
-void *
-q_get_nowait (sync_queue_t *q)
-{
-   void *item;
+    bson_mutex_lock(&q->mutex);
+    item = _get(q);
+    bson_mutex_unlock(&q->mutex);
 
-   bson_mutex_lock (&q->mutex);
-   item = _get (q);
-   bson_mutex_unlock (&q->mutex);
-
-   return item;
+    return item;
 }
 
-
-void
-q_destroy (sync_queue_t *q)
-{
-   _mongoc_array_destroy (&q->array);
-   mongoc_cond_destroy (&q->cond);
-   bson_mutex_destroy (&q->mutex);
-   bson_free (q);
+void q_destroy(sync_queue_t *q) {
+    _mongoc_array_destroy(&q->array);
+    mongoc_cond_destroy(&q->cond);
+    bson_mutex_destroy(&q->mutex);
+    bson_free(q);
 }

@@ -25,39 +25,22 @@
 #include "mongoc-stream-tls-secure-transport-private.h"
 #include <Security/Security.h>
 
-
 BSON_BEGIN_DECLS
 
-char *
-_mongoc_cfstringref_to_cstring (CFStringRef ref);
+char *_mongoc_cfstringref_to_cstring(CFStringRef ref);
 
-char *
-_mongoc_secure_transport_extract_subject (const char *filename,
-                                          const char *passphrase);
+char *_mongoc_secure_transport_extract_subject(const char *filename, const char *passphrase);
 
-OSStatus
-mongoc_secure_transport_write (SSLConnectionRef connection,
-                               const void *data,
-                               size_t *data_length);
-OSStatus
-mongoc_secure_transport_read (SSLConnectionRef connection,
-                              void *data,
-                              size_t *data_length);
+OSStatus mongoc_secure_transport_write(SSLConnectionRef connection, const void *data, size_t *data_length);
+OSStatus mongoc_secure_transport_read(SSLConnectionRef connection, void *data, size_t *data_length);
 
-bool
-mongoc_secure_transport_setup_ca (
-   mongoc_stream_tls_secure_transport_t *secure_transport,
-   mongoc_ssl_opt_t *opt);
+bool mongoc_secure_transport_setup_ca(mongoc_stream_tls_secure_transport_t *secure_transport, mongoc_ssl_opt_t *opt);
 
-bool
-mongoc_secure_transport_setup_certificate (
-   mongoc_stream_tls_secure_transport_t *secure_transport,
-   mongoc_ssl_opt_t *opt);
+bool mongoc_secure_transport_setup_certificate(mongoc_stream_tls_secure_transport_t *secure_transport,
+                                               mongoc_ssl_opt_t *opt);
 
-void
-CFReleaseSafe (CFTypeRef cf);
+void CFReleaseSafe(CFTypeRef cf);
 
 BSON_END_DECLS
-
 
 #endif /* MONGOC_SECURE_TRANSPORT_PRIVATE_H */

@@ -22,9 +22,7 @@
 #include "mongoc-iovec.h"
 #include "mongoc-stream.h"
 
-
 BSON_BEGIN_DECLS
-
 
 #define MONGOC_STREAM_SOCKET 1
 #define MONGOC_STREAM_FILE 2
@@ -34,20 +32,16 @@ BSON_BEGIN_DECLS
 #define MONGOC_STREAM_GRIDFS_UPLOAD 6
 #define MONGOC_STREAM_GRIDFS_DOWNLOAD 7
 
-bool
-mongoc_stream_wait (mongoc_stream_t *stream, int64_t expire_at);
+bool mongoc_stream_wait(mongoc_stream_t *stream, int64_t expire_at);
 
-bool
-_mongoc_stream_writev_full (mongoc_stream_t *stream,
-                            mongoc_iovec_t *iov,
-                            size_t iovcnt,
-                            int64_t timeout_msec,
-                            bson_error_t *error);
+bool _mongoc_stream_writev_full(mongoc_stream_t *stream,
+                                mongoc_iovec_t *iov,
+                                size_t iovcnt,
+                                int64_t timeout_msec,
+                                bson_error_t *error);
 
-mongoc_stream_t *
-mongoc_stream_get_root_stream (mongoc_stream_t *stream);
+mongoc_stream_t *mongoc_stream_get_root_stream(mongoc_stream_t *stream);
 
 BSON_END_DECLS
-
 
 #endif /* MONGOC_STREAM_PRIVATE_H */

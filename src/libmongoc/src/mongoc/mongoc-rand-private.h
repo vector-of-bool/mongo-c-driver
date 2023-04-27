@@ -16,20 +16,15 @@
 
 #include "mongoc-prelude.h"
 
-
 #ifndef MONGOC_RAND_PRIVATE_H
 #define MONGOC_RAND_PRIVATE_H
 
-
 #include <bson/bson.h>
-
 
 BSON_BEGIN_DECLS
 
-int
-_mongoc_rand_bytes (uint8_t *buf, int num);
+int _mongoc_rand_bytes(uint8_t *buf, int num);
 
 BSON_END_DECLS
-
 
 #endif /* MONGOC_RAND_PRIVATE_H */

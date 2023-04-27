@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-typedef int (*cmp_t) (const void *, const void *);
+typedef int (*cmp_t)(const void *, const void *);
 
-void
-insertionsort (unsigned char *a, size_t n, size_t size, cmp_t cmp);
+void insertionsort(unsigned char *a, size_t n, size_t size, cmp_t cmp);

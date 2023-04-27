@@ -49,7 +49,7 @@
 #ifdef MONGOC_STATIC
 #define MONGOC_API
 #elif defined(MONGOC_COMPILATION)
-#define MONGOC_API __attribute__ ((visibility ("default")))
+#define MONGOC_API __attribute__((visibility("default")))
 #else
 #define MONGOC_API
 #endif

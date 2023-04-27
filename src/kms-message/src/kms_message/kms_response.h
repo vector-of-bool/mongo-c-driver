@@ -25,9 +25,9 @@ extern "C" {
 
 typedef struct _kms_response_t kms_response_t;
 
-KMS_MSG_EXPORT (const char *)
-kms_response_get_body (kms_response_t *reply, size_t *len);
-KMS_MSG_EXPORT (void) kms_response_destroy (kms_response_t *reply);
+KMS_MSG_EXPORT(const char *)
+kms_response_get_body(kms_response_t *reply, size_t *len);
+KMS_MSG_EXPORT(void) kms_response_destroy(kms_response_t *reply);
 
 #ifdef __cplusplus
 } /* extern "C" */

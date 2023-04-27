@@ -23,17 +23,13 @@
 
 #include "mongoc-matcher-op-private.h"
 
-
 BSON_BEGIN_DECLS
 
-
 struct _mongoc_matcher_t {
-   bson_t query;
-   mongoc_matcher_op_t *optree;
+    bson_t query;
+    mongoc_matcher_op_t *optree;
 };
 
-
 BSON_END_DECLS
-
 
 #endif /* MONGOC_MATCHER_PRIVATE_H */

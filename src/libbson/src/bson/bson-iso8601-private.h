@@ -16,23 +16,16 @@
 
 #include "bson-prelude.h"
 
-
 #ifndef BSON_ISO8601_PRIVATE_H
 #define BSON_ISO8601_PRIVATE_H
-
 
 #include "bson-compat.h"
 #include "bson-macros.h"
 #include "bson-string.h"
 
-
 BSON_BEGIN_DECLS
 
-bool
-_bson_iso8601_date_parse (const char *str,
-                          int32_t len,
-                          int64_t *out,
-                          bson_error_t *error);
+bool _bson_iso8601_date_parse(const char *str, int32_t len, int64_t *out, bson_error_t *error);
 
 /**
  * _bson_iso8601_date_format:
@@ -41,10 +34,8 @@ _bson_iso8601_date_parse (const char *str,
  *
  * Appends a date formatted like "2012-12-24T12:15:30.500Z" to @str.
  */
-void
-_bson_iso8601_date_format (int64_t msecs_since_epoch, bson_string_t *str);
+void _bson_iso8601_date_format(int64_t msecs_since_epoch, bson_string_t *str);
 
 BSON_END_DECLS
-
 
 #endif /* BSON_ISO8601_PRIVATE_H */

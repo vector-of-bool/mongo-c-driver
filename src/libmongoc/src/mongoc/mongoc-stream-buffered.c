@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 #include <errno.h>
 
 #include "mongoc-buffer-private.h"
@@ -24,17 +23,14 @@
 #include "mongoc-stream-private.h"
 #include "mongoc-trace-private.h"
 
-
 #undef MONGOC_LOG_DOMAIN
 #define MONGOC_LOG_DOMAIN "stream"
 
-
 typedef struct {
-   mongoc_stream_t stream;
-   mongoc_stream_t *base_stream;
-   mongoc_buffer_t buffer;
+    mongoc_stream_t stream;
+    mongoc_stream_t *base_stream;
+    mongoc_buffer_t buffer;
 } mongoc_stream_buffered_t;
-
 
 /*
  *--------------------------------------------------------------------------
@@ -53,24 +49,22 @@ typedef struct {
  *--------------------------------------------------------------------------
  */
 
-static void
-mongoc_stream_buffered_destroy (mongoc_stream_t *stream) /* IN */
+static void mongoc_stream_buffered_destroy(mongoc_stream_t *stream) /* IN */
 {
-   mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *) stream;
+    mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *)stream;
 
-   BSON_ASSERT (stream);
+    BSON_ASSERT(stream);
 
-   mongoc_stream_destroy (buffered->base_stream);
-   buffered->base_stream = NULL;
+    mongoc_stream_destroy(buffered->base_stream);
+    buffered->base_stream = NULL;
 
-   _mongoc_buffer_destroy (&buffered->buffer);
+    _mongoc_buffer_destroy(&buffered->buffer);
 
-   bson_free (stream);
+    bson_free(stream);
 
-   mongoc_counter_streams_active_dec ();
-   mongoc_counter_streams_disposed_inc ();
+    mongoc_counter_streams_active_dec();
+    mongoc_counter_streams_disposed_inc();
 }
-
 
 /*
  *--------------------------------------------------------------------------
@@ -90,12 +84,10 @@ mongoc_stream_buffered_destroy (mongoc_stream_t *stream) /* IN */
  *--------------------------------------------------------------------------
  */
 
-static void
-mongoc_stream_buffered_failed (mongoc_stream_t *stream) /* IN */
+static void mongoc_stream_buffered_failed(mongoc_stream_t *stream) /* IN */
 {
-   mongoc_stream_buffered_destroy (stream);
+    mongoc_stream_buffered_destroy(stream);
 }
-
 
 /*
  *--------------------------------------------------------------------------
@@ -115,14 +107,12 @@ mongoc_stream_buffered_failed (mongoc_stream_t *stream) /* IN */
  *--------------------------------------------------------------------------
  */
 
-static int
-mongoc_stream_buffered_close (mongoc_stream_t *stream) /* IN */
+static int mongoc_stream_buffered_close(mongoc_stream_t *stream) /* IN */
 {
-   mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *) stream;
-   BSON_ASSERT (stream);
-   return mongoc_stream_close (buffered->base_stream);
+    mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *)stream;
+    BSON_ASSERT(stream);
+    return mongoc_stream_close(buffered->base_stream);
 }
-
 
 /*
  *--------------------------------------------------------------------------
@@ -140,14 +130,12 @@ mongoc_stream_buffered_close (mongoc_stream_t *stream) /* IN */
  *--------------------------------------------------------------------------
  */
 
-static int
-mongoc_stream_buffered_flush (mongoc_stream_t *stream) /* IN */
+static int mongoc_stream_buffered_flush(mongoc_stream_t *stream) /* IN */
 {
-   mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *) stream;
-   BSON_ASSERT (buffered);
-   return mongoc_stream_flush (buffered->base_stream);
+    mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *)stream;
+    BSON_ASSERT(buffered);
+    return mongoc_stream_flush(buffered->base_stream);
 }
-
 
 /*
  *--------------------------------------------------------------------------
@@ -169,25 +157,22 @@ mongoc_stream_buffered_flush (mongoc_stream_t *stream) /* IN */
  *--------------------------------------------------------------------------
  */
 
-static ssize_t
-mongoc_stream_buffered_writev (mongoc_stream_t *stream, /* IN */
-                               mongoc_iovec_t *iov,     /* IN */
-                               size_t iovcnt,           /* IN */
-                               int32_t timeout_msec)    /* IN */
+static ssize_t mongoc_stream_buffered_writev(mongoc_stream_t *stream, /* IN */
+                                             mongoc_iovec_t *iov,     /* IN */
+                                             size_t iovcnt,           /* IN */
+                                             int32_t timeout_msec)    /* IN */
 {
-   mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *) stream;
-   ssize_t ret;
+    mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *)stream;
+    ssize_t ret;
 
-   ENTRY;
+    ENTRY;
 
-   BSON_ASSERT (buffered);
+    BSON_ASSERT(buffered);
 
-   ret =
-      mongoc_stream_writev (buffered->base_stream, iov, iovcnt, timeout_msec);
+    ret = mongoc_stream_writev(buffered->base_stream, iov, iovcnt, timeout_msec);
 
-   RETURN (ret);
+    RETURN(ret);
 }
-
 
 /*
  *--------------------------------------------------------------------------
@@ -216,86 +201,71 @@ mongoc_stream_buffered_writev (mongoc_stream_t *stream, /* IN */
  *--------------------------------------------------------------------------
  */
 
-static ssize_t
-mongoc_stream_buffered_readv (mongoc_stream_t *stream, /* IN */
-                              mongoc_iovec_t *iov,     /* INOUT */
-                              size_t iovcnt,           /* IN */
-                              size_t min_bytes,        /* IN */
-                              int32_t timeout_msec)    /* IN */
+static ssize_t mongoc_stream_buffered_readv(mongoc_stream_t *stream, /* IN */
+                                            mongoc_iovec_t *iov,     /* INOUT */
+                                            size_t iovcnt,           /* IN */
+                                            size_t min_bytes,        /* IN */
+                                            int32_t timeout_msec)    /* IN */
 {
-   mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *) stream;
-   bson_error_t error = {0};
-   size_t total_bytes = 0;
-   size_t i;
-   size_t off = 0;
+    mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *)stream;
+    bson_error_t error = {0};
+    size_t total_bytes = 0;
+    size_t i;
+    size_t off = 0;
 
-   ENTRY;
+    ENTRY;
 
-   BSON_UNUSED (min_bytes);
+    BSON_UNUSED(min_bytes);
 
-   BSON_ASSERT (buffered);
+    BSON_ASSERT(buffered);
 
-   for (i = 0; i < iovcnt; i++) {
-      total_bytes += iov[i].iov_len;
-   }
+    for (i = 0; i < iovcnt; i++) {
+        total_bytes += iov[i].iov_len;
+    }
 
-   if (-1 == _mongoc_buffer_fill (&buffered->buffer,
-                                  buffered->base_stream,
-                                  total_bytes,
-                                  timeout_msec,
-                                  &error)) {
-      MONGOC_WARNING ("%s", error.message);
-      RETURN (-1);
-   }
+    if (-1 == _mongoc_buffer_fill(&buffered->buffer, buffered->base_stream, total_bytes, timeout_msec, &error)) {
+        MONGOC_WARNING("%s", error.message);
+        RETURN(-1);
+    }
 
-   BSON_ASSERT (buffered->buffer.len >= total_bytes);
+    BSON_ASSERT(buffered->buffer.len >= total_bytes);
 
-   for (i = 0; i < iovcnt; i++) {
-      memcpy (iov[i].iov_base, buffered->buffer.data + off, iov[i].iov_len);
-      off += iov[i].iov_len;
-      buffered->buffer.len -= iov[i].iov_len;
-   }
+    for (i = 0; i < iovcnt; i++) {
+        memcpy(iov[i].iov_base, buffered->buffer.data + off, iov[i].iov_len);
+        off += iov[i].iov_len;
+        buffered->buffer.len -= iov[i].iov_len;
+    }
 
-   memmove (
-      buffered->buffer.data, buffered->buffer.data + off, buffered->buffer.len);
+    memmove(buffered->buffer.data, buffered->buffer.data + off, buffered->buffer.len);
 
-   RETURN (total_bytes);
+    RETURN(total_bytes);
 }
 
-
-static mongoc_stream_t *
-_mongoc_stream_buffered_get_base_stream (mongoc_stream_t *stream) /* IN */
+static mongoc_stream_t *_mongoc_stream_buffered_get_base_stream(mongoc_stream_t *stream) /* IN */
 {
-   return ((mongoc_stream_buffered_t *) stream)->base_stream;
+    return ((mongoc_stream_buffered_t *)stream)->base_stream;
 }
 
-
-static bool
-_mongoc_stream_buffered_check_closed (mongoc_stream_t *stream) /* IN */
+static bool _mongoc_stream_buffered_check_closed(mongoc_stream_t *stream) /* IN */
 {
-   mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *) stream;
-   BSON_ASSERT (stream);
-   return mongoc_stream_check_closed (buffered->base_stream);
+    mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *)stream;
+    BSON_ASSERT(stream);
+    return mongoc_stream_check_closed(buffered->base_stream);
 }
 
-
-static bool
-_mongoc_stream_buffered_timed_out (mongoc_stream_t *stream) /* IN */
+static bool _mongoc_stream_buffered_timed_out(mongoc_stream_t *stream) /* IN */
 {
-   mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *) stream;
-   BSON_ASSERT (stream);
-   return mongoc_stream_timed_out (buffered->base_stream);
+    mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *)stream;
+    BSON_ASSERT(stream);
+    return mongoc_stream_timed_out(buffered->base_stream);
 }
 
-
-static bool
-_mongoc_stream_buffered_should_retry (mongoc_stream_t *stream) /* IN */
+static bool _mongoc_stream_buffered_should_retry(mongoc_stream_t *stream) /* IN */
 {
-   mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *) stream;
-   BSON_ASSERT (stream);
-   return mongoc_stream_should_retry (buffered->base_stream);
+    mongoc_stream_buffered_t *buffered = (mongoc_stream_buffered_t *)stream;
+    BSON_ASSERT(stream);
+    return mongoc_stream_should_retry(buffered->base_stream);
 }
-
 
 /*
  *--------------------------------------------------------------------------
@@ -320,32 +290,31 @@ _mongoc_stream_buffered_should_retry (mongoc_stream_t *stream) /* IN */
  *--------------------------------------------------------------------------
  */
 
-mongoc_stream_t *
-mongoc_stream_buffered_new (mongoc_stream_t *base_stream, /* IN */
-                            size_t buffer_size)           /* IN */
+mongoc_stream_t *mongoc_stream_buffered_new(mongoc_stream_t *base_stream, /* IN */
+                                            size_t buffer_size)           /* IN */
 {
-   mongoc_stream_buffered_t *stream;
+    mongoc_stream_buffered_t *stream;
 
-   BSON_ASSERT (base_stream);
+    BSON_ASSERT(base_stream);
 
-   stream = (mongoc_stream_buffered_t *) bson_malloc0 (sizeof *stream);
-   stream->stream.type = MONGOC_STREAM_BUFFERED;
-   stream->stream.destroy = mongoc_stream_buffered_destroy;
-   stream->stream.failed = mongoc_stream_buffered_failed;
-   stream->stream.close = mongoc_stream_buffered_close;
-   stream->stream.flush = mongoc_stream_buffered_flush;
-   stream->stream.writev = mongoc_stream_buffered_writev;
-   stream->stream.readv = mongoc_stream_buffered_readv;
-   stream->stream.get_base_stream = _mongoc_stream_buffered_get_base_stream;
-   stream->stream.check_closed = _mongoc_stream_buffered_check_closed;
-   stream->stream.timed_out = _mongoc_stream_buffered_timed_out;
-   stream->stream.should_retry = _mongoc_stream_buffered_should_retry;
+    stream = (mongoc_stream_buffered_t *)bson_malloc0(sizeof *stream);
+    stream->stream.type = MONGOC_STREAM_BUFFERED;
+    stream->stream.destroy = mongoc_stream_buffered_destroy;
+    stream->stream.failed = mongoc_stream_buffered_failed;
+    stream->stream.close = mongoc_stream_buffered_close;
+    stream->stream.flush = mongoc_stream_buffered_flush;
+    stream->stream.writev = mongoc_stream_buffered_writev;
+    stream->stream.readv = mongoc_stream_buffered_readv;
+    stream->stream.get_base_stream = _mongoc_stream_buffered_get_base_stream;
+    stream->stream.check_closed = _mongoc_stream_buffered_check_closed;
+    stream->stream.timed_out = _mongoc_stream_buffered_timed_out;
+    stream->stream.should_retry = _mongoc_stream_buffered_should_retry;
 
-   stream->base_stream = base_stream;
+    stream->base_stream = base_stream;
 
-   _mongoc_buffer_init (&stream->buffer, NULL, buffer_size, NULL, NULL);
+    _mongoc_buffer_init(&stream->buffer, NULL, buffer_size, NULL, NULL);
 
-   mongoc_counter_streams_active_inc ();
+    mongoc_counter_streams_active_inc();
 
-   return (mongoc_stream_t *) stream;
+    return (mongoc_stream_t *)stream;
 }

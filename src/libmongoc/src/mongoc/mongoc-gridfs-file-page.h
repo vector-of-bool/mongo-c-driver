@@ -25,14 +25,10 @@
 #include "mongoc-gridfs-file.h"
 #include "mongoc-gridfs-file-list.h"
 
-
 BSON_BEGIN_DECLS
-
 
 typedef struct _mongoc_gridfs_file_page_t mongoc_gridfs_file_page_t;
 
-
 BSON_END_DECLS
-
 
 #endif /* MONGOC_GRIDFS_FILE_PAGE_H */

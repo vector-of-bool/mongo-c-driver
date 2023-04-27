@@ -16,7 +16,6 @@
 
 #include "mongoc-prelude.h"
 
-
 #ifndef MONGOC_HANDSHAKE_H
 #define MONGOC_HANDSHAKE_H
 
@@ -28,10 +27,8 @@ BSON_BEGIN_DECLS
 
 #define MONGOC_HANDSHAKE_APPNAME_MAX 128
 
-MONGOC_EXPORT (bool) 
-mongoc_handshake_data_append (const char *driver_name,
-                              const char *driver_version,
-                              const char *platform);
+MONGOC_EXPORT(bool)
+mongoc_handshake_data_append(const char *driver_name, const char *driver_version, const char *platform);
 
 BSON_END_DECLS
 

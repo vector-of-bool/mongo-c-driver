@@ -10,52 +10,51 @@
 #include <ctype.h>
 
 #ifdef JSONSL_USE_METRICS
-#define XMETRICS \
-    X(STRINGY_INSIGNIFICANT) \
-    X(STRINGY_SLOWPATH) \
-    X(ALLOWED_WHITESPACE) \
-    X(QUOTE_FASTPATH) \
-    X(SPECIAL_FASTPATH) \
-    X(SPECIAL_WSPOP) \
-    X(SPECIAL_SLOWPATH) \
-    X(GENERIC) \
-    X(STRUCTURAL_TOKEN) \
-    X(SPECIAL_SWITCHFIRST) \
-    X(STRINGY_CATCH) \
-    X(NUMBER_FASTPATH) \
-    X(ESCAPES) \
-    X(TOTAL) \
+#define XMETRICS                                                                                                       \
+    X(STRINGY_INSIGNIFICANT)                                                                                           \
+    X(STRINGY_SLOWPATH)                                                                                                \
+    X(ALLOWED_WHITESPACE)                                                                                              \
+    X(QUOTE_FASTPATH)                                                                                                  \
+    X(SPECIAL_FASTPATH)                                                                                                \
+    X(SPECIAL_WSPOP)                                                                                                   \
+    X(SPECIAL_SLOWPATH)                                                                                                \
+    X(GENERIC)                                                                                                         \
+    X(STRUCTURAL_TOKEN)                                                                                                \
+    X(SPECIAL_SWITCHFIRST)                                                                                             \
+    X(STRINGY_CATCH)                                                                                                   \
+    X(NUMBER_FASTPATH)                                                                                                 \
+    X(ESCAPES)                                                                                                         \
+    X(TOTAL)
 
 struct jsonsl_metrics_st {
-#define X(m) \
-    unsigned long metric_##m;
+#define X(m) unsigned long metric_##m;
     XMETRICS
 #undef X
 };
 
-static struct jsonsl_metrics_st GlobalMetrics = { 0 };
-static unsigned long GenericCounter[0x100] = { 0 };
-static unsigned long StringyCatchCounter[0x100] = { 0 };
+static struct jsonsl_metrics_st GlobalMetrics = {0};
+static unsigned long GenericCounter[0x100] = {0};
+static unsigned long StringyCatchCounter[0x100] = {0};
 
-#define INCR_METRIC(m) \
-    GlobalMetrics.metric_##m++;
+#define INCR_METRIC(m) GlobalMetrics.metric_##m++;
 
-#define INCR_GENERIC(c) \
-        INCR_METRIC(GENERIC); \
-        GenericCounter[c]++; \
+#define INCR_GENERIC(c)                                                                                                \
+    INCR_METRIC(GENERIC);                                                                                              \
+    GenericCounter[c]++;
 
-#define INCR_STRINGY_CATCH(c) \
-    INCR_METRIC(STRINGY_CATCH); \
+#define INCR_STRINGY_CATCH(c)                                                                                          \
+    INCR_METRIC(STRINGY_CATCH);                                                                                        \
     StringyCatchCounter[c]++;
 
 JSONSL_API
-void jsonsl_dump_global_metrics(void)
-{
+void jsonsl_dump_global_metrics(void) {
     int ii;
     printf("JSONSL Metrics:\n");
-#define X(m) \
-    printf("\t%-30s %20lu (%0.2f%%)\n", #m, GlobalMetrics.metric_##m, \
-           (float)((float)(GlobalMetrics.metric_##m/(float)GlobalMetrics.metric_TOTAL)) * 100);
+#define X(m)                                                                                                           \
+    printf("\t%-30s %20lu (%0.2f%%)\n",                                                                                \
+           #m,                                                                                                         \
+           GlobalMetrics.metric_##m,                                                                                   \
+           (float)((float)(GlobalMetrics.metric_##m / (float)GlobalMetrics.metric_TOTAL)) * 100);
     XMETRICS
 #undef X
     printf("Generic Characters:\n");
@@ -76,21 +75,23 @@ void jsonsl_dump_global_metrics(void)
 #define INCR_METRIC(m)
 #define INCR_GENERIC(c)
 #define INCR_STRINGY_CATCH(c)
+
 JSONSL_API
-void jsonsl_dump_global_metrics(void) { }
+void jsonsl_dump_global_metrics(void) {
+}
 #endif /* JSONSL_USE_METRICS */
 
-#define CASE_DIGITS \
-case '1': \
-case '2': \
-case '3': \
-case '4': \
-case '5': \
-case '6': \
-case '7': \
-case '8': \
-case '9': \
-case '0':
+#define CASE_DIGITS                                                                                                    \
+    case '1':                                                                                                          \
+    case '2':                                                                                                          \
+    case '3':                                                                                                          \
+    case '4':                                                                                                          \
+    case '5':                                                                                                          \
+    case '6':                                                                                                          \
+    case '7':                                                                                                          \
+    case '8':                                                                                                          \
+    case '9':                                                                                                          \
+    case '0':
 
 static unsigned extract_special(unsigned);
 static int is_special_end(unsigned);
@@ -100,21 +101,17 @@ static int is_simple_char(unsigned);
 static char get_escape_equiv(unsigned);
 
 JSONSL_API
-jsonsl_t jsonsl_new(int nlevels)
-{
+jsonsl_t jsonsl_new(int nlevels) {
     unsigned int ii;
-    struct jsonsl_st * jsn;
-    
+    struct jsonsl_st *jsn;
+
     if (nlevels < 2) {
         return NULL;
     }
 
-    jsn = (struct jsonsl_st *)
-            bson_malloc0(sizeof (*jsn) +
-                    ( (nlevels-1) * sizeof (struct jsonsl_state_st) )
-            );
+    jsn = (struct jsonsl_st *)bson_malloc0(sizeof(*jsn) + ((nlevels - 1) * sizeof(struct jsonsl_state_st)));
 
-    jsn->levels_max = (unsigned int) nlevels;
+    jsn->levels_max = (unsigned int)nlevels;
     jsn->max_callback_level = UINT_MAX;
     jsonsl_reset(jsn);
     for (ii = 0; ii < jsn->levels_max; ii++) {
@@ -124,8 +121,7 @@ jsonsl_t jsonsl_new(int nlevels)
 }
 
 JSONSL_API
-void jsonsl_reset(jsonsl_t jsn)
-{
+void jsonsl_reset(jsonsl_t jsn) {
     jsn->tok_last = 0;
     jsn->can_insert = 1;
     jsn->pos = 0;
@@ -136,13 +132,11 @@ void jsonsl_reset(jsonsl_t jsn)
 }
 
 JSONSL_API
-void jsonsl_destroy(jsonsl_t jsn)
-{
+void jsonsl_destroy(jsonsl_t jsn) {
     if (jsn) {
         bson_free(jsn);
     }
 }
-
 
 #define FASTPARSE_EXHAUSTED 1
 #define FASTPARSE_BREAK 0
@@ -158,18 +152,15 @@ void jsonsl_destroy(jsonsl_t jsn)
  * return), false if a special character was examined which requires greater
  * examination.
  */
-static int
-jsonsl__str_fastparse(jsonsl_t jsn,
-                      const jsonsl_uchar_t **bytes_p, size_t *nbytes_p)
-{
+static int jsonsl__str_fastparse(jsonsl_t jsn, const jsonsl_uchar_t **bytes_p, size_t *nbytes_p) {
     const jsonsl_uchar_t *bytes = *bytes_p;
     const jsonsl_uchar_t *end;
     for (end = bytes + *nbytes_p; bytes != end; bytes++) {
         if (
 #ifdef JSONSL_USE_WCHAR
-                *bytes >= 0x100 ||
+            *bytes >= 0x100 ||
 #endif /* JSONSL_USE_WCHAR */
-                (is_simple_char(*bytes))) {
+            (is_simple_char(*bytes))) {
             INCR_METRIC(TOTAL);
             INCR_METRIC(STRINGY_INSIGNIFICANT);
         } else {
@@ -189,10 +180,7 @@ jsonsl__str_fastparse(jsonsl_t jsn,
 /* Functions exactly like str_fastparse, except it also accepts a 'state'
  * argument, since the number's value is updated in the state. */
 static int
-jsonsl__num_fastparse(jsonsl_t jsn,
-                      const jsonsl_uchar_t **bytes_p, size_t *nbytes_p,
-                      struct jsonsl_state_st *state)
-{
+jsonsl__num_fastparse(jsonsl_t jsn, const jsonsl_uchar_t **bytes_p, size_t *nbytes_p, struct jsonsl_state_st *state) {
     int exhausted = 1;
     size_t nbytes = *nbytes_p;
     const jsonsl_uchar_t *bytes = *bytes_p;
@@ -218,96 +206,87 @@ jsonsl__num_fastparse(jsonsl_t jsn,
 }
 
 JSONSL_API
-void
-jsonsl_feed(jsonsl_t jsn, const jsonsl_char_t *bytes, size_t nbytes)
-{
-
-#define INVOKE_ERROR(eb) \
-    if (jsn->error_callback(jsn, JSONSL_ERROR_##eb, state, (char*)c)) { \
-        goto GT_AGAIN; \
-    } \
+void jsonsl_feed(jsonsl_t jsn, const jsonsl_char_t *bytes, size_t nbytes) {
+#define INVOKE_ERROR(eb)                                                                                               \
+    if (jsn->error_callback(jsn, JSONSL_ERROR_##eb, state, (char *)c)) {                                               \
+        goto GT_AGAIN;                                                                                                 \
+    }                                                                                                                  \
     return;
 
-#define STACK_PUSH \
-    if (jsn->level >= (levels_max-1)) { \
-        jsn->error_callback(jsn, JSONSL_ERROR_LEVELS_EXCEEDED, state, (char*)c); \
-        return; \
-    } \
-    state = jsn->stack + (++jsn->level); \
-    state->ignore_callback = jsn->stack[jsn->level-1].ignore_callback; \
+#define STACK_PUSH                                                                                                     \
+    if (jsn->level >= (levels_max - 1)) {                                                                              \
+        jsn->error_callback(jsn, JSONSL_ERROR_LEVELS_EXCEEDED, state, (char *)c);                                      \
+        return;                                                                                                        \
+    }                                                                                                                  \
+    state = jsn->stack + (++jsn->level);                                                                               \
+    state->ignore_callback = jsn->stack[jsn->level - 1].ignore_callback;                                               \
     state->pos_begin = jsn->pos;
 
-#define STACK_POP_NOPOS \
-    state->pos_cur = jsn->pos; \
+#define STACK_POP_NOPOS                                                                                                \
+    state->pos_cur = jsn->pos;                                                                                         \
     state = jsn->stack + (--jsn->level);
 
-
-#define STACK_POP \
-    STACK_POP_NOPOS; \
+#define STACK_POP                                                                                                      \
+    STACK_POP_NOPOS;                                                                                                   \
     state->pos_cur = jsn->pos;
 
-#define CALLBACK_AND_POP_NOPOS(T) \
-        state->pos_cur = jsn->pos; \
-        DO_CALLBACK(T, POP); \
-        state->nescapes = 0; \
-        state = jsn->stack + (--jsn->level);
+#define CALLBACK_AND_POP_NOPOS(T)                                                                                      \
+    state->pos_cur = jsn->pos;                                                                                         \
+    DO_CALLBACK(T, POP);                                                                                               \
+    state->nescapes = 0;                                                                                               \
+    state = jsn->stack + (--jsn->level);
 
-#define CALLBACK_AND_POP(T) \
-        CALLBACK_AND_POP_NOPOS(T); \
-        state->pos_cur = jsn->pos;
+#define CALLBACK_AND_POP(T)                                                                                            \
+    CALLBACK_AND_POP_NOPOS(T);                                                                                         \
+    state->pos_cur = jsn->pos;
 
-#define SPECIAL_POP \
-    CALLBACK_AND_POP(SPECIAL); \
-    jsn->expecting = 0; \
-    jsn->tok_last = 0; \
+#define SPECIAL_POP                                                                                                    \
+    CALLBACK_AND_POP(SPECIAL);                                                                                         \
+    jsn->expecting = 0;                                                                                                \
+    jsn->tok_last = 0;
 
-#define CUR_CHAR (*(jsonsl_uchar_t*)c)
+#define CUR_CHAR (*(jsonsl_uchar_t *)c)
 
-#define DO_CALLBACK(T, action) \
-    if (jsn->call_##T && \
-            jsn->max_callback_level > state->level && \
-            state->ignore_callback == 0) { \
-        \
-        if (jsn->action_callback_##action) { \
-            jsn->action_callback_##action(jsn, JSONSL_ACTION_##action, state, (jsonsl_char_t*)c); \
-        } else if (jsn->action_callback) { \
-            jsn->action_callback(jsn, JSONSL_ACTION_##action, state, (jsonsl_char_t*)c); \
-        } \
-        if (jsn->stopfl) { return; } \
+#define DO_CALLBACK(T, action)                                                                                         \
+    if (jsn->call_##T && jsn->max_callback_level > state->level && state->ignore_callback == 0) {                      \
+        if (jsn->action_callback_##action) {                                                                           \
+            jsn->action_callback_##action(jsn, JSONSL_ACTION_##action, state, (jsonsl_char_t *)c);                     \
+        } else if (jsn->action_callback) {                                                                             \
+            jsn->action_callback(jsn, JSONSL_ACTION_##action, state, (jsonsl_char_t *)c);                              \
+        }                                                                                                              \
+        if (jsn->stopfl) {                                                                                             \
+            return;                                                                                                    \
+        }                                                                                                              \
     }
 
     /**
      * Verifies that we are able to insert the (non-string) item into a hash.
      */
-#define ENSURE_HVAL \
-    if (state->nelem % 2 == 0 && state->type == JSONSL_T_OBJECT) { \
-        INVOKE_ERROR(HKEY_EXPECTED); \
+#define ENSURE_HVAL                                                                                                    \
+    if (state->nelem % 2 == 0 && state->type == JSONSL_T_OBJECT) {                                                     \
+        INVOKE_ERROR(HKEY_EXPECTED);                                                                                   \
     }
 
-#define VERIFY_SPECIAL(lit, lit_len) \
-        if ((jsn->pos - state->pos_begin) > lit_len \
-                || CUR_CHAR != (lit)[jsn->pos - state->pos_begin]) { \
-            INVOKE_ERROR(SPECIAL_EXPECTED); \
-        }
+#define VERIFY_SPECIAL(lit, lit_len)                                                                                   \
+    if ((jsn->pos - state->pos_begin) > lit_len || CUR_CHAR != (lit)[jsn->pos - state->pos_begin]) {                   \
+        INVOKE_ERROR(SPECIAL_EXPECTED);                                                                                \
+    }
 
-#define VERIFY_SPECIAL_CI(lit, lit_len) \
-        if ((jsn->pos - state->pos_begin) > lit_len \
-                || tolower(CUR_CHAR) != (lit)[jsn->pos - state->pos_begin]) { \
-            INVOKE_ERROR(SPECIAL_EXPECTED); \
-        }
+#define VERIFY_SPECIAL_CI(lit, lit_len)                                                                                \
+    if ((jsn->pos - state->pos_begin) > lit_len || tolower(CUR_CHAR) != (lit)[jsn->pos - state->pos_begin]) {          \
+        INVOKE_ERROR(SPECIAL_EXPECTED);                                                                                \
+    }
 
-#define STATE_SPECIAL_LENGTH \
-    (state)->nescapes
+#define STATE_SPECIAL_LENGTH (state)->nescapes
 
-#define IS_NORMAL_NUMBER \
-    ((state)->special_flags == JSONSL_SPECIALf_UNSIGNED || \
-        (state)->special_flags == JSONSL_SPECIALf_SIGNED)
+#define IS_NORMAL_NUMBER                                                                                               \
+    ((state)->special_flags == JSONSL_SPECIALf_UNSIGNED || (state)->special_flags == JSONSL_SPECIALf_SIGNED)
 
 #define STATE_NUM_LAST jsn->tok_last
 
 #define CONTINUE_NEXT_CHAR() continue
 
-    const jsonsl_uchar_t *c = (jsonsl_uchar_t*)bytes;
+    const jsonsl_uchar_t *c = (jsonsl_uchar_t *)bytes;
     size_t levels_max = jsn->levels_max;
     struct jsonsl_state_st *state = jsn->stack + jsn->level;
     jsn->base = bytes;
@@ -316,7 +295,7 @@ jsonsl_feed(jsonsl_t jsn, const jsonsl_char_t *bytes, size_t nbytes)
         unsigned state_type;
         INCR_METRIC(TOTAL);
 
-        GT_AGAIN:
+    GT_AGAIN:
         state_type = state->type;
         /* Most common type is typically a string: */
         if (state_type & JSONSL_Tf_STRINGY) {
@@ -334,8 +313,7 @@ jsonsl_feed(jsonsl_t jsn, const jsonsl_char_t *bytes, size_t nbytes)
                 CONTINUE_NEXT_CHAR();
             }
 
-            if (jsonsl__str_fastparse(jsn, &c, &nbytes) ==
-                    FASTPARSE_EXHAUSTED) {
+            if (jsonsl__str_fastparse(jsn, &c, &nbytes) == FASTPARSE_EXHAUSTED) {
                 /* No need to readjust variables as we've exhausted the iterator */
                 return;
             } else {
@@ -352,8 +330,7 @@ jsonsl_feed(jsonsl_t jsn, const jsonsl_char_t *bytes, size_t nbytes)
         } else if (state_type == JSONSL_T_SPECIAL) {
             /* Fast track for signed/unsigned */
             if (IS_NORMAL_NUMBER) {
-                if (jsonsl__num_fastparse(jsn, &c, &nbytes, state) ==
-                        FASTPARSE_EXHAUSTED) {
+                if (jsonsl__num_fastparse(jsn, &c, &nbytes, state) == FASTPARSE_EXHAUSTED) {
                     return;
                 } else {
                     goto GT_SPECIAL_NUMERIC;
@@ -372,7 +349,7 @@ jsonsl_feed(jsonsl_t jsn, const jsonsl_char_t *bytes, size_t nbytes)
                 }
 
                 if (CUR_CHAR == '0') {
-                    state->special_flags = JSONSL_SPECIALf_ZERO|JSONSL_SPECIALf_SIGNED;
+                    state->special_flags = JSONSL_SPECIALf_ZERO | JSONSL_SPECIALf_SIGNED;
                 } else if (isdigit(CUR_CHAR)) {
                     state->special_flags = JSONSL_SPECIALf_SIGNED;
                     state->nelem = CUR_CHAR - 0x30;
@@ -395,11 +372,10 @@ jsonsl_feed(jsonsl_t jsn, const jsonsl_char_t *bytes, size_t nbytes)
                 goto GT_SPECIAL_NUMERIC;
             }
 
-            if ((state->special_flags & JSONSL_SPECIALf_NUMERIC) &&
-                    !(state->special_flags & JSONSL_SPECIALf_INF)) {
-                GT_SPECIAL_NUMERIC:
+            if ((state->special_flags & JSONSL_SPECIALf_NUMERIC) && !(state->special_flags & JSONSL_SPECIALf_INF)) {
+            GT_SPECIAL_NUMERIC:
                 switch (CUR_CHAR) {
-                CASE_DIGITS
+                    CASE_DIGITS
                     STATE_NUM_LAST = '1';
                     CONTINUE_NEXT_CHAR();
 
@@ -454,38 +430,37 @@ jsonsl_feed(jsonsl_t jsn, const jsonsl_char_t *bytes, size_t nbytes)
                     VERIFY_SPECIAL_CI("-infinity", 9 /* strlen("-infinity") */);
                 } else if (state->special_flags == JSONSL_SPECIALf_NAN) {
                     VERIFY_SPECIAL_CI("nan", 3 /* strlen("nan") */);
-                } else if (state->special_flags & JSONSL_SPECIALf_NULL ||
-                           state->special_flags & JSONSL_SPECIALf_NAN) {
-                   /* previous char was "n", are we parsing null or nan? */
-                   const bool not_u = CUR_CHAR != 'u';
-                   const bool not_a = tolower (CUR_CHAR) != 'a';
-                   if (not_u) {
-                      state->special_flags &= ~JSONSL_SPECIALf_NULL;
-                   }
-                   if (not_a) {
-                      state->special_flags &= ~JSONSL_SPECIALf_NAN;
-                   }
-                   if (not_u && not_a) {
-                      /* This verify will always fail, as we have an 'n'
-                       * followed by a character that is neither 'a' nor 'u'
-                       * (and hence cannot be "null"). The purpose of this
-                       * VERIFY_SPECIAL is to generate an error in tokenization
-                       * that stops if a bare 'n' cannot possibly be a "nan" or
-                       * a "null". */
-                      VERIFY_SPECIAL ("null", 4);
-                   }
+                } else if (state->special_flags & JSONSL_SPECIALf_NULL || state->special_flags & JSONSL_SPECIALf_NAN) {
+                    /* previous char was "n", are we parsing null or nan? */
+                    const bool not_u = CUR_CHAR != 'u';
+                    const bool not_a = tolower(CUR_CHAR) != 'a';
+                    if (not_u) {
+                        state->special_flags &= ~JSONSL_SPECIALf_NULL;
+                    }
+                    if (not_a) {
+                        state->special_flags &= ~JSONSL_SPECIALf_NAN;
+                    }
+                    if (not_u && not_a) {
+                        /* This verify will always fail, as we have an 'n'
+                         * followed by a character that is neither 'a' nor 'u'
+                         * (and hence cannot be "null"). The purpose of this
+                         * VERIFY_SPECIAL is to generate an error in tokenization
+                         * that stops if a bare 'n' cannot possibly be a "nan" or
+                         * a "null". */
+                        VERIFY_SPECIAL("null", 4);
+                    }
 #endif
                 }
                 INCR_METRIC(SPECIAL_FASTPATH);
                 CONTINUE_NEXT_CHAR();
             }
 
-            GT_SPECIAL_POP:
+        GT_SPECIAL_POP:
             jsn->can_insert = 0;
             if (IS_NORMAL_NUMBER) {
                 /* Nothing */
-            } else if (state->special_flags == JSONSL_SPECIALf_ZERO ||
-                    state->special_flags == (JSONSL_SPECIALf_ZERO|JSONSL_SPECIALf_SIGNED)) {
+            } else if (state->special_flags == JSONSL_SPECIALf_ZERO
+                       || state->special_flags == (JSONSL_SPECIALf_ZERO | JSONSL_SPECIALf_SIGNED)) {
                 /* 0 is unsigned! */
                 state->special_flags = JSONSL_SPECIALf_UNSIGNED;
             } else if (state->special_flags == JSONSL_SPECIALf_DASH) {
@@ -542,21 +517,16 @@ jsonsl_feed(jsonsl_t jsn, const jsonsl_char_t *bytes, size_t nbytes)
         INCR_GENERIC(CUR_CHAR);
 
         if (CUR_CHAR == '"') {
-            GT_QUOTE:
+        GT_QUOTE:
             jsn->can_insert = 0;
             switch (state_type) {
-
             /* the end of a string or hash key */
-            case JSONSL_T_STRING:
-                CALLBACK_AND_POP(STRING);
-                CONTINUE_NEXT_CHAR();
-            case JSONSL_T_HKEY:
-                CALLBACK_AND_POP(HKEY);
-                CONTINUE_NEXT_CHAR();
+            case JSONSL_T_STRING: CALLBACK_AND_POP(STRING); CONTINUE_NEXT_CHAR();
+            case JSONSL_T_HKEY: CALLBACK_AND_POP(HKEY); CONTINUE_NEXT_CHAR();
 
             case JSONSL_T_OBJECT:
                 state->nelem++;
-                if ( (state->nelem-1) % 2 ) {
+                if ((state->nelem - 1) % 2) {
                     /* Odd, this must be a hash value */
                     if (jsn->tok_last != ':') {
                         INVOKE_ERROR(MISSING_TOKEN);
@@ -591,19 +561,15 @@ jsonsl_feed(jsonsl_t jsn, const jsonsl_char_t *bytes, size_t nbytes)
                 DO_CALLBACK(STRING, PUSH);
                 CONTINUE_NEXT_CHAR();
 
-            case JSONSL_T_SPECIAL:
-                INVOKE_ERROR(STRAY_TOKEN);
-                break;
+            case JSONSL_T_SPECIAL: INVOKE_ERROR(STRAY_TOKEN); break;
 
-            default:
-                INVOKE_ERROR(STRING_OUTSIDE_CONTAINER);
-                break;
+            default: INVOKE_ERROR(STRING_OUTSIDE_CONTAINER); break;
             } /* switch(state->type) */
         } else if (CUR_CHAR == '\\') {
-            GT_ESCAPE:
+        GT_ESCAPE:
             INCR_METRIC(ESCAPES);
-        /* Escape */
-            if ( (state->type & JSONSL_Tf_STRINGY) == 0 ) {
+            /* Escape */
+            if ((state->type & JSONSL_Tf_STRINGY) == 0) {
                 INVOKE_ERROR(ESCAPE_OUTSIDE_STRING);
             }
             state->nescapes++;
@@ -611,7 +577,7 @@ jsonsl_feed(jsonsl_t jsn, const jsonsl_char_t *bytes, size_t nbytes)
             CONTINUE_NEXT_CHAR();
         } /* " or \ */
 
-        GT_STRUCTURAL_TOKEN:
+    GT_STRUCTURAL_TOKEN:
         switch (CUR_CHAR) {
         case ':':
             INCR_METRIC(STRUCTURAL_TOKEN);
@@ -708,7 +674,7 @@ jsonsl_feed(jsonsl_t jsn, const jsonsl_char_t *bytes, size_t nbytes)
             CONTINUE_NEXT_CHAR();
 
         default:
-            GT_SPECIAL_BEGIN:
+        GT_SPECIAL_BEGIN:
             /**
              * Not a string, not a structural token, and not benign whitespace.
              * Technically we should iterate over the character always, but since
@@ -755,13 +721,12 @@ jsonsl_feed(jsonsl_t jsn, const jsonsl_char_t *bytes, size_t nbytes)
 }
 
 JSONSL_API
-const char* jsonsl_strerror(jsonsl_error_t err)
-{
+const char *jsonsl_strerror(jsonsl_error_t err) {
     if (err == JSONSL_ERROR_SUCCESS) {
         return "SUCCESS";
     }
-#define X(t) \
-    if (err == JSONSL_ERROR_##t) \
+#define X(t)                                                                                                           \
+    if (err == JSONSL_ERROR_##t)                                                                                       \
         return #t;
     JSONSL_XERR;
 #undef X
@@ -769,15 +734,13 @@ const char* jsonsl_strerror(jsonsl_error_t err)
 }
 
 JSONSL_API
-const char *jsonsl_strtype(jsonsl_type_t type)
-{
-#define X(o,c) \
-    if (type == JSONSL_T_##o) \
+const char *jsonsl_strtype(jsonsl_type_t type) {
+#define X(o, c)                                                                                                        \
+    if (type == JSONSL_T_##o)                                                                                          \
         return #o;
     JSONSL_XTYPE
 #undef X
     return "UNKNOWN TYPE";
-
 }
 
 /*
@@ -787,13 +750,8 @@ const char *jsonsl_strtype(jsonsl_type_t type)
  *
  */
 #ifndef JSONSL_NO_JPR
-static
-jsonsl_jpr_type_t
-populate_component(char *in,
-                   struct jsonsl_jpr_component_st *component,
-                   char **next,
-                   jsonsl_error_t *errp)
-{
+static jsonsl_jpr_type_t
+populate_component(char *in, struct jsonsl_jpr_component_st *component, char **next, jsonsl_error_t *errp) {
     unsigned long pctval;
     char *c = NULL, *outp = NULL, *end = NULL;
     size_t input_len;
@@ -844,26 +802,26 @@ populate_component(char *in,
          */
 
         /* Need %XX */
-        if (c+2 >= end) {
+        if (c + 2 >= end) {
             *errp = JSONSL_ERROR_PERCENT_BADHEX;
             return JSONSL_PATH_INVALID;
         }
-        if (! (isxdigit(*(c+1)) && isxdigit(*(c+2))) ) {
+        if (!(isxdigit(*(c + 1)) && isxdigit(*(c + 2)))) {
             *errp = JSONSL_ERROR_PERCENT_BADHEX;
             return JSONSL_PATH_INVALID;
         }
 
         /* Temporarily null-terminate the characters */
-        origc = *(c+3);
-        *(c+3) = '\0';
-        pctval = strtoul(c+1, NULL, 16);
-        *(c+3) = origc;
+        origc = *(c + 3);
+        *(c + 3) = '\0';
+        pctval = strtoul(c + 1, NULL, 16);
+        *(c + 3) = origc;
 
-        *outp = (char) pctval;
+        *outp = (char)pctval;
         c += 2;
         continue;
 
-        GT_ASSIGN:
+    GT_ASSIGN:
         *outp = *c;
     }
     /* Null-terminate the string */
@@ -871,7 +829,7 @@ populate_component(char *in,
         *outp = '\0';
     }
 
-    GT_RET:
+GT_RET:
     component->ptype = ret;
     if (ret != JSONSL_PATH_WILDCARD) {
         component->len = strlen(component->pstr);
@@ -880,9 +838,7 @@ populate_component(char *in,
 }
 
 JSONSL_API
-jsonsl_jpr_t
-jsonsl_jpr_new(const char *path, jsonsl_error_t *errp)
-{
+jsonsl_jpr_t jsonsl_jpr_new(const char *path, jsonsl_error_t *errp) {
     char *my_copy = NULL;
     int count, curidx;
     struct jsonsl_jpr_st *ret = NULL;
@@ -890,7 +846,9 @@ jsonsl_jpr_new(const char *path, jsonsl_error_t *errp)
     size_t origlen;
     jsonsl_error_t errstacked;
 
-#define JPR_BAIL(err) *errp = err; goto GT_ERROR;
+#define JPR_BAIL(err)                                                                                                  \
+    *errp = err;                                                                                                       \
+    goto GT_ERROR;
 
     if (errp == NULL) {
         errp = &errstacked;
@@ -907,18 +865,17 @@ jsonsl_jpr_new(const char *path, jsonsl_error_t *errp)
         for (; *c; c++) {
             if (*c == '/') {
                 count++;
-                if (*(c+1) == '/') {
+                if (*(c + 1) == '/') {
                     JPR_BAIL(JSONSL_ERROR_JPR_DUPSLASH);
                 }
             }
         }
     }
-    if(*path) {
+    if (*path) {
         count++;
     }
 
-    components = (struct jsonsl_jpr_component_st *)
-            malloc(sizeof(*components) * count);
+    components = (struct jsonsl_jpr_component_st *)malloc(sizeof(*components) * count);
     if (!components) {
         JPR_BAIL(JSONSL_ERROR_ENOMEM);
     }
@@ -965,12 +922,12 @@ jsonsl_jpr_new(const char *path, jsonsl_error_t *errp)
     ret->components = components;
     ret->ncomponents = curidx;
     ret->basestr = my_copy;
-    ret->norig = origlen-1;
+    ret->norig = origlen - 1;
     strcpy(ret->orig, path);
 
     return ret;
 
-    GT_ERROR:
+GT_ERROR:
     free(my_copy);
     free(components);
     if (ret) {
@@ -981,8 +938,7 @@ jsonsl_jpr_new(const char *path, jsonsl_error_t *errp)
 #undef JPR_BAIL
 }
 
-void jsonsl_jpr_destroy(jsonsl_jpr_t jpr)
-{
+void jsonsl_jpr_destroy(jsonsl_jpr_t jpr) {
     free(jpr->components);
     free(jpr->basestr);
     free(jpr->orig);
@@ -998,11 +954,10 @@ void jsonsl_jpr_destroy(jsonsl_jpr_t jpr)
  * @param chtype The type of the child
  * @return Match status
  */
-static jsonsl_jpr_match_t
-jsonsl__match_continue(jsonsl_jpr_t jpr,
-                       const struct jsonsl_jpr_component_st *component,
-                       unsigned prlevel, unsigned chtype)
-{
+static jsonsl_jpr_match_t jsonsl__match_continue(jsonsl_jpr_t jpr,
+                                                 const struct jsonsl_jpr_component_st *component,
+                                                 unsigned prlevel,
+                                                 unsigned chtype) {
     const struct jsonsl_jpr_component_st *next_comp = component + 1;
     if (prlevel == jpr->ncomponents - 1) {
         /* This is the match. Check the expected type of the match against
@@ -1031,12 +986,11 @@ jsonsl__match_continue(jsonsl_jpr_t jpr,
 }
 
 JSONSL_API
-jsonsl_jpr_match_t
-jsonsl_path_match(jsonsl_jpr_t jpr,
-                  const struct jsonsl_state_st *parent,
-                  const struct jsonsl_state_st *child,
-                  const char *key, size_t nkey)
-{
+jsonsl_jpr_match_t jsonsl_path_match(jsonsl_jpr_t jpr,
+                                     const struct jsonsl_state_st *parent,
+                                     const struct jsonsl_state_st *child,
+                                     const char *key,
+                                     size_t nkey) {
     const struct jsonsl_jpr_component_st *comp;
     if (!parent) {
         /* No parent. Return immediately since it's always a match */
@@ -1063,12 +1017,7 @@ jsonsl_path_match(jsonsl_jpr_t jpr,
 
 JSONSL_API
 jsonsl_jpr_match_t
-jsonsl_jpr_match(jsonsl_jpr_t jpr,
-                   unsigned int parent_type,
-                   unsigned int parent_level,
-                   const char *key,
-                   size_t nkey)
-{
+jsonsl_jpr_match(jsonsl_jpr_t jpr, unsigned int parent_type, unsigned int parent_level, const char *key, size_t nkey) {
     /* find our current component. This is the child level */
     int cmpret;
     struct jsonsl_jpr_component_st *p_component;
@@ -1089,7 +1038,7 @@ jsonsl_jpr_match(jsonsl_jpr_t jpr,
 
     /* Wildcard, always matches */
     if (p_component->ptype == JSONSL_PATH_WILDCARD) {
-        if (parent_level == jpr->ncomponents-1) {
+        if (parent_level == jpr->ncomponents - 1) {
             return JSONSL_MATCH_COMPLETE;
         } else {
             return JSONSL_MATCH_POSSIBLE;
@@ -1104,7 +1053,7 @@ jsonsl_jpr_match(jsonsl_jpr_t jpr,
                 /* Wrong index */
                 return JSONSL_MATCH_NOMATCH;
             } else {
-                if (parent_level == jpr->ncomponents-1) {
+                if (parent_level == jpr->ncomponents - 1) {
                     /* This is the last element of the path */
                     return JSONSL_MATCH_COMPLETE;
                 } else {
@@ -1129,7 +1078,7 @@ jsonsl_jpr_match(jsonsl_jpr_t jpr,
     /* Check string comparison */
     cmpret = strncmp(p_component->pstr, key, nkey);
     if (cmpret == 0) {
-        if (parent_level == jpr->ncomponents-1) {
+        if (parent_level == jpr->ncomponents - 1) {
             return JSONSL_MATCH_COMPLETE;
         } else {
             return JSONSL_MATCH_POSSIBLE;
@@ -1140,29 +1089,25 @@ jsonsl_jpr_match(jsonsl_jpr_t jpr,
 }
 
 JSONSL_API
-void jsonsl_jpr_match_state_init(jsonsl_t jsn,
-                                 jsonsl_jpr_t *jprs,
-                                 size_t njprs)
-{
+void jsonsl_jpr_match_state_init(jsonsl_t jsn, jsonsl_jpr_t *jprs, size_t njprs) {
     size_t ii, *firstjmp;
     if (njprs == 0) {
         return;
     }
     jsn->jprs = (jsonsl_jpr_t *)malloc(sizeof(jsonsl_jpr_t) * njprs);
     jsn->jpr_count = njprs;
-    jsn->jpr_root = (size_t*)calloc(1, sizeof(size_t) * njprs * jsn->levels_max);
+    jsn->jpr_root = (size_t *)calloc(1, sizeof(size_t) * njprs * jsn->levels_max);
     memcpy(jsn->jprs, jprs, sizeof(jsonsl_jpr_t) * njprs);
     /* Set the initial jump table values */
 
     firstjmp = jsn->jpr_root;
     for (ii = 0; ii < njprs; ii++) {
-        firstjmp[ii] = ii+1;
+        firstjmp[ii] = ii + 1;
     }
 }
 
 JSONSL_API
-void jsonsl_jpr_match_state_cleanup(jsonsl_t jsn)
-{
+void jsonsl_jpr_match_state_cleanup(jsonsl_t jsn) {
     if (jsn->jpr_count == 0) {
         return;
     }
@@ -1192,8 +1137,7 @@ jsonsl_jpr_t jsonsl_jpr_match_state(jsonsl_t jsn,
                                     struct jsonsl_state_st *state,
                                     const char *key,
                                     size_t nkey,
-                                    jsonsl_jpr_match_t *out)
-{
+                                    jsonsl_jpr_match_t *out) {
     struct jsonsl_state_st *parent_state;
     jsonsl_jpr_t ret = NULL;
 
@@ -1206,7 +1150,7 @@ jsonsl_jpr_t jsonsl_jpr_match_state(jsonsl_t jsn,
         return NULL;
     }
 
-    pjmptable = jsn->jpr_root + (jsn->jpr_count * (state->level-1));
+    pjmptable = jsn->jpr_root + (jsn->jpr_count * (state->level - 1));
     jmptable = pjmptable + jsn->jpr_count;
 
     /* If the parent cannot match, then invalidate it */
@@ -1219,27 +1163,24 @@ jsonsl_jpr_t jsonsl_jpr_match_state(jsonsl_t jsn,
     parent_state = jsn->stack + state->level - 1;
 
     if (parent_state->type == JSONSL_T_LIST) {
-        nkey = (size_t) parent_state->nelem;
+        nkey = (size_t)parent_state->nelem;
     }
 
     *jmptable = 0;
     ourjmpidx = 0;
     memset(jmptable, 0, sizeof(int) * jsn->jpr_count);
 
-    for (ii = 0; ii <  jsn->jpr_count; ii++) {
+    for (ii = 0; ii < jsn->jpr_count; ii++) {
         jmp_cur = pjmptable[ii];
         if (jmp_cur) {
-            jsonsl_jpr_t jpr = jsn->jprs[jmp_cur-1];
-            *out = jsonsl_jpr_match(jpr,
-                                    parent_state->type,
-                                    parent_state->level,
-                                    key, nkey);
+            jsonsl_jpr_t jpr = jsn->jprs[jmp_cur - 1];
+            *out = jsonsl_jpr_match(jpr, parent_state->type, parent_state->level, key, nkey);
             if (*out == JSONSL_MATCH_COMPLETE) {
                 ret = jpr;
                 *jmptable = 0;
                 return ret;
             } else if (*out == JSONSL_MATCH_POSSIBLE) {
-                jmptable[ourjmpidx] = ii+1;
+                jmptable[ourjmpidx] = ii + 1;
                 ourjmpidx++;
             }
         } else {
@@ -1253,10 +1194,9 @@ jsonsl_jpr_t jsonsl_jpr_match_state(jsonsl_t jsn,
 }
 
 JSONSL_API
-const char *jsonsl_strmatchtype(jsonsl_jpr_match_t match)
-{
-#define X(T,v) \
-    if ( match == JSONSL_MATCH_##T ) \
+const char *jsonsl_strmatchtype(jsonsl_jpr_match_t match) {
+#define X(T, v)                                                                                                        \
+    if (match == JSONSL_MATCH_##T)                                                                                     \
         return #T;
     JSONSL_XMATCH
 #undef X
@@ -1265,10 +1205,10 @@ const char *jsonsl_strmatchtype(jsonsl_jpr_match_t match)
 
 #endif /* JSONSL_WITH_JPR */
 
-static char *
-jsonsl__writeutf8(uint32_t pt, char *out)
-{
-    #define ADD_OUTPUT(c) *out = (char)(c); out++;
+static char *jsonsl__writeutf8(uint32_t pt, char *out) {
+#define ADD_OUTPUT(c)                                                                                                  \
+    *out = (char)(c);                                                                                                  \
+    out++;
 
     if (pt < 0x80) {
         ADD_OUTPUT(pt);
@@ -1286,44 +1226,43 @@ jsonsl__writeutf8(uint32_t pt, char *out)
         ADD_OUTPUT((pt & 0x3F) | 0x80);
     }
     return out;
-    #undef ADD_OUTPUT
+#undef ADD_OUTPUT
 }
 
 /* Thanks snej (https://github.com/mnunberg/jsonsl/issues/9) */
-static int
-jsonsl__digit2int(char ch) {
+static int jsonsl__digit2int(char ch) {
     int d = ch - '0';
-    if ((unsigned) d < 10) {
+    if ((unsigned)d < 10) {
         return d;
     }
     d = ch - 'a';
-    if ((unsigned) d < 6) {
+    if ((unsigned)d < 6) {
         return d + 10;
     }
     d = ch - 'A';
-    if ((unsigned) d < 6) {
+    if ((unsigned)d < 6) {
         return d + 10;
     }
     return -1;
 }
 
 /* Assume 's' is at least 4 bytes long */
-static int
-jsonsl__get_uescape_16(const char *s)
-{
+static int jsonsl__get_uescape_16(const char *s) {
     int ret = 0;
     int cur;
 
-    #define GET_DIGIT(off) \
-        cur = jsonsl__digit2int(s[off]); \
-        if (cur == -1) { return -1; } \
-        ret |= (cur << (12 - (off * 4)));
+#define GET_DIGIT(off)                                                                                                 \
+    cur = jsonsl__digit2int(s[off]);                                                                                   \
+    if (cur == -1) {                                                                                                   \
+        return -1;                                                                                                     \
+    }                                                                                                                  \
+    ret |= (cur << (12 - (off * 4)));
 
     GET_DIGIT(0);
     GET_DIGIT(1);
     GET_DIGIT(2);
     GET_DIGIT(3);
-    #undef GET_DIGIT
+#undef GET_DIGIT
     return ret;
 }
 
@@ -1337,9 +1276,8 @@ size_t jsonsl_util_unescape_ex(const char *in,
                                const int toEscape[128],
                                unsigned *oflags,
                                jsonsl_error_t *err,
-                               const char **errat)
-{
-    const unsigned char *c = (const unsigned char*)in;
+                               const char **errat) {
+    const unsigned char *c = (const unsigned char *)in;
     char *begin_p = out;
     unsigned oflags_s;
     uint16_t last_codepoint = 0;
@@ -1349,12 +1287,12 @@ size_t jsonsl_util_unescape_ex(const char *in,
     }
     *oflags = 0;
 
-    #define UNESCAPE_BAIL(e,offset) \
-        *err = JSONSL_ERROR_##e; \
-        if (errat) { \
-            *errat = (const char*)(c+ (ptrdiff_t)(offset)); \
-        } \
-        return 0;
+#define UNESCAPE_BAIL(e, offset)                                                                                       \
+    *err = JSONSL_ERROR_##e;                                                                                           \
+    if (errat) {                                                                                                       \
+        *errat = (const char *)(c + (ptrdiff_t)(offset));                                                              \
+    }                                                                                                                  \
+    return 0;
 
     for (; len; len--, c++, out++) {
         int uescval;
@@ -1369,8 +1307,7 @@ size_t jsonsl_util_unescape_ex(const char *in,
         if (!is_allowed_escape(c[1])) {
             UNESCAPE_BAIL(ESCAPE_INVALID, 1)
         }
-        if ((toEscape && toEscape[(unsigned char)c[1] & 0x7f] == 0 &&
-                c[1] != '\\' && c[1] != '"')) {
+        if ((toEscape && toEscape[(unsigned char)c[1] & 0x7f] == 0 && c[1] != '\\' && c[1] != '"')) {
             /* if we don't want to unescape this string, write the escape sequence to the output */
             *out++ = *c++;
             --len;
@@ -1439,8 +1376,8 @@ size_t jsonsl_util_unescape_ex(const char *in,
         c += 5;
         continue;
 
-        /* Only reached by previous branches */
-        GT_ASSIGN:
+    /* Only reached by previous branches */
+    GT_ASSIGN:
         *out = *c;
     }
 
@@ -1463,37 +1400,261 @@ size_t jsonsl_util_unescape_ex(const char *in,
  * allowable (bareword) values.
  */
 static unsigned short Special_Table[0x100] = {
-        /* 0x00 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x1f */
-        /* 0x20 */ 0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x2c */
-        /* 0x2d */ JSONSL_SPECIALf_DASH /* <-> */, /* 0x2d */
-        /* 0x2e */ 0,0, /* 0x2f */
-        /* 0x30 */ JSONSL_SPECIALf_ZERO /* <0> */, /* 0x30 */
-        /* 0x31 */ JSONSL_SPECIALf_UNSIGNED /* <1> */, /* 0x31 */
-        /* 0x32 */ JSONSL_SPECIALf_UNSIGNED /* <2> */, /* 0x32 */
-        /* 0x33 */ JSONSL_SPECIALf_UNSIGNED /* <3> */, /* 0x33 */
-        /* 0x34 */ JSONSL_SPECIALf_UNSIGNED /* <4> */, /* 0x34 */
-        /* 0x35 */ JSONSL_SPECIALf_UNSIGNED /* <5> */, /* 0x35 */
-        /* 0x36 */ JSONSL_SPECIALf_UNSIGNED /* <6> */, /* 0x36 */
-        /* 0x37 */ JSONSL_SPECIALf_UNSIGNED /* <7> */, /* 0x37 */
-        /* 0x38 */ JSONSL_SPECIALf_UNSIGNED /* <8> */, /* 0x38 */
-        /* 0x39 */ JSONSL_SPECIALf_UNSIGNED /* <9> */, /* 0x39 */
-        /* 0x3a */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x48 */
-        /* 0x49 */ JSONSL__INF_PROXY /* <I> */, /* 0x49 */
-        /* 0x4a */ 0,0,0,0, /* 0x4d */
-        /* 0x4e */ JSONSL__NAN_PROXY /* <N> */, /* 0x4e */
-        /* 0x4f */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x65 */
-        /* 0x66 */ JSONSL_SPECIALf_FALSE /* <f> */, /* 0x66 */
-        /* 0x67 */ 0,0, /* 0x68 */
-        /* 0x69 */ JSONSL__INF_PROXY /* <i> */, /* 0x69 */
-        /* 0x6a */ 0,0,0,0, /* 0x6d */
-        /* 0x6e */ JSONSL_SPECIALf_NULL|JSONSL__NAN_PROXY /* <n> */, /* 0x6e */
-        /* 0x6f */ 0,0,0,0,0, /* 0x73 */
-        /* 0x74 */ JSONSL_SPECIALf_TRUE /* <t> */, /* 0x74 */
-        /* 0x75 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x94 */
-        /* 0x95 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xb4 */
-        /* 0xb5 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xd4 */
-        /* 0xd5 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xf4 */
-        /* 0xf5 */ 0,0,0,0,0,0,0,0,0,0, /* 0xfe */
+    /* 0x00 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x1f */
+    /* 0x20 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                                         /* 0x2c */
+    /* 0x2d */ JSONSL_SPECIALf_DASH /* <-> */, /* 0x2d */
+    /* 0x2e */ 0,
+    0,                                             /* 0x2f */
+    /* 0x30 */ JSONSL_SPECIALf_ZERO /* <0> */,     /* 0x30 */
+    /* 0x31 */ JSONSL_SPECIALf_UNSIGNED /* <1> */, /* 0x31 */
+    /* 0x32 */ JSONSL_SPECIALf_UNSIGNED /* <2> */, /* 0x32 */
+    /* 0x33 */ JSONSL_SPECIALf_UNSIGNED /* <3> */, /* 0x33 */
+    /* 0x34 */ JSONSL_SPECIALf_UNSIGNED /* <4> */, /* 0x34 */
+    /* 0x35 */ JSONSL_SPECIALf_UNSIGNED /* <5> */, /* 0x35 */
+    /* 0x36 */ JSONSL_SPECIALf_UNSIGNED /* <6> */, /* 0x36 */
+    /* 0x37 */ JSONSL_SPECIALf_UNSIGNED /* <7> */, /* 0x37 */
+    /* 0x38 */ JSONSL_SPECIALf_UNSIGNED /* <8> */, /* 0x38 */
+    /* 0x39 */ JSONSL_SPECIALf_UNSIGNED /* <9> */, /* 0x39 */
+    /* 0x3a */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                                      /* 0x48 */
+    /* 0x49 */ JSONSL__INF_PROXY /* <I> */, /* 0x49 */
+    /* 0x4a */ 0,
+    0,
+    0,
+    0,                                      /* 0x4d */
+    /* 0x4e */ JSONSL__NAN_PROXY /* <N> */, /* 0x4e */
+    /* 0x4f */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                                          /* 0x65 */
+    /* 0x66 */ JSONSL_SPECIALf_FALSE /* <f> */, /* 0x66 */
+    /* 0x67 */ 0,
+    0,                                      /* 0x68 */
+    /* 0x69 */ JSONSL__INF_PROXY /* <i> */, /* 0x69 */
+    /* 0x6a */ 0,
+    0,
+    0,
+    0,                                                             /* 0x6d */
+    /* 0x6e */ JSONSL_SPECIALf_NULL | JSONSL__NAN_PROXY /* <n> */, /* 0x6e */
+    /* 0x6f */ 0,
+    0,
+    0,
+    0,
+    0,                                         /* 0x73 */
+    /* 0x74 */ JSONSL_SPECIALf_TRUE /* <t> */, /* 0x74 */
+    /* 0x75 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x94 */
+    /* 0x95 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xb4 */
+    /* 0xb5 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xd4 */
+    /* 0xd5 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xf4 */
+    /* 0xf5 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xfe */
 };
 
 /**
@@ -1501,158 +1662,1325 @@ static unsigned short Special_Table[0x100] = {
  * values.
  */
 static int Special_Endings[0x100] = {
-        /* 0x00 */ 0,0,0,0,0,0,0,0,0, /* 0x08 */
-        /* 0x09 */ 1 /* <TAB> */, /* 0x09 */
-        /* 0x0a */ 1 /* <LF> */, /* 0x0a */
-        /* 0x0b */ 0,0, /* 0x0c */
-        /* 0x0d */ 1 /* <CR> */, /* 0x0d */
-        /* 0x0e */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x1f */
-        /* 0x20 */ 1 /* <SP> */, /* 0x20 */
-        /* 0x21 */ 0, /* 0x21 */
-        /* 0x22 */ 1 /* " */, /* 0x22 */
-        /* 0x23 */ 0,0,0,0,0,0,0,0,0, /* 0x2b */
-        /* 0x2c */ 1 /* , */, /* 0x2c */
-        /* 0x2d */ 0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x39 */
-        /* 0x3a */ 1 /* : */, /* 0x3a */
-        /* 0x3b */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x5a */
-        /* 0x5b */ 1 /* [ */, /* 0x5b */
-        /* 0x5c */ 1 /* \ */, /* 0x5c */
-        /* 0x5d */ 1 /* ] */, /* 0x5d */
-        /* 0x5e */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x7a */
-        /* 0x7b */ 1 /* { */, /* 0x7b */
-        /* 0x7c */ 0, /* 0x7c */
-        /* 0x7d */ 1 /* } */, /* 0x7d */
-        /* 0x7e */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x9d */
-        /* 0x9e */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xbd */
-        /* 0xbe */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xdd */
-        /* 0xde */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xfd */
-        /* 0xfe */ 0 /* 0xfe */
+    /* 0x00 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                        /* 0x08 */
+    /* 0x09 */ 1 /* <TAB> */, /* 0x09 */
+    /* 0x0a */ 1 /* <LF> */,  /* 0x0a */
+    /* 0x0b */ 0,
+    0,                       /* 0x0c */
+    /* 0x0d */ 1 /* <CR> */, /* 0x0d */
+    /* 0x0e */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                       /* 0x1f */
+    /* 0x20 */ 1 /* <SP> */, /* 0x20 */
+    /* 0x21 */ 0,            /* 0x21 */
+    /* 0x22 */ 1 /* " */,    /* 0x22 */
+    /* 0x23 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                    /* 0x2b */
+    /* 0x2c */ 1 /* , */, /* 0x2c */
+    /* 0x2d */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                    /* 0x39 */
+    /* 0x3a */ 1 /* : */, /* 0x3a */
+    /* 0x3b */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                    /* 0x5a */
+    /* 0x5b */ 1 /* [ */, /* 0x5b */
+    /* 0x5c */ 1 /* \ */, /* 0x5c */
+    /* 0x5d */ 1 /* ] */, /* 0x5d */
+    /* 0x5e */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                    /* 0x7a */
+    /* 0x7b */ 1 /* { */, /* 0x7b */
+    /* 0x7c */ 0,         /* 0x7c */
+    /* 0x7d */ 1 /* } */, /* 0x7d */
+    /* 0x7e */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x9d */
+    /* 0x9e */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xbd */
+    /* 0xbe */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xdd */
+    /* 0xde */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,           /* 0xfd */
+    /* 0xfe */ 0 /* 0xfe */
 };
 
 /**
  * This table contains entries for the allowed whitespace as per RFC 4627
  */
 static int Allowed_Whitespace[0x100] = {
-        /* 0x00 */ 0,0,0,0,0,0,0,0,0, /* 0x08 */
-        /* 0x09 */ 1 /* <TAB> */, /* 0x09 */
-        /* 0x0a */ 1 /* <LF> */, /* 0x0a */
-        /* 0x0b */ 0,0, /* 0x0c */
-        /* 0x0d */ 1 /* <CR> */, /* 0x0d */
-        /* 0x0e */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x1f */
-        /* 0x20 */ 1 /* <SP> */, /* 0x20 */
-        /* 0x21 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x40 */
-        /* 0x41 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x60 */
-        /* 0x61 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x80 */
-        /* 0x81 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xa0 */
-        /* 0xa1 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xc0 */
-        /* 0xc1 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xe0 */
-        /* 0xe1 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 /* 0xfe */
+    /* 0x00 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                        /* 0x08 */
+    /* 0x09 */ 1 /* <TAB> */, /* 0x09 */
+    /* 0x0a */ 1 /* <LF> */,  /* 0x0a */
+    /* 0x0b */ 0,
+    0,                       /* 0x0c */
+    /* 0x0d */ 1 /* <CR> */, /* 0x0d */
+    /* 0x0e */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                       /* 0x1f */
+    /* 0x20 */ 1 /* <SP> */, /* 0x20 */
+    /* 0x21 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x40 */
+    /* 0x41 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x60 */
+    /* 0x61 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x80 */
+    /* 0x81 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xa0 */
+    /* 0xa1 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xc0 */
+    /* 0xc1 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xe0 */
+    /* 0xe1 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0 /* 0xfe */
 };
 
 static const int String_No_Passthrough[0x100] = {
-        /* 0x00 */ 1 /* <NUL> */, /* 0x00 */
-        /* 0x01 */ 1 /* <SOH> */, /* 0x01 */
-        /* 0x02 */ 1 /* <STX> */, /* 0x02 */
-        /* 0x03 */ 1 /* <ETX> */, /* 0x03 */
-        /* 0x04 */ 1 /* <EOT> */, /* 0x04 */
-        /* 0x05 */ 1 /* <ENQ> */, /* 0x05 */
-        /* 0x06 */ 1 /* <ACK> */, /* 0x06 */
-        /* 0x07 */ 1 /* <BEL> */, /* 0x07 */
-        /* 0x08 */ 1 /* <BS> */, /* 0x08 */
-        /* 0x09 */ 1 /* <HT> */, /* 0x09 */
-        /* 0x0a */ 1 /* <LF> */, /* 0x0a */
-        /* 0x0b */ 1 /* <VT> */, /* 0x0b */
-        /* 0x0c */ 1 /* <FF> */, /* 0x0c */
-        /* 0x0d */ 1 /* <CR> */, /* 0x0d */
-        /* 0x0e */ 1 /* <SO> */, /* 0x0e */
-        /* 0x0f */ 1 /* <SI> */, /* 0x0f */
-        /* 0x10 */ 1 /* <DLE> */, /* 0x10 */
-        /* 0x11 */ 1 /* <DC1> */, /* 0x11 */
-        /* 0x12 */ 1 /* <DC2> */, /* 0x12 */
-        /* 0x13 */ 1 /* <DC3> */, /* 0x13 */
-        /* 0x14 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x21 */
-        /* 0x22 */ 1 /* <"> */, /* 0x22 */
-        /* 0x23 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x42 */
-        /* 0x43 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x5b */
-        /* 0x5c */ 1 /* <\> */, /* 0x5c */
-        /* 0x5d */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x7c */
-        /* 0x7d */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x9c */
-        /* 0x9d */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xbc */
-        /* 0xbd */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xdc */
-        /* 0xdd */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xfc */
-        /* 0xfd */ 0,0, /* 0xfe */
+    /* 0x00 */ 1 /* <NUL> */, /* 0x00 */
+    /* 0x01 */ 1 /* <SOH> */, /* 0x01 */
+    /* 0x02 */ 1 /* <STX> */, /* 0x02 */
+    /* 0x03 */ 1 /* <ETX> */, /* 0x03 */
+    /* 0x04 */ 1 /* <EOT> */, /* 0x04 */
+    /* 0x05 */ 1 /* <ENQ> */, /* 0x05 */
+    /* 0x06 */ 1 /* <ACK> */, /* 0x06 */
+    /* 0x07 */ 1 /* <BEL> */, /* 0x07 */
+    /* 0x08 */ 1 /* <BS> */,  /* 0x08 */
+    /* 0x09 */ 1 /* <HT> */,  /* 0x09 */
+    /* 0x0a */ 1 /* <LF> */,  /* 0x0a */
+    /* 0x0b */ 1 /* <VT> */,  /* 0x0b */
+    /* 0x0c */ 1 /* <FF> */,  /* 0x0c */
+    /* 0x0d */ 1 /* <CR> */,  /* 0x0d */
+    /* 0x0e */ 1 /* <SO> */,  /* 0x0e */
+    /* 0x0f */ 1 /* <SI> */,  /* 0x0f */
+    /* 0x10 */ 1 /* <DLE> */, /* 0x10 */
+    /* 0x11 */ 1 /* <DC1> */, /* 0x11 */
+    /* 0x12 */ 1 /* <DC2> */, /* 0x12 */
+    /* 0x13 */ 1 /* <DC3> */, /* 0x13 */
+    /* 0x14 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                      /* 0x21 */
+    /* 0x22 */ 1 /* <"> */, /* 0x22 */
+    /* 0x23 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x42 */
+    /* 0x43 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                      /* 0x5b */
+    /* 0x5c */ 1 /* <\> */, /* 0x5c */
+    /* 0x5d */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x7c */
+    /* 0x7d */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x9c */
+    /* 0x9d */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xbc */
+    /* 0xbd */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xdc */
+    /* 0xdd */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xfc */
+    /* 0xfd */ 0,
+    0, /* 0xfe */
 };
 
 /**
  * Allowable two-character 'common' escapes:
  */
 static int Allowed_Escapes[0x100] = {
-        /* 0x00 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x1f */
-        /* 0x20 */ 0,0, /* 0x21 */
-        /* 0x22 */ 1 /* <"> */, /* 0x22 */
-        /* 0x23 */ 0,0,0,0,0,0,0,0,0,0,0,0, /* 0x2e */
-        /* 0x2f */ 1 /* </> */, /* 0x2f */
-        /* 0x30 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x4f */
-        /* 0x50 */ 0,0,0,0,0,0,0,0,0,0,0,0, /* 0x5b */
-        /* 0x5c */ 1 /* <\> */, /* 0x5c */
-        /* 0x5d */ 0,0,0,0,0, /* 0x61 */
-        /* 0x62 */ 1 /* <b> */, /* 0x62 */
-        /* 0x63 */ 0,0,0, /* 0x65 */
-        /* 0x66 */ 1 /* <f> */, /* 0x66 */
-        /* 0x67 */ 0,0,0,0,0,0,0, /* 0x6d */
-        /* 0x6e */ 1 /* <n> */, /* 0x6e */
-        /* 0x6f */ 0,0,0, /* 0x71 */
-        /* 0x72 */ 1 /* <r> */, /* 0x72 */
-        /* 0x73 */ 0, /* 0x73 */
-        /* 0x74 */ 1 /* <t> */, /* 0x74 */
-        /* 0x75 */ 1 /* <u> */, /* 0x75 */
-        /* 0x76 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x95 */
-        /* 0x96 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xb5 */
-        /* 0xb6 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xd5 */
-        /* 0xd6 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xf5 */
-        /* 0xf6 */ 0,0,0,0,0,0,0,0,0, /* 0xfe */
+    /* 0x00 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x1f */
+    /* 0x20 */ 0,
+    0,                      /* 0x21 */
+    /* 0x22 */ 1 /* <"> */, /* 0x22 */
+    /* 0x23 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                      /* 0x2e */
+    /* 0x2f */ 1 /* </> */, /* 0x2f */
+    /* 0x30 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x4f */
+    /* 0x50 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                      /* 0x5b */
+    /* 0x5c */ 1 /* <\> */, /* 0x5c */
+    /* 0x5d */ 0,
+    0,
+    0,
+    0,
+    0,                      /* 0x61 */
+    /* 0x62 */ 1 /* <b> */, /* 0x62 */
+    /* 0x63 */ 0,
+    0,
+    0,                      /* 0x65 */
+    /* 0x66 */ 1 /* <f> */, /* 0x66 */
+    /* 0x67 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                      /* 0x6d */
+    /* 0x6e */ 1 /* <n> */, /* 0x6e */
+    /* 0x6f */ 0,
+    0,
+    0,                      /* 0x71 */
+    /* 0x72 */ 1 /* <r> */, /* 0x72 */
+    /* 0x73 */ 0,           /* 0x73 */
+    /* 0x74 */ 1 /* <t> */, /* 0x74 */
+    /* 0x75 */ 1 /* <u> */, /* 0x75 */
+    /* 0x76 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x95 */
+    /* 0x96 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xb5 */
+    /* 0xb6 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xd5 */
+    /* 0xd6 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xf5 */
+    /* 0xf6 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xfe */
 };
 
 /**
  * This table contains the _values_ for a given (single) escaped character.
  */
 static unsigned char Escape_Equivs[0x100] = {
-        /* 0x00 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x1f */
-        /* 0x20 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x3f */
-        /* 0x40 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x5f */
-        /* 0x60 */ 0,0, /* 0x61 */
-        /* 0x62 */ 8 /* <b> */, /* 0x62 */
-        /* 0x63 */ 0,0,0, /* 0x65 */
-        /* 0x66 */ 12 /* <f> */, /* 0x66 */
-        /* 0x67 */ 0,0,0,0,0,0,0, /* 0x6d */
-        /* 0x6e */ 10 /* <n> */, /* 0x6e */
-        /* 0x6f */ 0,0,0, /* 0x71 */
-        /* 0x72 */ 13 /* <r> */, /* 0x72 */
-        /* 0x73 */ 0, /* 0x73 */
-        /* 0x74 */ 9 /* <t> */, /* 0x74 */
-        /* 0x75 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0x94 */
-        /* 0x95 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xb4 */
-        /* 0xb5 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xd4 */
-        /* 0xd5 */ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xf4 */
-        /* 0xf5 */ 0,0,0,0,0,0,0,0,0,0 /* 0xfe */
+    /* 0x00 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x1f */
+    /* 0x20 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x3f */
+    /* 0x40 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x5f */
+    /* 0x60 */ 0,
+    0,                      /* 0x61 */
+    /* 0x62 */ 8 /* <b> */, /* 0x62 */
+    /* 0x63 */ 0,
+    0,
+    0,                       /* 0x65 */
+    /* 0x66 */ 12 /* <f> */, /* 0x66 */
+    /* 0x67 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,                       /* 0x6d */
+    /* 0x6e */ 10 /* <n> */, /* 0x6e */
+    /* 0x6f */ 0,
+    0,
+    0,                       /* 0x71 */
+    /* 0x72 */ 13 /* <r> */, /* 0x72 */
+    /* 0x73 */ 0,            /* 0x73 */
+    /* 0x74 */ 9 /* <t> */,  /* 0x74 */
+    /* 0x75 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0x94 */
+    /* 0x95 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xb4 */
+    /* 0xb5 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xd4 */
+    /* 0xd5 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, /* 0xf4 */
+    /* 0xf5 */ 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0 /* 0xfe */
 };
 
 /* Definitions of above-declared static functions */
 static char get_escape_equiv(unsigned c) {
     return Escape_Equivs[c & 0xff];
 }
+
 static unsigned extract_special(unsigned c) {
     return Special_Table[c & 0xff];
 }
+
 static int is_special_end(unsigned c) {
     return Special_Endings[c & 0xff];
 }
+
 static int is_allowed_whitespace(unsigned c) {
     return c == ' ' || Allowed_Whitespace[c & 0xff];
 }
+
 static int is_allowed_escape(unsigned c) {
     return Allowed_Escapes[c & 0xff];
 }
+
 static int is_simple_char(unsigned c) {
     return !String_No_Passthrough[c & 0xff];
 }

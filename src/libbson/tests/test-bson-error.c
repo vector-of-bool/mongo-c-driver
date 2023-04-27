@@ -18,21 +18,15 @@
 
 #include "TestSuite.h"
 
+static void test_bson_error_basic(void) {
+    bson_error_t error;
 
-static void
-test_bson_error_basic (void)
-{
-   bson_error_t error;
-
-   bson_set_error (&error, 123, 456, "%s %u", "localhost", 27017);
-   BSON_ASSERT (!strcmp (error.message, "localhost 27017"));
-   ASSERT_CMPINT (error.domain, ==, 123);
-   ASSERT_CMPINT (error.code, ==, 456);
+    bson_set_error(&error, 123, 456, "%s %u", "localhost", 27017);
+    BSON_ASSERT(!strcmp(error.message, "localhost 27017"));
+    ASSERT_CMPINT(error.domain, ==, 123);
+    ASSERT_CMPINT(error.code, ==, 456);
 }
 
-
-void
-test_bson_error_install (TestSuite *suite)
-{
-   TestSuite_Add (suite, "/bson/error/basic", test_bson_error_basic);
+void test_bson_error_install(TestSuite *suite) {
+    TestSuite_Add(suite, "/bson/error/basic", test_bson_error_basic);
 }

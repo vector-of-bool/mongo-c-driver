@@ -33,14 +33,12 @@ BSON_BEGIN_DECLS
  * using the moreToCome bit.
  */
 typedef enum {
-   MONGOC_MSG_NONE = 0,
-   MONGOC_MSG_CHECKSUM_PRESENT = 1 << 0,
-   MONGOC_MSG_MORE_TO_COME = 1 << 1,
-   MONGOC_MSG_EXHAUST_ALLOWED = 1 << 16,
+    MONGOC_MSG_NONE = 0,
+    MONGOC_MSG_CHECKSUM_PRESENT = 1 << 0,
+    MONGOC_MSG_MORE_TO_COME = 1 << 1,
+    MONGOC_MSG_EXHAUST_ALLOWED = 1 << 16,
 } mongoc_op_msg_flags_t;
 
-
 BSON_END_DECLS
-
 
 #endif /* MONGOC_FLAGS_PRIVATE_H */

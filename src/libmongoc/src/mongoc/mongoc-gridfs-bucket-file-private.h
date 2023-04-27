@@ -26,48 +26,40 @@
 BSON_BEGIN_DECLS
 
 typedef struct {
-   /* corresponding bucket */
-   mongoc_gridfs_bucket_t *bucket;
+    /* corresponding bucket */
+    mongoc_gridfs_bucket_t *bucket;
 
-   /* file data */
-   char *filename;
-   bson_value_t *file_id;
-   bson_t *metadata;
-   int32_t chunk_size;
-   int64_t length;
+    /* file data */
+    char *filename;
+    bson_value_t *file_id;
+    bson_t *metadata;
+    int32_t chunk_size;
+    int64_t length;
 
-   /* fields for reading and writing */
-   uint8_t *buffer;
-   size_t in_buffer;
-   int32_t curr_chunk;
+    /* fields for reading and writing */
+    uint8_t *buffer;
+    size_t in_buffer;
+    int32_t curr_chunk;
 
-   /* for writing */
-   bool saved;
+    /* for writing */
+    bool saved;
 
-   /* for reading */
-   mongoc_cursor_t *cursor;
-   size_t bytes_read;
-   bool finished;
+    /* for reading */
+    mongoc_cursor_t *cursor;
+    size_t bytes_read;
+    bool finished;
 
-   /* Error */
-   bson_error_t err;
+    /* Error */
+    bson_error_t err;
 } mongoc_gridfs_bucket_file_t;
 
-ssize_t
-_mongoc_gridfs_bucket_file_writev (mongoc_gridfs_bucket_file_t *file,
-                                   const mongoc_iovec_t *iov,
-                                   size_t iovcnt);
+ssize_t _mongoc_gridfs_bucket_file_writev(mongoc_gridfs_bucket_file_t *file, const mongoc_iovec_t *iov, size_t iovcnt);
 
-ssize_t
-_mongoc_gridfs_bucket_file_readv (mongoc_gridfs_bucket_file_t *file,
-                                  mongoc_iovec_t *iov,
-                                  size_t iovcnt);
+ssize_t _mongoc_gridfs_bucket_file_readv(mongoc_gridfs_bucket_file_t *file, mongoc_iovec_t *iov, size_t iovcnt);
 
-bool
-_mongoc_gridfs_bucket_file_save (mongoc_gridfs_bucket_file_t *file);
+bool _mongoc_gridfs_bucket_file_save(mongoc_gridfs_bucket_file_t *file);
 
-void
-_mongoc_gridfs_bucket_file_destroy (mongoc_gridfs_bucket_file_t *file);
+void _mongoc_gridfs_bucket_file_destroy(mongoc_gridfs_bucket_file_t *file);
 
 BSON_END_DECLS
 

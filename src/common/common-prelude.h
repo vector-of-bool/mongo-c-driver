@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-#if !defined(MONGOC_INSIDE) && !defined(MONGOC_COMPILATION) && \
-   !defined(BSON_COMPILATION) && !defined(BSON_INSIDE)
+#if !defined(MONGOC_INSIDE) && !defined(MONGOC_COMPILATION) && !defined(BSON_COMPILATION) && !defined(BSON_INSIDE)
 #error "Only <mongoc/mongoc.h> or <bson/bson.h> can be included directly."
 #endif
 
 #define COMMON_NAME_1(a, b) a##_##b
 
 #if defined(MCOMMON_NAME_PREFIX) && !defined(__INTELLISENSE__)
-#define COMMON_NAME(Name) COMMON_NAME_1 (MCOMMON_NAME_PREFIX, Name)
+#define COMMON_NAME(Name) COMMON_NAME_1(MCOMMON_NAME_PREFIX, Name)
 #else
-#define COMMON_NAME(Name) COMMON_NAME_1 (mcommon, Name)
+#define COMMON_NAME(Name) COMMON_NAME_1(mcommon, Name)
 #endif
