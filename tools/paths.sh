@@ -22,6 +22,10 @@
 #   • A user-local directory for caches related to these scripts
 # * EXE_SUFFIX
 #   • Expands to “.exe” on Windows, otherwise an empty string
+# * EVG_DIR
+#   • The path to the Evergreen CI files in the mongoc source tree
+# * EVG_SCRIPTS
+#   • The path to the mongo-c-driver Evergreen scripts
 
 . "$(dirname "${BASH_SOURCE[0]}")/use.sh" platform base
 
@@ -123,6 +127,9 @@ declare -r TOOLS_DIR=$TOOLS_DIR
 MONGOC_DIR=$(dirname "$TOOLS_DIR")
 declare -r MONGOC_DIR=$MONGOC_DIR
 
+declare -r EVG_DIR=$MONGOC_DIR/.evergreen
+declare -r EVG_SCRIPTS=$EVG_DIR/scripts
+
 EXE_SUFFIX=""
 if $IS_WINDOWS; then
     EXE_SUFFIX=".exe"
@@ -158,4 +165,6 @@ if is-main; then
     log " • EXE_SUFFIX=[$EXE_SUFFIX]"
     log " • TOOLS_DIR=[$TOOLS_DIR]"
     log " • MONGOC_DIR=[$MONGOC_DIR]"
+    log " • EVG_DIR=[$EVG_DIR]"
+    log " • EVG_SCRIPTS=[$EVG_SCRIPTS]"
 fi

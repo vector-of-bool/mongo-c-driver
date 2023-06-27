@@ -67,5 +67,31 @@ have-command() {
     type "$1" > /dev/null 2>&1
 }
 
+as-bool() {
+    if "$@"; then
+        printf true
+    else
+        printf false
+    fi
+}
+
+is-true() {
+    declare var=$1
+    declare val=${!var-}
+    case "$val" in
+    1|true|TRUE|True|yes|YES|Yes|on|ON|On)
+        return 0;;
+    0|false|FALSE|False|no|NO|No|off|OFF|Off|"")
+        return 1;;
+    *)
+        log "Unknown boolean value for \$$var: ‘$val’"
+        return 2;;
+    esac
+}
+
+get-bool() {
+    as-bool is-true "$1"
+}
+
 # Inhibit msys path conversion
 export MSYS2_ARG_CONV_EXCL="*"

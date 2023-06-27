@@ -23,3 +23,22 @@ check_symlink()
     echo "$SYMLINK links to correct filename"
   fi
 }
+
+check-symlink-eq() {
+  linkfile=$1
+  expected=$2
+
+  if ! [[ -L $linkfile ]]; then
+    if exists "$linkfile"; then
+      log "File named by path [$linkfile] is not a symbolic link"
+      stat "$linkfile"
+      return 1
+    else
+      fail "Path [$linkfile] does not name a file (Looking for a symbolink link)"
+    fi
+  fi
+  target=$(readlink "$linkfile")
+  if [[ $target != "$expected" ]]; then
+    fail "Symlink [$linkfile] target ‘$target’ is not the expected value ‘$expected’"
+  fi
+}
