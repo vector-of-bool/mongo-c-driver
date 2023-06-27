@@ -21,7 +21,7 @@ CMAKE=$(find_cmake_latest)
 if $IS_WINDOWS; then
   fail "This script doesn't work on Windows"
 elif $IS_DARWIN; then
-  lib_so=libmongo-1.0.0.dylib
+  lib_so=libmongoc-1.0.0.dylib
   ldd="otool -L"
 else
   lib_so=libmongoc-1.0.so.0
@@ -61,8 +61,6 @@ else
 fi
 
 $CMAKE "${configure_options[@]}"
-
-# $CMAKE -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR -DCMAKE_PREFIX_PATH=$INSTALL_DIR/lib/cmake $STATIC_CMAKE_OPTION -DENABLE_ZSTD=$ZSTD .
 $CMAKE --build "$build_dir" --parallel
 $CMAKE --build "$build_dir" --parallel --target install
 
