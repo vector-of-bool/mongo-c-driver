@@ -107,16 +107,14 @@ all_functions = OD([
                 -VSVersion "15.*" \
                 -VSArch "amd64" \
                 -EnableSnappy:$snappy \
-                -EnableSSL:$ssl \
-                -SourceTgz ../mongoc.tar.gz
+                -EnableSSL:$ssl
             ./.evergreen/scripts/link-sample-program.ps1 \
                 -CMake "$env:CMAKE" \
                 -VSVersion "15.*" \
                 -VSArch "amd64" \
                 -EnableSnappy:$snappy \
                 -EnableSSL:$ssl \
-                -StaticLink \
-                -SourceTgz ../mongoc.tar.gz
+                -StaticLink
         EOF
         '''),
     )),
@@ -127,7 +125,22 @@ all_functions = OD([
         . .evergreen/scripts/use-tools.sh paths
         . .evergreen/scripts/find-cmake-latest.sh
         export CMAKE="$(native-path "$(find_cmake_latest)")"
-        cmd.exe /c .\\.evergreen\\scripts\\link-sample-program-mingw.cmd
+        export CXX=g++
+        export CC=gcc
+        pwsh -noni -nop -f - <<EOF
+            $ErrorActionPreference="Stop"
+            $ssl = ("${ENABLE_SSL}" -eq "ON")
+            $snappy = ("${ENABLE_SNAPPY}" -eq "ON")
+            ./.evergreen/scripts/link-sample-program.ps1 \
+                -CMake "$env:CMAKE" \
+                -EnableSnappy:$snappy \
+                -EnableSSL:$ssl
+            ./.evergreen/scripts/link-sample-program.ps1 \
+                -CMake "$env:CMAKE" \
+                -EnableSnappy:$snappy \
+                -EnableSSL:$ssl \
+                -StaticLink
+        EOF
         ''',
         include_expansions_in_env=['distro_id']),
     )),

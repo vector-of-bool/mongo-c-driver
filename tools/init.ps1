@@ -2,6 +2,8 @@ $ErrorActionPreference = "Stop"
 
 $IS_WINDOWS = $PSVersionTable.Platform -eq "Win32NT" -or $PSVersionTable.PSEdition -eq "Desktop"
 
+$TOOLS_DIR = $PSScriptRoot
+$MONGOC_DIR = Split-Path -Parent $TOOLS_DIR
 
 $USER_CACHES_DIR = $env:USER_CACHES_DIR
 if ([String]::IsNullOrEmpty($USER_CACHES_DIR)) {

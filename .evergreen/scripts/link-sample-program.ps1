@@ -22,10 +22,7 @@ param (
     $EnableSnappy,
     # Enable SSL for the test
     [switch]
-    $EnableSSL,
-    # The libmongoc archive to use for the test
-    [string]
-    $SourceTgz
+    $EnableSSL
 )
 $ErrorActionPreference = "Stop"
 
@@ -49,27 +46,12 @@ if ([string]::IsNullOrEmpty($CMake)) {
     $CMake = Get-Command -Name "cmake" -CommandType Application | Select-Object -First 1
 }
 
-
-
-$mongoc_tar = [System.IO.Path]::GetFullPath("$repo_root/../mongoc.tar.gz")
-
 . $tools_dir/init.ps1
 
 Write-Debug "Using CMake [$CMake]"
 $ScratchDir = [System.IO.Path]::GetFullPath($ScratchDir)
 Write-Debug "Using scratch directory [$ScratchDir]"
 Remove-Item -Recurse $ScratchDir -ErrorAction Ignore
-
-if (-not [string]::IsNullOrEmpty($SourceTgz)) {
-    $mongoc_src = Join-Path $ScratchDir "mongoc-src"
-    New-Item $mongoc_src -ItemType Directory | Out-Null
-    & $CMake -E chdir $mongoc_src `
-        $CMake -E tar xf $mongoc_tar
-}
-else {
-    $mongoc_src = $repo_root
-}
-
 
 $install_dir = Join-Path $ScratchDir "install-dir"
 Write-Debug "Using install directory [$instlal_dir]"
@@ -81,10 +63,10 @@ if ($EnableSnappy) {
     $snappy_version = "1.1.7"
     Invoke-WebRequest -MaximumRetryCount 5 -UseBasicParsing `
         -Uri "https://github.com/google/snappy/archive/$snappy_version.tar.gz" `
-        -OutFile snappy.tar.gz
+        -OutFile $ScratchDir/snappy.tar.gz
 
     & $CMake -E chdir $ScratchDir `
-        $CMake -E tar xf snappy.tar.gz "snappy-$snappy_version"
+        $CMake -E tar xf $ScratchDir/snappy.tar.gz "snappy-$snappy_version"
     if ($LASTEXITCODE -ne 0) { throw "tar extraction failed" }
 
     Build-CMakeProject -SourceDir "$ScratchDir/snappy-$snappy_version" `
@@ -109,9 +91,9 @@ else {
 $mongoc_build = Join-Path $ScratchDir "mongoc"
 Remove-Item -Recurse -ErrorAction Ignore $mongoc_build
 
-Build-CMakeProject -SourceDir $mongoc_src `
+Build-CMakeProject -SourceDir $MONGOC_DIR `
     -BuildDir $mongoc_build `
-    -ConfigureOptions  @(`
+    -ConfigureOptions  @( `
         "-DENABLE_SSL=$ssl_opt", `
         "-DENABLE_SNAPPY=$snappy_bool" ) `
     -InstallDir $install_dir
