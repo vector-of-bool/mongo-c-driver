@@ -882,15 +882,9 @@ tasks:
     vars:
       ENABLE_SSL: 1
 - name: link-with-bson
-  depends_on:
-    name: make-release-archive
-    variant: releng
   commands:
   - func: link sample program bson
 - name: link-with-bson-mac
-  depends_on:
-    name: make-release-archive
-    variant: releng
   commands:
   - func: link sample program bson
 - name: link-with-bson-windows

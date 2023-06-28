@@ -331,13 +331,13 @@ all_tasks = [
         "link-with-bson",
         suffix_commands=[func("link sample program bson")],
         orchestration=False,
-        depends_on_archive=True,
+        depends_on_archive=False,
     ),
     LinkTask(
         "link-with-bson-mac",
         suffix_commands=[func("link sample program bson")],
         orchestration=False,
-        depends_on_archive=True,
+        depends_on_archive=False,
     ),
     LinkTask(
         "link-with-bson-windows",
