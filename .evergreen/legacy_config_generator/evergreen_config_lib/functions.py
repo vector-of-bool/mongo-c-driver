@@ -98,7 +98,7 @@ all_functions = OD([
         . .evergreen/scripts/use-tools.sh paths
         . .evergreen/scripts/find-cmake-latest.sh
         export CMAKE="$(native-path "$(find_cmake_latest)")"
-        powershell -noni -nop -f - <<'EOF'
+        cat > test.ps1 <<'EOF'
             $ErrorActionPreference="Stop"
             $ssl = ("${ENABLE_SSL}" -eq "ON")
             $snappy = ("${ENABLE_SNAPPY}" -eq "ON")
@@ -116,6 +116,7 @@ all_functions = OD([
                 -EnableSSL:$ssl `
                 -StaticLink
         EOF
+        powershell -noni -nop -f ./test.ps1
         '''),
     )),
     ('link sample program mingw', Function(
@@ -127,7 +128,7 @@ all_functions = OD([
         export CMAKE="$(native-path "$(find_cmake_latest)")"
         export CXX=g++
         export CC=gcc
-        powershell -noni -nop -f - <<'EOF'
+        cat > test.ps1 <<'EOF'
             $ErrorActionPreference="Stop"
             $ssl = ("${ENABLE_SSL}" -eq "ON")
             $snappy = ("${ENABLE_SNAPPY}" -eq "ON")
@@ -141,8 +142,8 @@ all_functions = OD([
                 -EnableSSL:$ssl `
                 -StaticLink
         EOF
-        ''',
-        include_expansions_in_env=['distro_id']),
+        powershell -noni -nop -f ./test.ps1
+        '''),
     )),
     ('link sample program MSVC bson', Function(
         shell_mongoc(r'''

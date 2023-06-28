@@ -28,6 +28,7 @@ $ErrorActionPreference = "Stop"
 
 $repo_root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $tools_dir = Join-Path $repo_root "tools"
+$ScratchDir = [System.IO.Path]::GetFullPath($ScratchDir)
 
 if (-not [string]::IsNullOrEmpty($VSVersion)) {
     $vs_env_run = Join-Path $tools_dir "vs-env-run.ps1"
