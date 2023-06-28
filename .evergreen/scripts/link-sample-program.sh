@@ -32,7 +32,7 @@ scratch_root=$MONGOC_DIR/_build/scratch/link-sample-program
 build_dir=$scratch_root/build
 install_dir=$scratch_root/install
 example_build_dir=$scratch_root/example-build
-rm -rf -- "$example_build_dir" "$install_dir"
+rm -rf -- "$scratch_root"
 
 configure_options=(
   -S "$MONGOC_DIR"
@@ -40,6 +40,8 @@ configure_options=(
   -D CMAKE_INSTALL_PREFIX="$install_dir"
   -D ENABLE_SNAPPY="${ENABLE_SNAPPY:-OFF}"
   -D ENABLE_ZSTD=AUTO
+  -D ENABLE_CLIENT_SIDE_ENCRYPTION=OFF
+  -D CMAKE_BUILD_TYPE=Debug
 )
 
 
