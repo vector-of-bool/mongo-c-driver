@@ -134,13 +134,15 @@ all_functions = OD([
             $snappy = ("${ENABLE_SNAPPY}" -eq "ON")
             ./.evergreen/scripts/link-sample-program.ps1 `
                 -CMake "$env:CMAKE" `
+                -Generator "MinGW Makefiles" `
                 -EnableSnappy:$snappy `
                 -EnableSSL:$ssl
             ./.evergreen/scripts/link-sample-program.ps1 `
                 -CMake "$env:CMAKE" `
+                -Generator "MinGW Makefiles" `
                 -EnableSnappy:$snappy `
                 -EnableSSL:$ssl `
-                -StaticLink
+                -StaticLink 
         EOF
         powershell -noni -nop -f ./test.ps1
         '''),

@@ -133,7 +133,7 @@ functions:
         . .evergreen/scripts/use-tools.sh paths
         . .evergreen/scripts/find-cmake-latest.sh
         export CMAKE="$(native-path "$(find_cmake_latest)")"
-        powershell -noni -nop -f - <<'EOF'
+        cat > test.ps1 <<'EOF'
             $ErrorActionPreference="Stop"
             $ssl = ("${ENABLE_SSL}" -eq "ON")
             $snappy = ("${ENABLE_SNAPPY}" -eq "ON")
@@ -151,13 +151,12 @@ functions:
                 -EnableSSL:$ssl `
                 -StaticLink
         EOF
+        powershell -noni -nop -f ./test.ps1
   link sample program mingw:
   - command: shell.exec
     type: test
     params:
       working_dir: mongoc
-      include_expansions_in_env:
-      - distro_id
       shell: bash
       script: |-
         set -o errexit
@@ -168,20 +167,23 @@ functions:
         export CMAKE="$(native-path "$(find_cmake_latest)")"
         export CXX=g++
         export CC=gcc
-        powershell -noni -nop -f - <<'EOF'
+        cat > test.ps1 <<'EOF'
             $ErrorActionPreference="Stop"
             $ssl = ("${ENABLE_SSL}" -eq "ON")
             $snappy = ("${ENABLE_SNAPPY}" -eq "ON")
             ./.evergreen/scripts/link-sample-program.ps1 `
                 -CMake "$env:CMAKE" `
+                -Generator "MinGW Makefiles" `
                 -EnableSnappy:$snappy `
                 -EnableSSL:$ssl
             ./.evergreen/scripts/link-sample-program.ps1 `
                 -CMake "$env:CMAKE" `
+                -Generator "MinGW Makefiles" `
                 -EnableSnappy:$snappy `
                 -EnableSSL:$ssl `
-                -StaticLink
+                -StaticLink `
         EOF
+        powershell -noni -nop -f ./test.ps1
   link sample program MSVC bson:
   - command: shell.exec
     type: test
@@ -857,9 +859,6 @@ tasks:
     vars:
       ENABLE_SNAPPY: 'ON'
 - name: link-with-cmake-mingw
-  depends_on:
-    name: make-release-archive
-    variant: releng
   commands:
   - func: fetch-det
   - func: bootstrap-mongo-orchestration

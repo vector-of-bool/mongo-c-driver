@@ -22,7 +22,10 @@ param (
     $EnableSnappy,
     # Enable SSL for the test
     [switch]
-    $EnableSSL
+    $EnableSSL,
+    # The CMake generator to use
+    [string]
+    $Generator
 )
 $ErrorActionPreference = "Stop"
 
@@ -38,7 +41,7 @@ if (-not [string]::IsNullOrEmpty($VSVersion)) {
     return & $vs_env_run -Version:$VSVersion -TargetArch:$VSArch -ScratchDir:$ScratchDir -Command {
         $env:CC = "cl.exe"
         $env:CXX = "cl.exe"
-        $ret = & $script @outer_args
+        $ret = & $script @outer_args | Out-Host
         return $ret
     }.GetNewClosure()
 }
@@ -55,7 +58,7 @@ Write-Debug "Using scratch directory [$ScratchDir]"
 Remove-Item -Recurse $ScratchDir -ErrorAction Ignore
 
 $install_dir = Join-Path $ScratchDir "install-dir"
-Write-Debug "Using install directory [$instlal_dir]"
+Write-Debug "Using install directory [$install_dir]"
 Remove-Item $install_dir -Recurse -ErrorAction Ignore
 New-Item $install_dir -ItemType Directory | Out-Null
 
@@ -94,6 +97,7 @@ Remove-Item -Recurse -ErrorAction Ignore $mongoc_build
 
 Build-CMakeProject -SourceDir $MONGOC_DIR `
     -BuildDir $mongoc_build `
+    -Generator:$Generator `
     -ConfigureOptions  @( `
         "-DENABLE_SSL=$ssl_opt", `
         "-DENABLE_SNAPPY=$snappy_bool" ) `

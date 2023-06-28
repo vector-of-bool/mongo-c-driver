@@ -319,7 +319,7 @@ all_tasks = [
         suffix_commands=[func("link sample program MSVC", ENABLE_SNAPPY="ON")],
         depends_on_archive=False,
     ),
-    LinkTask("link-with-cmake-mingw", suffix_commands=[func("link sample program mingw")], depends_on_archive=True),
+    LinkTask("link-with-cmake-mingw", suffix_commands=[func("link sample program mingw")], depends_on_archive=False),
     LinkTask("link-with-pkg-config", suffix_commands=[func("link sample program")], depends_on_archive=False),
     LinkTask("link-with-pkg-config-mac", suffix_commands=[func("link sample program")], depends_on_archive=False),
     LinkTask(

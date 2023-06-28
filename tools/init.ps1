@@ -103,7 +103,10 @@ function Build-CMakeProject {
         $Test,
         # If true, remove the CMake cache before building
         [switch]
-        $CleanConfigure
+        $CleanConfigure,
+        # The CMake generator to use for configuring the project
+        [string]
+        $Generator
     )
     $ErrorActionPreference = "Stop"
     $SourceDir = [System.IO.Path]::GetFullPath($SourceDir)
@@ -114,6 +117,9 @@ function Build-CMakeProject {
         Remove-Item $BuildDir/CMakeCache.txt -ErrorAction Ignore
         Remove-Item $BuildDir/CMakeFiles -ErrorAction Ignore -Recurse
     }
+    if (-not [string]::IsNullOrEmpty($Generator)) {
+        $ConfigureOptions += "-G$Generator"
+    }
     if ([string]::IsNullOrEmpty($CMake)) {
         $CMake = (Get-Command cmake -CommandType Application).Source
         Write-Debug "Using CMake from PATH: [$cmake]"
@@ -121,6 +127,9 @@ function Build-CMakeProject {
     if (-not [string]::IsNullOrEmpty($InstallDir)) {
         $ConfigureOptions += "-DCMAKE_INSTALL_PREFIX=$InstallDir"
     }
+    Write-Debug "Executing CMake configure with source directory [$SourceDir] and build directory [$BuildDir]"
+    Write-Debug "  Env: CC=$env:CC"
+    Write-Debug "  Env: CXX=$env:CXX"
     & $CMake -S $SourceDir -B $BuildDir -D CMAKE_BUILD_TYPE=$Config @ConfigureOptions
     if ($LASTEXITCODE -ne 0) {
         Write-Error "CMake configure failed [Source=$SourceDir, Build=$BuildDir, $LASTEXITCODE]"
