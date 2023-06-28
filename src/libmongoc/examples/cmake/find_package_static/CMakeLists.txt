@@ -23,6 +23,9 @@ endif ()
 
 project (hello_mongoc LANGUAGES C)
 
+include (CTest)
+add_test (hello_mongoc hello_mongoc)
+
 # NOTE: For this to work, the CMAKE_PREFIX_PATH variable must be set to point to
 # the directory that was used as the argument to CMAKE_INSTALL_PREFIX when
 # building libmongoc.
