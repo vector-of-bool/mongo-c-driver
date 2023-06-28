@@ -9,183 +9,150 @@ set -o errexit  # Exit the script with error if any of the commands fail
 
 echo "LINK_STATIC=$LINK_STATIC BUILD_SAMPLE_WITH_CMAKE=$BUILD_SAMPLE_WITH_CMAKE BUILD_SAMPLE_WITH_CMAKE_DEPRECATED=$BUILD_SAMPLE_WITH_CMAKE_DEPRECATED"
 
-DIR=$(dirname $0)
-. $DIR/find-cmake-latest.sh
+. "$(dirname "${BASH_SOURCE[0]}")/use-tools.sh" base paths platform
+
+build_sample_with_cmake=$(get-bool BUILD_SAMPLE_WITH_CMAKE)
+build_sample_with_cmake_deprecated=$(get-bool BUILD_SAMPLE_WITH_CMAKE_DEPRECATED)
+link_static=$(get-bool LINK_STATIC)
+
+. "$EVG_SCRIPTS/find-cmake-latest.sh"
 CMAKE=$(find_cmake_latest)
-. $DIR/check-symlink.sh
+. "$EVG_SCRIPTS/check-symlink.sh"
 
-if command -v gtar 2>/dev/null; then
-  TAR=gtar
+
+if $IS_WINDOWS; then
+  fail "This script doesn't work on Windows"
+elif $IS_DARWIN; then
+  lib_so=libbson-1.0.0.dylib
+  ldd="otool -L"
 else
-  TAR=tar
+  lib_so=libbson-1.0.so.0
+  ldd=ldd
 fi
 
-# Get the kernel name, lowercased
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-echo "OS: $OS"
+scratch_root=$MONGOC_DIR/_build/scratch/link-sample-program
+build_dir=$scratch_root/build
+install_dir=$scratch_root/install
+example_build_dir=$scratch_root/example-build
+rm -rf -- "$example_build_dir" "$install_dir"
 
-if [ "$OS" = "darwin" ]; then
-  SO=dylib
-  LIB_SO=libbson-1.0.0.dylib
-  LDD="otool -L"
+configure_options=(
+  -S "$MONGOC_DIR"
+  -B "$build_dir"
+  -D CMAKE_INSTALL_PREFIX="$install_dir"
+  -D ENABLE_TESTS=OFF
+)
+
+if $link_static; then
+  configure_options+=(-D ENABLE_STATIC=ON)
 else
-  SO=so
-  LIB_SO=libbson-1.0.so.0.0.0
-  LDD=ldd
+  configure_options+=(-D ENABLE_STATIC=OFF)
 fi
 
-SRCROOT=`pwd`
+$CMAKE "${configure_options[@]}"
+$CMAKE --build "$build_dir" --parallel
+$CMAKE --build "$build_dir" --parallel --target install
 
-BUILD_DIR=$(pwd)/build-dir
-rm -rf $BUILD_DIR
-mkdir $BUILD_DIR
+expect_present=(
+  lib/pkgconfig/libbson-1.0.pc
+  lib/cmake/bson-1.0/bson-1.0-config.cmake
+  lib/cmake/bson-1.0/bson-1.0-config-version.cmake
+  lib/cmake/bson-1.0/bson-targets.cmake
+)
+expect_absent=()
+install_ok=true
 
-INSTALL_DIR=$(pwd)/install-dir
-rm -rf $INSTALL_DIR
-mkdir -p $INSTALL_DIR
-
-cd $BUILD_DIR
-$TAR xf ../../mongoc.tar.gz -C . --strip-components=1
-
-if [ "$LINK_STATIC" ]; then
-  # Our CMake system builds shared and static by default.
-  $CMAKE -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR -DENABLE_TESTS=OFF .
-  $CMAKE --build .
-  $CMAKE --build . --target install
-else
-  $CMAKE -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR -DENABLE_TESTS=OFF -DENABLE_STATIC=OFF .
-  $CMAKE --build .
-  $CMAKE --build . --target install
-
-  set +o xtrace
-
-  if test -f $INSTALL_DIR/lib/libbson-static-1.0.a; then
-    echo "libbson-static-1.0.a shouldn't have been installed"
-    exit 1
-  fi
-  if test -f $INSTALL_DIR/lib/libbson-1.0.a; then
-    echo "libbson-1.0.a shouldn't have been installed"
-    exit 1
-  fi
-  if test -f $INSTALL_DIR/lib/pkgconfig/libbson-static-1.0.pc; then
-    echo "libbson-static-1.0.pc shouldn't have been installed"
-    exit 1
-  fi
-
-fi
-
-ls -l $INSTALL_DIR/lib
-
-set +o xtrace
-
-# Check on Linux that libbson is installed into lib/ like:
-# libbson-1.0.so -> libbson-1.0.so.0
-# libbson-1.0.so.0 -> libbson-1.0.so.0.0.0
-# libbson-1.0.so.0.0.0
-if [ "$OS" != "darwin" ]; then
-  # From check-symlink.sh
-  check_symlink libbson-1.0.so libbson-1.0.so.0
-  check_symlink libbson-1.0.so.0 libbson-1.0.so.0.0.0
-  SONAME=$(objdump -p $INSTALL_DIR/lib/$LIB_SO|grep SONAME|awk '{print $2}')
+if ! $IS_DARWIN; then
+  # Check on Linux that libbson is installed into lib/ like:
+  # libbson-1.0.so -> libbson-1.0.so.0
+  # libbson-1.0.so.0 -> libbson-1.0.so.0.0.0
+  # libbson-1.0.so.0.0.0
+  # (From check-symlink.sh)
+  check-symlink-eq "$install_dir/lib/libbson-1.0.so" libbson-1.0.so.0
+  check-symlink-eq "$install_dir/lib/libbson-1.0.so.0" libbson-1.0.so.0.0.0
+  got_soname=$(objdump -p "$install_dir/lib/$lib_so" | grep SONAME |awk '{print $2}')
   EXPECTED_SONAME="libbson-1.0.so.0"
-  if [ "$SONAME" != "$EXPECTED_SONAME" ]; then
-    echo "SONAME should be $EXPECTED_SONAME, not $SONAME"
+  if [ "$got_soname" != "$EXPECTED_SONAME" ]; then
+    echo "SONAME should be $EXPECTED_SONAME, but got ‘$got_soname’"
     exit 1
   else
-    echo "library name check ok, SONAME=$SONAME"
+    echo "library name check ok, SONAME=$got_soname"
   fi
 else
   # Just test that the shared lib was installed.
-  if test ! -f $INSTALL_DIR/lib/$LIB_SO; then
-    echo "$LIB_SO missing!"
-    exit 1
-  else
-    echo "$LIB_SO check ok"
+  expect_present+=("lib/$lib_so")
+fi
+
+static_files=(
+  lib/libbson-static-1.0.a
+  lib/pkgconfig/libbson-static-1.0.pc
+  lib/libbson-static-1.0.a
+)
+if $link_static; then
+  expect_present+=("${static_files[@]}")
+else
+  expect_absent+=("${static_files[@]}")
+fi
+
+# Check files that we want to exist:
+for exp in "${expect_present[@]}"; do
+  debug "Check for file present: ‘$exp’"
+  abs=$install_dir/$exp
+  if ! is-file "$abs"; then
+    log " ⛔ File ‘$exp’ was not installed (Expected [$abs])"
+    install_ok=false
   fi
-fi
+done
 
-if test ! -f $INSTALL_DIR/lib/pkgconfig/libbson-1.0.pc; then
-  echo "libbson-1.0.pc missing!"
-  exit 1
-else
-  echo "libbson-1.0.pc check ok"
-fi
-if test ! -f $INSTALL_DIR/lib/cmake/bson-1.0/bson-1.0-config.cmake; then
-  echo "bson-1.0-config.cmake missing!"
-  exit 1
-else
-  echo "bson-1.0-config.cmake check ok"
-fi
-if test ! -f $INSTALL_DIR/lib/cmake/bson-1.0/bson-1.0-config-version.cmake; then
-  echo "bson-1.0-config-version.cmake missing!"
-  exit 1
-else
-  echo "bson-1.0-config-version.cmake check ok"
-fi
-if test ! -f $INSTALL_DIR/lib/cmake/bson-1.0/bson-targets.cmake; then
-  echo "bson-targets.cmake missing!"
-  exit 1
-else
-  echo "bson-targets.cmake check ok"
-fi
-
-if [ "$LINK_STATIC" ]; then
-  if test ! -f $INSTALL_DIR/lib/libbson-static-1.0.a; then
-    echo "libbson-static-1.0.a missing!"
-    exit 1
-  else
-    echo "libbson-static-1.0.a check ok"
+# Check files that we want to *not* exist:
+for absent in "${expect_absent[@]}"; do
+  debug "Check for file absent: ‘$exp’"
+  abs=$install_dir/$absent
+  if exists "$abs"; then
+    log " ⛔ File ‘$exp’ is present, but should not be (Found [$abs])"
+    install_ok=false
   fi
-  if test ! -f $INSTALL_DIR/lib/pkgconfig/libbson-static-1.0.pc; then
-    echo "libbson-static-1.0.pc missing!"
-    exit 1
-  else
-    echo "libbson-static-1.0.pc check ok"
-  fi
-fi
+done
 
-cd $SRCROOT
+$install_ok || fail "The installation is invalid (See above)"
 
-if [ "$BUILD_SAMPLE_WITH_CMAKE" ]; then
+if $build_sample_with_cmake; then
   # Test our CMake package config file with CMake's find_package command.
-  if [ "$BUILD_SAMPLE_WITH_CMAKE_DEPRECATED" ]; then
-    EXAMPLE_DIR=$SRCROOT/src/libbson/examples/cmake-deprecated/find_package
+  if $build_sample_with_cmake_deprecated; then
+    example_dir=$MONGOC_DIR/src/libbson/examples/cmake-deprecated/find_package
   else
-    EXAMPLE_DIR=$SRCROOT/src/libbson/examples/cmake/find_package
+    example_dir=$MONGOC_DIR/src/libbson/examples/cmake/find_package
   fi
 
-  if [ "$LINK_STATIC" ]; then
-    EXAMPLE_DIR="${EXAMPLE_DIR}_static"
+  if $link_static; then
+    example_dir="${example_dir}_static"
   fi
 
-  cd $EXAMPLE_DIR
-  $CMAKE -DCMAKE_PREFIX_PATH=$INSTALL_DIR/lib/cmake .
-  $CMAKE --build .
+  $CMAKE "-DCMAKE_PREFIX_PATH=$install_dir/lib/cmake" -S "$example_dir" -B "$example_build_dir"
+  $CMAKE --build "$example_build_dir"
 else
   # Test our pkg-config file.
-  export PKG_CONFIG_PATH=$INSTALL_DIR/lib/pkgconfig
-  cd $SRCROOT/src/libbson/examples
+  export PKG_CONFIG_PATH=$install_dir/lib/pkgconfig
+  cd $MONGOC_DIR/src/libbson/examples
+  example_build_dir=$PWD
 
-  if [ "$LINK_STATIC" ]; then
+  if $link_static; then
     echo "pkg-config output:"
-    echo $(pkg-config --libs --cflags libbson-static-1.0)
+    pkg-config --libs --cflags libbson-static-1.0
     sh compile-with-pkg-config-static.sh
   else
     echo "pkg-config output:"
-    echo $(pkg-config --libs --cflags libbson-1.0)
+    pkg-config --libs --cflags libbson-1.0
     sh compile-with-pkg-config.sh
   fi
 fi
 
-if [ ! "$LINK_STATIC" ]; then
-  if [ "$OS" = "darwin" ]; then
-    export DYLD_LIBRARY_PATH=$INSTALL_DIR/lib
-  else
-    export LD_LIBRARY_PATH=$INSTALL_DIR/lib
-  fi
+if ! $link_static; then
+  export DYLD_LIBRARY_PATH=$install_dir/lib
+  export LD_LIBRARY_PATH=$install_dir/lib
 fi
 
 echo "ldd hello_bson:"
-$LDD hello_bson
+$ldd "$example_build_dir/hello_bson"
 
-./hello_bson
+"$example_build_dir/hello_bson"
