@@ -159,7 +159,12 @@ class CompileWithClientSideEncryptionAsan(CompileTask):
 
 class LinkTask(NamedTask):
     def __init__(
-        self, task_name: str, suffix_commands: Iterable[Value], orchestration: Literal[True, False, "ssl"] = True
+        self,
+        task_name: str,
+        *,
+        suffix_commands: Iterable[Value],
+        orchestration: Literal[True, False, "ssl"] = True,
+        depends_on_archive: bool,
     ):
         if orchestration == "ssl":
             # Actual value of SSL does not matter here so long as it is not 'nossl'.
@@ -168,10 +173,11 @@ class LinkTask(NamedTask):
             bootstrap_commands = [func("fetch-det"), func("bootstrap-mongo-orchestration")]
         else:
             bootstrap_commands = []
+        deps = [] if not depends_on_archive else [OD([("name", "make-release-archive"), ("variant", "releng")])]
 
         super().__init__(
             task_name=task_name,
-            depends_on=[OD([("name", "make-release-archive"), ("variant", "releng")])],
+            depends_on=deps,
             commands=bootstrap_commands + list(suffix_commands),
         )
 
@@ -247,19 +253,30 @@ all_tasks = [
     CompileTask("debug-compile-rdtscp", ENABLE_RDTSCP="ON"),
     CompileTask("debug-compile-sspi-winssl", tags=["debug-compile", "sspi", "winssl"], SASL="SSPI", SSL="WINDOWS"),
     CompileTask("debug-compile-nosrv", tags=["debug-compile"], SRV="OFF"),
-    LinkTask("link-with-cmake", suffix_commands=[func("link sample program", BUILD_SAMPLE_WITH_CMAKE=1)]),
+    LinkTask(
+        "link-with-cmake",
+        suffix_commands=[func("link sample program", BUILD_SAMPLE_WITH_CMAKE=1)],
+        depends_on_archive=False,
+    ),
     LinkTask(
         "link-with-cmake-ssl",
         suffix_commands=[func("link sample program", BUILD_SAMPLE_WITH_CMAKE=1, ENABLE_SSL=1)],
+        depends_on_archive=False,
     ),
     LinkTask(
         "link-with-cmake-snappy",
         suffix_commands=[func("link sample program", BUILD_SAMPLE_WITH_CMAKE=1, ENABLE_SNAPPY="ON")],
+        depends_on_archive=False,
     ),
-    LinkTask("link-with-cmake-mac", suffix_commands=[func("link sample program", BUILD_SAMPLE_WITH_CMAKE=1)]),
+    LinkTask(
+        "link-with-cmake-mac",
+        suffix_commands=[func("link sample program", BUILD_SAMPLE_WITH_CMAKE=1)],
+        depends_on_archive=False,
+    ),
     LinkTask(
         "link-with-cmake-deprecated",
         suffix_commands=[func("link sample program", BUILD_SAMPLE_WITH_CMAKE=1, BUILD_SAMPLE_WITH_CMAKE_DEPRECATED=1)],
+        depends_on_archive=False,
     ),
     LinkTask(
         "link-with-cmake-ssl-deprecated",
@@ -271,6 +288,7 @@ all_tasks = [
                 ENABLE_SSL=1,
             )
         ],
+        depends_on_archive=False,
     ),
     LinkTask(
         "link-with-cmake-snappy-deprecated",
@@ -282,26 +300,57 @@ all_tasks = [
                 ENABLE_SNAPPY="ON",
             )
         ],
+        depends_on_archive=False,
     ),
     LinkTask(
         "link-with-cmake-mac-deprecated",
         suffix_commands=[func("link sample program", BUILD_SAMPLE_WITH_CMAKE=1, BUILD_SAMPLE_WITH_CMAKE_DEPRECATED=1)],
+        depends_on_archive=False,
     ),
-    LinkTask("link-with-cmake-windows", suffix_commands=[func("link sample program MSVC")]),
+    LinkTask("link-with-cmake-windows", suffix_commands=[func("link sample program MSVC")], depends_on_archive=False),
     LinkTask(
         "link-with-cmake-windows-ssl",
         suffix_commands=[func("link sample program MSVC", ENABLE_SSL=1)],
         orchestration="ssl",
+        depends_on_archive=False,
     ),
-    LinkTask("link-with-cmake-windows-snappy", suffix_commands=[func("link sample program MSVC", ENABLE_SNAPPY="ON")]),
-    LinkTask("link-with-cmake-mingw", suffix_commands=[func("link sample program mingw")]),
-    LinkTask("link-with-pkg-config", suffix_commands=[func("link sample program")]),
-    LinkTask("link-with-pkg-config-mac", suffix_commands=[func("link sample program")]),
-    LinkTask("link-with-pkg-config-ssl", suffix_commands=[func("link sample program", ENABLE_SSL=1)]),
-    LinkTask("link-with-bson", suffix_commands=[func("link sample program bson")], orchestration=False),
-    LinkTask("link-with-bson-mac", suffix_commands=[func("link sample program bson")], orchestration=False),
-    LinkTask("link-with-bson-windows", suffix_commands=[func("link sample program MSVC bson")], orchestration=False),
-    LinkTask("link-with-bson-mingw", suffix_commands=[func("link sample program mingw bson")], orchestration=False),
+    LinkTask(
+        "link-with-cmake-windows-snappy",
+        suffix_commands=[func("link sample program MSVC", ENABLE_SNAPPY="ON")],
+        depends_on_archive=False,
+    ),
+    LinkTask("link-with-cmake-mingw", suffix_commands=[func("link sample program mingw")], depends_on_archive=True),
+    LinkTask("link-with-pkg-config", suffix_commands=[func("link sample program")], depends_on_archive=False),
+    LinkTask("link-with-pkg-config-mac", suffix_commands=[func("link sample program")], depends_on_archive=False),
+    LinkTask(
+        "link-with-pkg-config-ssl",
+        suffix_commands=[func("link sample program", ENABLE_SSL=1)],
+        depends_on_archive=False,
+    ),
+    LinkTask(
+        "link-with-bson",
+        suffix_commands=[func("link sample program bson")],
+        orchestration=False,
+        depends_on_archive=True,
+    ),
+    LinkTask(
+        "link-with-bson-mac",
+        suffix_commands=[func("link sample program bson")],
+        orchestration=False,
+        depends_on_archive=True,
+    ),
+    LinkTask(
+        "link-with-bson-windows",
+        suffix_commands=[func("link sample program MSVC bson")],
+        orchestration=False,
+        depends_on_archive=True,
+    ),
+    LinkTask(
+        "link-with-bson-mingw",
+        suffix_commands=[func("link sample program mingw bson")],
+        orchestration=False,
+        depends_on_archive=True,
+    ),
     NamedTask(
         "debian-package-build",
         commands=[
