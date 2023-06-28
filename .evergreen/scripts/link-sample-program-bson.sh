@@ -105,7 +105,7 @@ for exp in "${expect_present[@]}"; do
 done
 
 # Check files that we want to *not* exist:
-for absent in "${expect_absent[@]}"; do
+for absent in "${expect_absent[@]+${expect_absent[@]}}"; do
   debug "Check for file absent: ‘$exp’"
   abs=$install_dir/$absent
   if exists "$abs"; then
