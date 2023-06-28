@@ -98,7 +98,7 @@ all_functions = OD([
         . .evergreen/scripts/use-tools.sh paths
         . .evergreen/scripts/find-cmake-latest.sh
         export CMAKE="$(native-path "$(find_cmake_latest)")"
-        pwsh -noni -nop -f - <<EOF
+        pwsh -noni -nop -f - <<'EOF'
             $ErrorActionPreference="Stop"
             $ssl = ("${ENABLE_SSL}" -eq "ON")
             $snappy = ("${ENABLE_SNAPPY}" -eq "ON")
@@ -127,7 +127,7 @@ all_functions = OD([
         export CMAKE="$(native-path "$(find_cmake_latest)")"
         export CXX=g++
         export CC=gcc
-        pwsh -noni -nop -f - <<EOF
+        pwsh -noni -nop -f - <<'EOF'
             $ErrorActionPreference="Stop"
             $ssl = ("${ENABLE_SSL}" -eq "ON")
             $snappy = ("${ENABLE_SNAPPY}" -eq "ON")
