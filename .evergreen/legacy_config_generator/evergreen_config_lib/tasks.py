@@ -726,12 +726,12 @@ all_tasks = chain(
                 func("prepare-kerberos"),
                 func("run auth tests", ASAN="on"),
             ],
-        )
+        ),
     ],
 )
 
 # Add API version tasks.
-for server_version in [ "7.0", "6.0", "5.0"]:
+for server_version in ["7.0", "6.0", "5.0"]:
     all_tasks = chain(
         all_tasks,
         [
@@ -770,8 +770,8 @@ for server_version in [ "7.0", "6.0", "5.0"]:
                     func("run-simple-http-server"),
                     func("run-tests", MONGODB_API_VERSION=1, AUTH="noauth", SSL="nossl"),
                 ],
-            )
-        ]
+            ),
+        ],
     )
 
 
@@ -940,7 +940,7 @@ class AWSTestTask(MatrixTask):
 
     def additional_tags(self) -> Iterable[str]:
         yield from super().additional_tags()
-        yield f'test-aws'
+        yield f"test-aws"
 
     def post_commands(self) -> Iterable[Value]:
         return [
