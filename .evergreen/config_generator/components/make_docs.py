@@ -17,7 +17,7 @@ class MakeDocs(Function):
             script="""\
                 set -o errexit
                 bash tools/poetry.sh install --with=docs
-                bash tools/poetry.sh run bash .evergreen/scripts/build-docs.sh
+                bash tools/poetry.sh run dagon docs docs.man-index-htmls
                 """,
         ),
     ]
@@ -31,12 +31,12 @@ class UploadDocs(Function):
     name = "upload-docs"
     commands = [
         bash_exec(
-            working_dir="mongoc/_build/for-docs/src/libbson",
+            working_dir="mongoc/_build/_docs/libbson",
             env={
                 "AWS_ACCESS_KEY_ID": "${aws_key}",
                 "AWS_SECRET_ACCESS_KEY": "${aws_secret}",
             },
-            script="aws s3 cp doc/html s3://mciuploads/${project}/docs/libbson/${CURRENT_VERSION} --quiet --recursive --acl public-read --region us-east-1",
+            script="aws s3 cp ./html/ s3://mciuploads/${project}/docs/libbson/${CURRENT_VERSION} --quiet --recursive --acl public-read --region us-east-1",
         ),
         s3_put(
             aws_key="${aws_key}",
@@ -44,17 +44,17 @@ class UploadDocs(Function):
             bucket="mciuploads",
             content_type="text/html",
             display_name="libbson docs",
-            local_file="mongoc/_build/for-docs/src/libbson/doc/html/index.html",
+            local_file="mongoc/_build/_docs/libbson/html/index.html",
             permissions="public-read",
             remote_file="${project}/docs/libbson/${CURRENT_VERSION}/index.html",
         ),
         bash_exec(
-            working_dir="mongoc/_build/for-docs/src/libmongoc",
+            working_dir="mongoc/_build/_docs/libmongoc",
             env={
                 "AWS_ACCESS_KEY_ID": "${aws_key}",
                 "AWS_SECRET_ACCESS_KEY": "${aws_secret}",
             },
-            script="aws s3 cp doc/html s3://mciuploads/${project}/docs/libmongoc/${CURRENT_VERSION} --quiet --recursive --acl public-read --region us-east-1",
+            script="aws s3 cp ./html/ s3://mciuploads/${project}/docs/libmongoc/${CURRENT_VERSION} --quiet --recursive --acl public-read --region us-east-1",
         ),
         s3_put(
             aws_key="${aws_key}",
@@ -62,7 +62,7 @@ class UploadDocs(Function):
             bucket="mciuploads",
             content_type="text/html",
             display_name="libmongoc docs",
-            local_file="mongoc/_build/for-docs/src/libmongoc/doc/html/index.html",
+            local_file="mongoc/_build/_docs/libmongoc/html/index.html",
             permissions="public-read",
             remote_file="${project}/docs/libmongoc/${CURRENT_VERSION}/index.html",
         ),
@@ -76,28 +76,13 @@ class UploadDocs(Function):
 class UploadManPages(Function):
     name = "upload-man-pages"
     commands = [
-        bash_exec(
-            working_dir="mongoc",
-            silent=True,
-            script="""\
-                set -o errexit
-                # Get "aha", the ANSI HTML Adapter.
-                git clone --depth 1 https://github.com/theZiz/aha.git aha-repo
-                pushd aha-repo
-                make
-                popd # aha-repo
-                mv aha-repo/aha .
-                .evergreen/scripts/man-pages-to-html.sh libbson _build/for-docs/src/libbson/doc/man > bson-man-pages.html
-                .evergreen/scripts/man-pages-to-html.sh libmongoc _build/for-docs/src/libmongoc/doc/man > mongoc-man-pages.html
-                """,
-        ),
         s3_put(
             aws_key="${aws_key}",
             aws_secret="${aws_secret}",
             bucket="mciuploads",
             content_type="text/html",
             display_name="libbson man pages",
-            local_file="mongoc/bson-man-pages.html",
+            local_file="mongoc/_build/_docs/libbson/man3/index.html",
             permissions="public-read",
             remote_file="${project}/man-pages/libbson/${CURRENT_VERSION}/index.html",
         ),
@@ -107,7 +92,7 @@ class UploadManPages(Function):
             bucket="mciuploads",
             content_type="text/html",
             display_name="libmongoc man pages",
-            local_file="mongoc/mongoc-man-pages.html",
+            local_file="mongoc/_build/_docs/libmongoc/man3/index.html",
             permissions="public-read",
             remote_file="${project}/man-pages/libmongoc/${CURRENT_VERSION}/index.html",
         ),
