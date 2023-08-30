@@ -276,11 +276,7 @@ function(_generate_pkg_config_content out)
     # Add "Libs:"
     set(libs)
     # Link options:
-    if(APPLE)
-        set(linkit "-l$<TARGET_FILE_NAME:${ARG_GENEX_TARGET}>")
-    else()
-        set(linkit "-l:$<TARGET_FILE_NAME:${ARG_GENEX_TARGET}>")
-    endif()
+    set(linkit "\${libdir}/$<TARGET_FILE_NAME:${ARG_GENEX_TARGET}>")
     set(gx_libs
         "-L\${libdir}"
         "${linkit}"
