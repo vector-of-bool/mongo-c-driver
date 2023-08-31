@@ -221,6 +221,19 @@ if(ENABLE_COVERAGE)
    mongo_platform_compile_options($<BUILD_INTERFACE:--coverage>)
 endif()
 
+add_library(_mcd-build-interface INTERFACE)
+add_library(mcd::build_interface ALIAS _mcd-build-interface)
+target_include_directories(_mcd-build-interface INTERFACE
+   # The source directories of the common lib:
+   src/common
+   # Generated:
+   ${PROJECT_BINARY_DIR}/src/common
+)
+
+# Don't export symbols implicitly
+set(CMAKE_C_VISIBILITY_PRESET hidden)
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+
 # Enable multi-threading:
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)

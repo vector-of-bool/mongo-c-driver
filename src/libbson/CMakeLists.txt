@@ -25,10 +25,6 @@ project (libbson
 set(libbson_VERSION_PRERELEASE ${mongo-c-driver_VERSION_PRERELEASE})
 set(libbson_VERSION_FULL ${mongo-c-driver_VERSION_FULL})
 
-# Don't export symbols implicitly
-set(CMAKE_C_VISIBILITY_PRESET hidden)
-set(CMAKE_CXX_VISIBILITY_PRESET hidden)
-
 # A tag attached to libbson artifacts, denoting the *major* API version, used to
 # potentially co-locate additional future major versions.
 set (BSON_API_VERSION 1.0)
@@ -139,6 +135,11 @@ if (ENABLE_APPLE_FRAMEWORK)
    )
 endif ()
 
+# The subdirectory of the prefix for libbson headers:
+set(BSON_HEADER_INSTALL_DIR "${CMAKE_INSTALL_INCLUDEDIR}/libbson-${BSON_API_VERSION}")
+# The subdirectory of the prefix for the libbson CMake config-file packages and exported targets
+set(BSON_TARGETS_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/bson-${BSON_API_VERSION}")
+
 # 8888888b.            .d888 d8b          d8b 888    d8b
 # 888  "Y88b          d88P"  Y8P          Y8P 888    Y8P
 # 888    888          888                     888
@@ -148,122 +149,41 @@ endif ()
 # 888  .d88P Y8b.     888    888 888  888 888 Y88b.  888 Y88..88P 888  888      X88
 # 8888888P"   "Y8888  888    888 888  888 888  "Y888 888  "Y88P"  888  888  88888P'
 
-# Base INTERFACE library propagates in-build-tree requirements for using libbson
-add_library(_libbson_build_interface INTERFACE)
-# Header directories required for libbson in-source
-target_include_directories(_libbson_build_interface INTERFACE
-   # The default src/
-   src/
-   # The generated src/
-   ${PROJECT_BINARY_DIR}/src/
-   # The source directories of the common lib:
-   ${mongo-c-driver_SOURCE_DIR}/src/common/
-   # Generated:
-   ${mongo-c-driver_BINARY_DIR}/src/common/
-   )
-target_link_libraries(_libbson_build_interface INTERFACE mongo::detail::c_platform)
-
-# Collect all source files
-file(GLOB_RECURSE all_sources CONFIGURE_DEPENDS
-   src/*.c src/*.h
-   # Include common library source files within libbson itself (names
-   # will be mangled with MCOMMON_NAME_PREFIX)
-   "${mongo-c-driver_SOURCE_DIR}/src/common/*.c"
-   )
-
-# The default object library for all libbson translation units:
-add_library(bson_obj OBJECT EXCLUDE_FROM_ALL ${all_sources})
-
-# The libbson object libraries that we will build
-set(bson_obj_libs bson_obj)
-
-if(ENABLE_PIC OR WIN32)
-   # User wants (or platform requires) static libs to use PIC code. Since we
-   # already need PIC for the dynamic library, we can consolidate things and
-   # use a single object library for both the static and the shared library.
-   # No duplicate compilations necessary!
-   set_property(TARGET bson_obj PROPERTY POSITION_INDEPENDENT_CODE TRUE)
-   # The bson_obj_pic is just an alias of the base library:
-   add_library(bson_obj_pic ALIAS bson_obj)
-else()
-   # User does not want PIC in the static library. In that case, we just need a second object
-   # library that has PIC enabled so it can be used in creating the dynamic library.
-   add_library(bson_obj_pic OBJECT EXCLUDE_FROM_ALL ${all_sources})
-   set_property(TARGET bson_obj_pic PROPERTY POSITION_INDEPENDENT_CODE TRUE)
-   list(APPEND bson_obj_libs bson_obj_pic)
-endif()
-
-# Set target properties for the object libraries.
-mongo_target_requirements(
-   ${bson_obj_libs}
-   LINK_LIBRARIES
-      PUBLIC
-         _libbson_build_interface
-   COMPILE_DEFINITIONS
-      PRIVATE
-         # Tell headers that they are part of compilation:
-         BSON_COMPILATION
-         # Enable NaN parsing in jsonsl
-         JSONSL_PARSE_NAN
-         # Set the name mangling scheme for the common libraries
-         MCOMMON_NAME_PREFIX=_bson_mcommon
-   COMPILE_OPTIONS
-      PRIVATE
-         # Macro constant INFINITY triggers constant arithmetic overflow warnings in
-         # VS 2013, but VS 2013 doesn't support inline warning suppression.
-         # Remove once support for VS 2013 is dropped.
-         $<$<AND:$<C_COMPILER_ID:MSVC>,$<VERSION_LESS:${MSVC_VERSION},1900>>:/wd4756>
+include(MongoMultiTypeLibrary)
+mongo_add_multitype_library(
+   bson
+   COLLECT_SOURCES "src/*.c" "src/*.h"
+   OUTPUT_NAME "bson-1.0"
+   REQUIREMENTS
+      COMPILE_DEFINITIONS
+         PRIVATE
+            # Tell headers that they are part of compilation:
+            BSON_COMPILATION
+            # Enable NaN parsing in jsonsl
+            JSONSL_PARSE_NAN
+      COMPILE_OPTIONS
+         PRIVATE
+            # Macro constant INFINITY triggers constant arithmetic overflow warnings in
+            # VS 2013, but VS 2013 doesn't support inline warning suppression.
+            # Remove once support for VS 2013 is dropped.
+            $<$<AND:$<C_COMPILER_ID:MSVC>,$<VERSION_LESS:${MSVC_VERSION},1900>>:/wd4756>
+   STATIC_REQUIREMENTS
+      # Users of the static library need BSON_STATIC to inform the headers that
+      # we want to statically link them.
+      COMPILE_DEFINITIONS INTERFACE BSON_STATIC
+   # Select header files that will be installed:
+   INSTALL_HEADERS FILES_MATCHING
+      PATTERN "*.h"
+      PATTERN "*-private.h" EXCLUDE
+      # Installed separately below:
+      PATTERN "bson/forwarding" EXCLUDE
+      # Don't generate an empty "modules" directory
+      PATTERN "bson/modules" EXCLUDE
+      # This one isn't ours:
+      PATTERN "jsonsl" EXCLUDE
+   HEADER_INSTALL_DESTINATION "${BSON_HEADER_INSTALL_DIR}"
+   TARGET_INSTALL_DESTINATION "${BSON_TARGETS_INSTALL_DIR}"
 )
-
-# List of the primary BSON library targets that we are building
-set(bson_libs)
-
-if(ENABLE_STATIC)
-   add_library(bson_static STATIC)
-   target_link_libraries(bson_static PRIVATE $<BUILD_INTERFACE:bson_obj>)
-   list(APPEND bson_libs bson_static)
-   # When consumers link against bson_static, suppress the annotation __declspec(dllimport),
-   # since those symbols will be available immediately at the link step:
-   target_compile_definitions(bson_static INTERFACE BSON_STATIC)
-endif()
-
-if(ENABLE_SHARED)
-   add_library(bson_shared SHARED)
-   target_link_libraries(bson_shared PRIVATE $<BUILD_INTERFACE:bson_obj_pic>)
-   list(APPEND bson_libs bson_shared)
-endif()
-
-if(NOT bson_libs)
-   message(FATAL_ERROR "Neither bson_shared nor bson_static is going to be built. Did you mean to enable at least one of them?")
-endif()
-
-mongo_target_requirements(
-   ${bson_libs} LINK_LIBRARIES PUBLIC
-   # Build-local requirements:
-   $<BUILD_INTERFACE:_libbson_build_interface>
-   # Include in the install interface explicitly:
-   mongo::detail::c_platform
-)
-set_target_properties(${bson_libs} PROPERTIES
-   VERSION "0.0.0"
-   SOVERSION "0"
-   OUTPUT_NAME "${BSON_OUTPUT_BASENAME}-${BSON_API_VERSION}"
-)
-if(TARGET bson_static)
-   set_property(TARGET bson_static PROPERTY OUTPUT_NAME "${BSON_OUTPUT_BASENAME}-static-${BSON_API_VERSION}")
-endif()
-
-if (ENABLE_APPLE_FRAMEWORK)
-   set_target_properties(bson_shared PROPERTIES
-      FRAMEWORK TRUE
-      MACOSX_FRAMEWORK_BUNDLE_VERSION ${MONGOC_VERSION}
-      MACOSX_FRAMEWORK_SHORT_VERSION_STRING ${MONGOC_VERSION}
-      MACOSX_FRAMEWORK_IDENTIFIER org.mongodb.bson
-      OUTPUT_NAME "${BSON_OUTPUT_BASENAME}"
-      PUBLIC_HEADER "${HEADERS}"
-   )
-endif ()
-
 
 # 8888888888                                          888
 # 888                                                 888
@@ -282,10 +202,10 @@ function (add_example bin src)
    add_executable (${bin} ${BSON_EXAMPLE_SOURCES})
 
    # Link against the shared lib like normal apps
-   if(TARGET bson_shared)
-      target_link_libraries (${bin} bson_shared)
-   elseif(TARGET bson_static)
-      target_link_libraries (${bin} bson_static)
+   if(TARGET mongo::bson_shared)
+      target_link_libraries (${bin} mongo::bson_shared)
+   elseif(TARGET mogno::bson_static)
+      target_link_libraries (${bin} mogno::bson_static)
    else()
       return()
    endif()
@@ -316,60 +236,16 @@ endif () # ENABLE_EXAMPLES
 #   888   888  888      X88 Y88b.  888  888 888 888
 # 8888888 888  888  88888P'  "Y888 "Y888888 888 888
 
-set (BSON_HEADER_INSTALL_DIR
-   "${CMAKE_INSTALL_INCLUDEDIR}/libbson-${BSON_API_VERSION}"
-)
-function(install_export_target target)
-   # Tell pkg-config where the headers are going:
-   set_property(TARGET ${target} APPEND PROPERTY pkg_config_INCLUDE_DIRECTORIES "${BSON_HEADER_INSTALL_DIR}")
-   # Install the target:
-   install(
-      TARGETS "${target}"
-      # Important: We generate a unique export set for this target alone.
-      EXPORT "${target}-targets"
-      LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-      ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-      RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-      INCLUDES DESTINATION "${BSON_HEADER_INSTALL_DIR}"
-      FRAMEWORK DESTINATION "${CMAKE_INSTALL_BINDIR}"
-   )
-   # Install the unique export set into a file that is qualified by the name of
-   # the target itself. The main config-file package will search for the
-   # possibly-installed exported targets for the known targets. See: bson-config.cmake
-   install(
-      EXPORT "${target}-targets"
-      NAMESPACE mongo::
-      FILE "${target}-targets.cmake"
-      DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/bson-${BSON_API_VERSION}"
-   )
-endfunction()
+# Most installation was already handled by mongo_add_multitype_library() above.
+# We have a few loose ends to tie up here:
 
-if(ENABLE_STATIC_LIBBSON_INSTALL AND TARGET bson_static)
-   install_export_target(bson_static)
+# Generate the pkg-config files for the targets that we want to install
+if(ENABLE_BSON_STATIC_INSTALL AND TARGET bson_static)
    mongo_generate_pkg_config(bson_static FILENAME libbson-static-1.0.pc INSTALL)
 endif()
-if(ENABLE_SHARED_LIBBSON_INSTALL AND TARGET bson_shared)
-   install_export_target(bson_shared)
+if(ENABLE_BSON_SHARED_INSTALL AND TARGET bson_shared)
    mongo_generate_pkg_config(bson_shared FILENAME libbson-1.0.pc INSTALL)
 endif()
-
-# Install all headers by doing a recursive directory-install.
-install(
-   DIRECTORY
-      # Trailing "/" requests directory contents, not the dir itself:
-      src/bson/
-      # Also get the generated dir:
-      ${PROJECT_BINARY_DIR}/src/bson/
-   DESTINATION "${BSON_HEADER_INSTALL_DIR}/bson"
-   # Only grab the *public* headers.
-   FILES_MATCHING
-      PATTERN "*.h"
-      PATTERN "*-private.h" EXCLUDE
-      # Installed separately below:
-      PATTERN "forwarding" EXCLUDE
-      # Don't generate an empty "modules" directory
-      PATTERN "modules" EXCLUDE
-   )
 
 # The forwarding header is for compatibility with `#include <bson.h>`, so it goes at the top-level:
 install(FILES src/bson/forwarding/bson.h DESTINATION "${BSON_HEADER_INSTALL_DIR}")
@@ -399,16 +275,16 @@ install (
       "${CMAKE_CURRENT_BINARY_DIR}/bson/bson-${BSON_API_VERSION}-config.cmake"
       "${CMAKE_CURRENT_BINARY_DIR}/bson/bson-${BSON_API_VERSION}-config-version.cmake"
    DESTINATION
-      ${CMAKE_INSTALL_LIBDIR}/cmake/bson-${BSON_API_VERSION}
+      ${BSON_TARGETS_INSTALL_DIR}
    COMPONENT
       Devel
 )
 
-# Install the base targets. (Prior targets were installed above)
+# Install the base targets. (Other targets were installed by mongo_add_multitype_library)
 install (EXPORT bson-targets
    NAMESPACE mongo::
    FILE bson-targets.cmake
-   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/bson-${BSON_API_VERSION}
+   DESTINATION ${BSON_TARGETS_INSTALL_DIR}
 )
 
 include (LegacyPackage)
