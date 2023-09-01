@@ -44,11 +44,11 @@ if errorlevel 1 (
 )
 set MINGW=
 
-if not exist %INSTALL_DIR%\lib\libbson-static-1.0.a (
-  echo libbson-static-1.0.a missing!
+if not exist %INSTALL_DIR%\lib\libbson-1.0.a (
+  echo libbson-1.0.a missing!
   exit /B 1
 ) else (
-  echo libbson-static-1.0.a check ok
+  echo libbson-1.0.a check ok
 )
 
 cd %SRCROOT%

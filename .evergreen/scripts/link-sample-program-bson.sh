@@ -56,8 +56,8 @@ else
 
   set +o xtrace
 
-  if test -f $INSTALL_DIR/lib/libbson-static-1.0.a; then
-    echo "libbson-static-1.0.a shouldn't have been installed"
+  if test -f $INSTALL_DIR/lib/libbson-1.0.a; then
+    echo "libbson-1.0.a shouldn't have been installed"
     exit 1
   fi
   if test -f $INSTALL_DIR/lib/libbson-1.0.a; then
@@ -127,11 +127,11 @@ else
 fi
 
 if [ "$LINK_STATIC" ]; then
-  if test ! -f $INSTALL_DIR/lib/libbson-static-1.0.a; then
-    echo "libbson-static-1.0.a missing!"
+  if test ! -f $INSTALL_DIR/lib/libbson-1.0.a; then
+    echo "libbson-1.0.a missing!"
     exit 1
   else
-    echo "libbson-static-1.0.a check ok"
+    echo "libbson-1.0.a check ok"
   fi
   if test ! -f $INSTALL_DIR/lib/pkgconfig/libbson-static-1.0.pc; then
     echo "libbson-static-1.0.pc missing!"
