@@ -58,7 +58,7 @@ if errorlevel 1 (
 )
 
 rem Shim library around the DLL.
-set SHIM=%INSTALL_DIR%\lib\mongoc-1.0.lib
+set SHIM=%INSTALL_DIR%\lib\mongoc-1.0.dll.lib
 if not exist %SHIM% (
   echo %SHIM% is missing!
   exit /B 1
