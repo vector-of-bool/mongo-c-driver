@@ -277,8 +277,8 @@ function(mongo_add_multitype_library basename)
         mongo::detail::c_platform
     )
     set_target_properties(${libs} PROPERTIES
-        VERSION "${PROJECT_VERSION}"
-        SOVERSION "${PROJECT_VERSION_MAJOR}"
+        VERSION "0.0.0" # Currently, we hardcode these to 0.0.0
+        SOVERSION "0"   # And SONAME is always 0
         OUTPUT_NAME "${lib_OUTPUT_NAME}"
     )
 
