@@ -234,8 +234,10 @@ target_include_directories(_mcd-build-interface INTERFACE
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
-# Genreate ".dll.lib"-like suffix for platforms that use importlibs (i.e. Windows DLLs)
-set(CMAKE_IMPORT_LIBRARY_SUFFIX "${CMAKE_SHARED_LIBRARY_SUFFIX}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+if(WIN32)
+   # Genreate ".dll.lib"-like suffix for platforms that use importlibs (i.e. Windows DLLs)
+   set(CMAKE_IMPORT_LIBRARY_SUFFIX "${CMAKE_SHARED_LIBRARY_SUFFIX}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+endif()
 
 # Enable multi-threading:
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
