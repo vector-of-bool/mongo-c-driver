@@ -113,6 +113,7 @@ archlinux-test-env:
 ubuntu-base:
     ARG --required version
     FROM ubuntu:$version
+    ENV DEBIAN_FRONTEND=noninteractive
     RUN apt-get update && apt-get -y install curl build-essential libsasl2-dev
 
 # u22-build-env :
@@ -185,6 +186,44 @@ test-cxx-driver:
     ENV CCACHE_HOME=/root/.cache/ccache
     ENV CCACHE_BASE=$source
     RUN --mount=type=cache,target=$CCACHE_HOME cmake --build $build
+
+test-php-driver:
+    ARG --required env
+    ARG --required test_mongophp_ref
+    FROM +$env-build-env --sasl=Cyrus --tls=OpenSSL
+    IF type apt-get >/dev/null 1>&2
+        RUN apt-get update && apt-get -y install "php7*-dev"
+    ELSE IF type yum >/dev/null 1>&2
+        RUN yum install php-devel autoconf
+    ELSE IF type pacman >/dev/null 1>&2
+        RUN pacman -Sy --noconfirm php autoconf make
+    END
+    LET source_dir=/opt/mongo-php-driver
+    WORKDIR $source_dir
+    GIT CLONE \
+        --branch=$test_mongophp_ref \
+        https://github.com/mongodb/mongo-php-driver.git \
+        $source_dir
+    RUN rm -rf src/libmongoc
+    COPY --dir \
+        src/ \
+        build/ \
+        COPYING \
+        CMakeLists.txt \
+        README.rst \
+        THIRD_PARTY_NOTICES \
+        NEWS \
+        src/libmongoc
+    RUN phpize
+    RUN bash ./configure --enable-mongodb-developer-flags
+    ARG jobs=$(echo $((2 + $(grep processor /proc/cpuinfo | wc -l))))
+    # If parallel make fails, run with -j1 so that we can see the command that failed without
+    # command interleaving.
+    RUN make -j "$jobs" || make -j1
+    RUN make -j "$jobs" install
+    # Default skip tests: tests/manager/manager-ctor-server.phpt fails without a running server
+    ARG test=false
+    RUN ! $test || make TESTS="-j$jobs" test
 
 # Simultaneously builds and tests multiple different platforms
 multibuild:
