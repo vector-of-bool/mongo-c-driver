@@ -35,6 +35,12 @@ build:
         THIRD_PARTY_NOTICES \
         NEWS \
         "$source_dir"
+    # If set and non-empty, forcibly set the content of VERSION_CURRENT to this string
+    ARG force_version_current
+    IF test "$force_version_current" != ""
+        RUN printf %s "$force_version_current" > $source_dir/VERSION_CURRENT
+    END
+    
     ENV CCACHE_HOME=/root/.cache/ccache
     RUN cmake -S "$source_dir" -B "$build_dir" -G "Ninja Multi-Config" \
         -D ENABLE_AUTOMATIC_INIT_AND_CLEANUP=OFF \
