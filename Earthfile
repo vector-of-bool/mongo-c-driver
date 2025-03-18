@@ -31,10 +31,10 @@ build:
         COPYING \
         CMakeLists.txt \
         README.rst \
+        VERSION_CURRENT \
         THIRD_PARTY_NOTICES \
         NEWS \
         "$source_dir"
-    COPY +version-current/ $source_dir
     ENV CCACHE_HOME=/root/.cache/ccache
     RUN cmake -S "$source_dir" -B "$build_dir" -G "Ninja Multi-Config" \
         -D ENABLE_AUTOMATIC_INIT_AND_CLEANUP=OFF \
