@@ -64,6 +64,20 @@ _mongoc_uri_init_scram (const mongoc_uri_t *uri, mongoc_scram_t *scram, mongoc_c
 bool
 mongoc_uri_finalize (mongoc_uri_t *uri, bson_error_t *error);
 
+/**
+ * @brief Obtain a `bson_iter_t` that points to the URI parameter with the given key, if present
+ *
+ * @param uri The URI to be inspected
+ * @param out_iter Storage for a bson iterator that will be updated if the URI contains
+ *  a parameter with the given key
+ * @param key The key to seek. This name will be normalized
+ * @return true If the parameter was found, and `out_iter` is updated
+ * @return false Otherwise (the parameter value is not defined)
+ */
+bool
+_mongoc_uri_get_option_iterator (const mongoc_uri_t *uri, bson_iter_t *out_iter, const char *key);
+
+
 BSON_END_DECLS
 
 

@@ -2858,34 +2858,16 @@ mongoc_uri_set_server_monitoring_mode (mongoc_uri_t *uri, const char *value)
  */
 
 int32_t
-mongoc_uri_get_option_as_int32 (const mongoc_uri_t *uri, const char *option_orig, int32_t fallback)
+mongoc_uri_get_option_as_int32 (const mongoc_uri_t *uri, const char *key, int32_t fallback)
 {
-   const char *option;
-   const bson_t *options;
-   bson_iter_t iter;
-   int64_t retval = 0;
-
-   option = mongoc_uri_canonicalize_option (option_orig);
-
-   /* BC layer to allow retrieving 32-bit values stored in 64-bit options */
-   if (mongoc_uri_option_is_int64 (option_orig)) {
-      retval = mongoc_uri_get_option_as_int64 (uri, option_orig, 0);
-
-      if (retval > INT32_MAX || retval < INT32_MIN) {
-         MONGOC_WARNING ("Cannot read 64-bit value for \"%s\": %" PRId64, option_orig, retval);
-
-         retval = 0;
-      }
-   } else if ((options = mongoc_uri_get_options (uri)) && bson_iter_init_find_case (&iter, options, option) &&
-              BSON_ITER_HOLDS_INT32 (&iter)) {
-      retval = bson_iter_int32 (&iter);
+   // The int64 getter will handle type and presence checks
+   int64_t ret = mongoc_uri_get_option_as_int64 (uri, key, fallback);
+   // Check if the parameter argument is within bounds for int32
+   if (!mlib_in_range (int32_t, ret)) {
+      MONGOC_WARNING ("Cannot read 64-bit value for \"%s\": %" PRId64, key, ret);
+      return fallback;
    }
-
-   if (!retval) {
-      retval = fallback;
-   }
-
-   return (int32_t) retval;
+   return (int32_t) ret;
 }
 
 /*
@@ -3073,23 +3055,18 @@ _mongoc_uri_set_option_as_int32 (mongoc_uri_t *uri, const char *option_orig, int
  */
 
 int64_t
-mongoc_uri_get_option_as_int64 (const mongoc_uri_t *uri, const char *option_orig, int64_t fallback)
+mongoc_uri_get_option_as_int64 (const mongoc_uri_t *uri, const char *key, int64_t fallback)
 {
-   const char *option;
-   const bson_t *options;
    bson_iter_t iter;
-   int64_t retval = fallback;
-
-   option = mongoc_uri_canonicalize_option (option_orig);
-   if ((options = mongoc_uri_get_options (uri)) && bson_iter_init_find_case (&iter, options, option)) {
-      if (BSON_ITER_HOLDS_INT (&iter)) {
-         if (!(retval = bson_iter_as_int64 (&iter))) {
-            retval = fallback;
-         }
-      }
+   if (!_mongoc_uri_get_option_iterator (uri, &iter, key)) {
+      // No argument for this parameter
+      return fallback;
    }
-
-   return retval;
+   if (!BSON_ITER_HOLDS_INT (&iter)) {
+      // Not an integer
+      return fallback;
+   }
+   return bson_iter_as_int64 (&iter);
 }
 
 /*
@@ -3221,17 +3198,16 @@ _mongoc_uri_set_option_as_int64_with_error (mongoc_uri_t *uri,
 bool
 mongoc_uri_get_option_as_bool (const mongoc_uri_t *uri, const char *option_orig, bool fallback)
 {
-   const char *option;
-   const bson_t *options;
    bson_iter_t iter;
-
-   option = mongoc_uri_canonicalize_option (option_orig);
-   if ((options = mongoc_uri_get_options (uri)) && bson_iter_init_find_case (&iter, options, option) &&
-       BSON_ITER_HOLDS_BOOL (&iter)) {
-      return bson_iter_bool (&iter);
+   if (!_mongoc_uri_get_option_iterator (uri, &iter, option_orig)) {
+      // Not present
+      return fallback;
    }
-
-   return fallback;
+   if (!BSON_ITER_HOLDS_BOOL (&iter)) {
+      // Not a boolean
+      return fallback;
+   }
+   return bson_iter_bool (&iter);
 }
 
 /*
@@ -3306,19 +3282,21 @@ mongoc_uri_set_option_as_bool (mongoc_uri_t *uri, const char *option_orig, bool 
  */
 
 const char *
-mongoc_uri_get_option_as_utf8 (const mongoc_uri_t *uri, const char *option_orig, const char *fallback)
+mongoc_uri_get_option_as_utf8 (const mongoc_uri_t *uri, const char *key, const char *fallback)
 {
-   const char *option;
-   const bson_t *options;
+   BSON_ASSERT_PARAM (uri);
+   BSON_ASSERT_PARAM (key);
    bson_iter_t iter;
-
-   option = mongoc_uri_canonicalize_option (option_orig);
-   if ((options = mongoc_uri_get_options (uri)) && bson_iter_init_find_case (&iter, options, option) &&
-       BSON_ITER_HOLDS_UTF8 (&iter)) {
-      return bson_iter_utf8 (&iter, NULL);
+   if (!_mongoc_uri_get_option_iterator (uri, &iter, key)) {
+      // Parameter has not been set
+      return fallback;
+   }
+   if (!BSON_ITER_HOLDS_UTF8 (&iter)) {
+      // Parameter argument is not a string
+      return fallback;
    }
 
-   return fallback;
+   return bson_iter_utf8 (&iter, NULL);
 }
 
 /*
@@ -3573,4 +3551,17 @@ mongoc_uri_finalize (mongoc_uri_t *uri, bson_error_t *error)
    }
 
    return true;
+}
+
+bool
+_mongoc_uri_get_option_iterator (const mongoc_uri_t *uri, bson_iter_t *out_iter, const char *key)
+{
+   BSON_ASSERT_PARAM (uri);
+   BSON_ASSERT_PARAM (out_iter);
+   BSON_ASSERT_PARAM (key);
+   // Normalize the parameter key
+   key = mongoc_uri_canonicalize_option (key);
+   // Update the iterator to find the key. Returns `false` if nothing was found.
+   const bson_t *params = mongoc_uri_get_options (uri);
+   return bson_iter_init_find_case (out_iter, params, key);
 }
