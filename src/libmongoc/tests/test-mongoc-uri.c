@@ -8,10 +8,18 @@
 
 #include "TestSuite.h"
 
+#include <mlib/duration.h>
+#include <mlib/test.h>
 #include "test-libmongoc.h"
 #include "test-conveniences.h"
 #include <common-string-private.h>
 #include <mlib/loop.h>
+
+// XXX: This is a string constant corresponding to the "timeoutMS" parameter,
+// not yet exposed to the public API, but is handled internally while the CSOT
+// feature is in development. When finished, this should be replaced with a
+// MONGOC_URI_TIMEOUTMS string literal macro
+static const char *const mongoc_uri_param_timeoutMS = "timeoutMS";
 
 static void
 test_mongoc_uri_new (void)
@@ -1400,7 +1408,7 @@ test_mongoc_uri_functions (void)
    mongoc_uri_destroy (uri);
 }
 
-#define BSON_ERROR_INIT ((bson_error_t){.code = 0u, .domain = 0u, .message = {0}, .reserved = 0u})
+#define BSON_ERROR_INIT ((bson_error_t) {.code = 0u, .domain = 0u, .message = {0}, .reserved = 0u})
 
 static void
 test_mongoc_uri_new_with_error (void)
@@ -3080,6 +3088,47 @@ test_mongoc_uri_int_options (void)
 }
 
 static void
+test_get_timeout (void)
+{
+   mongoc_uri_t *uri = mongoc_uri_new ("mongodb://localhost:27017/?wTimeoutMS=1200");
+   mlib_check (uri);
+   bool found = false;
+   mlib_duration d;
+   found = _mongoc_uri_get_timeout_parameter (uri, &d, "wtimeoutms");
+   mlib_check (found);
+   mlib_check (mlib_duration_eq (d, mlib_milliseconds (1200)));
+
+   // Other timeout parameter is not defined:
+   found = _mongoc_uri_get_timeout_parameter (uri, &d, MONGOC_URI_SOCKETTIMEOUTMS);
+   mlib_check (!found);
+
+   mongoc_uri_destroy (uri);
+
+   uri = mongoc_uri_new ("mongodb://localhost/?timeoutMS=1200&wTimeoutMS=42&serverSelectionTimeoutMS=1729");
+   mlib_check (uri);
+   // Get the wTimeoutMS, but this will be overridden by timeoutMS
+   found = _mongoc_uri_get_timeout_parameter (uri, &d, "wTimeoutMS");
+   mlib_check (found);
+   // We get the timeoutMS value of 1200, not wTimeoutMS=42
+   mlib_check (mlib_duration_eq (d, mlib_milliseconds (1200)));
+
+   found = _mongoc_uri_get_timeout_parameter (uri, &d, mongoc_uri_param_timeoutMS);
+   mlib_check (found);
+   mlib_check (mlib_duration_eq (d, mlib_milliseconds (1200)));
+
+   // The `serverSelectionTimeoutMS` parameter is not deprecated, and maintains precedence over timeoutMS
+   found = _mongoc_uri_get_timeout_parameter (uri, &d, MONGOC_URI_SERVERSELECTIONTIMEOUTMS);
+   mlib_check (found);
+   mlib_check (mlib_duration_eq (d, mlib_milliseconds (1729)));
+
+   // The connectTimeoutMS parameter is not deprecated, and should not be overridden by timeoutMS
+   found = _mongoc_uri_get_timeout_parameter (uri, &d, MONGOC_URI_CONNECTTIMEOUTMS);
+   mlib_check (!found);
+
+   mongoc_uri_destroy (uri);
+}
+
+static void
 test_one_tls_option_enables_tls (void)
 {
    const char *opts[] = {MONGOC_URI_TLS "=true",
@@ -3316,4 +3365,5 @@ test_uri_install (TestSuite *suite)
    TestSuite_Add (suite, "/Uri/parses_long_ipv6", test_parses_long_ipv6);
    TestSuite_Add (suite, "/Uri/depr", test_uri_depr);
    TestSuite_Add (suite, "/Uri/uri_in_options", test_uri_uri_in_options);
+   TestSuite_Add (suite, "/Uri/get_timeout", test_get_timeout);
 }

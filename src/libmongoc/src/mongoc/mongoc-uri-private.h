@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <mlib/duration.h>
 #include <mongoc/mongoc-prelude.h>
 
 #ifndef MONGOC_URI_PRIVATE_H
@@ -77,6 +78,21 @@ mongoc_uri_finalize (mongoc_uri_t *uri, bson_error_t *error);
 bool
 _mongoc_uri_get_option_iterator (const mongoc_uri_t *uri, bson_iter_t *out_iter, const char *key);
 
+/**
+ * @brief Obtain the effective timeout that should be used for some timeout parameter
+ *
+ * This function respects CSOT behavior that `timeoutMS` overrides some timeout
+ * parameters, but will fall-back to the specified timeout parameter given by `key`
+ * if `timeoutMS` is unset.
+ *
+ * @param uri Pointer to a URI object to be inspected
+ * @param duration Pointer to storage that will receive the timeout duration
+ * @param key The parameter key for the timeout that we want to inspect
+ * @return true If a timeout parameter was set, and `duration` is updated
+ * @return false Otherwise
+ */
+bool
+_mongoc_uri_get_timeout_parameter (const mongoc_uri_t *uri, mlib_duration *duration, const char *key);
 
 BSON_END_DECLS
 

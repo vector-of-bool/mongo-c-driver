@@ -39,8 +39,15 @@
 #include <mongoc/utlist.h>
 #include <mongoc/mongoc-trace-private.h>
 
+#include <mlib/duration.h>
 #include <common-bson-dsl-private.h>
 #include <common-string-private.h>
+
+// XXX: This is a string constant corresponding to the "timeoutMS" parameter,
+// not yet exposed to the public API, but is handled internally while the CSOT
+// feature is in development. When finished, this should be replaced with a
+// MONGOC_URI_TIMEOUTMS string literal macro
+static const char *const mongoc_uri_param_timeoutMS = "timeoutMS";
 
 struct _mongoc_uri_t {
    char *str;
@@ -748,7 +755,7 @@ mongoc_uri_option_is_int32 (const char *key)
 bool
 mongoc_uri_option_is_int64 (const char *key)
 {
-   return !strcasecmp (key, MONGOC_URI_WTIMEOUTMS);
+   return !strcasecmp (key, MONGOC_URI_WTIMEOUTMS) || !strcasecmp (key, mongoc_uri_param_timeoutMS);
 }
 
 bool
@@ -3564,4 +3571,38 @@ _mongoc_uri_get_option_iterator (const mongoc_uri_t *uri, bson_iter_t *out_iter,
    // Update the iterator to find the key. Returns `false` if nothing was found.
    const bson_t *params = mongoc_uri_get_options (uri);
    return bson_iter_init_find_case (out_iter, params, key);
+}
+
+bool
+_mongoc_uri_get_timeout_parameter (const mongoc_uri_t *uri, mlib_duration *duration, const char *key)
+{
+   BSON_ASSERT_PARAM (uri);
+   BSON_ASSERT_PARAM (duration);
+   BSON_ASSERT_PARAM (key);
+   bson_iter_t iter;
+   key = mongoc_uri_canonicalize_option (key);
+   // Some timeout params are not deprecated and take precedence over timeoutMS:
+   if (!strcasecmp (key, MONGOC_URI_SERVERSELECTIONTIMEOUTMS) || !strcasecmp (key, MONGOC_URI_CONNECTTIMEOUTMS)) {
+      // The requested parameter is not deprecated by timeoutMS, so we shouldn't inspect timeoutMS
+      if (_mongoc_uri_get_option_iterator (uri, &iter, key)) {
+         *duration = mlib_milliseconds (bson_iter_as_int64 (&iter));
+         return true;
+      } else {
+         // The requested param is not defined
+         return false;
+      }
+   }
+   // For other timeout params, defer to the timeoutMS or the old deprecated name:
+   if (
+      // Try to find the `timeoutMS` parameter, and check that it holds an integer:
+      (_mongoc_uri_get_option_iterator (uri, &iter, mongoc_uri_param_timeoutMS) && BSON_ITER_HOLDS_INT (&iter))
+      // Otherwise, try to get the fallback (deprecated) timeout parameter, and check that it is an integer:
+      || (_mongoc_uri_get_option_iterator (uri, &iter, key) && BSON_ITER_HOLDS_INT (&iter))) {
+      // `iter` now points to the timeout parameter value that we want to use
+      int64_t i = bson_iter_as_int64 (&iter);
+      *duration = mlib_milliseconds (i);
+      return true;
+   }
+   // Neither parameter is set, so don't return anything
+   return false;
 }
