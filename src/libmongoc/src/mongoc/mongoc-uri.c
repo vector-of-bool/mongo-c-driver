@@ -3073,7 +3073,12 @@ mongoc_uri_get_option_as_int64 (const mongoc_uri_t *uri, const char *key, int64_
       // Not an integer
       return fallback;
    }
-   return bson_iter_as_int64 (&iter);
+   int64_t val = bson_iter_as_int64 (&iter);
+   if (val == 0) {
+      // For this API, treat zero as being unset
+      return fallback;
+   }
+   return val;
 }
 
 /*
