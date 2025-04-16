@@ -15,6 +15,8 @@
  */
 
 
+#include <mlib/duration.h>
+#include <mlib/time_point.h>
 #include <mongoc/mongoc-client-session-private.h>
 #include <mongoc/mongoc-cluster-private.h>
 #include <mongoc/mongoc-trace-private.h>
@@ -1184,7 +1186,7 @@ mongoc_client_session_commit_transaction (mongoc_client_session_t *session, bson
 
       /* Waste the test timeout, if there is one set. */
       if (session->with_txn_timeout_ms) {
-         _mongoc_usleep (session->with_txn_timeout_ms * 1000);
+         mlib_this_thread_sleep_for (mlib_milliseconds (session->with_txn_timeout_ms));
       }
 
       RETURN (r);

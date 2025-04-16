@@ -15,6 +15,8 @@
  */
 
 #include "TestSuite.h"
+#include <mlib/duration.h>
+#include <mlib/time_point.h>
 #include "test-libmongoc.h"
 #include "mock_server/mock-server.h"
 #include "mock_server/future.h"
@@ -37,7 +39,7 @@ BSON_THREAD_FUN (_interrupt, future_void)
 
    future = future_void;
    interrupt = future_get_param (future, 0)->value.void_ptr_value;
-   _mongoc_usleep (10 * 1000);
+   mlib_this_thread_sleep_for (mlib_milliseconds (10));
    _mongoc_interrupt_interrupt (interrupt);
    return_value.type = future_value_void_type;
    future_resolve (future, return_value);

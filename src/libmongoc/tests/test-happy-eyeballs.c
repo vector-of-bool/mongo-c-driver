@@ -9,6 +9,8 @@
 #include "common-oid-private.h"
 
 #include "TestSuite.h"
+#include <mlib/duration.h>
+#include <mlib/time_point.h>
 #include "mock_server/mock-server.h"
 #include "test-libmongoc.h"
 
@@ -139,7 +141,7 @@ _mock_poll (mongoc_stream_poll_t *streams, size_t nstreams, int32_t timeout)
       /* if there were active poll responses which were all silenced,
        * sleep for a little while since subsequent calls to poll may not have
        * any delay. */
-      _mongoc_usleep (5 * 1000);
+      mlib_this_thread_sleep_for (mlib_milliseconds (5));
    }
    return nactive;
 }
@@ -409,7 +411,7 @@ test_happy_eyeballs_dns_cache (void)
    mongoc_topology_scanner_node_disconnect (testcase.state.ts->nodes, false);
 
    /* wait for DNS cache to expire. */
-   _mongoc_usleep (2000 * 1000);
+   mlib_this_thread_sleep_for (mlib_seconds (2));
 
    /* after running once, the topology scanner should have cached the DNS
     * result for IPv6. It should complete immediately. */

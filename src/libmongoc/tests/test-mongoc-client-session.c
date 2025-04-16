@@ -6,6 +6,8 @@
 #include <mongoc/utlist.h>
 #include <mlib/loop.h>
 #include "TestSuite.h"
+#include <mlib/duration.h>
+#include <mlib/time_point.h>
 #include "test-conveniences.h"
 #include "test-libmongoc.h"
 #include "mock_server/mock-server.h"
@@ -226,7 +228,7 @@ _test_session_pool_timeout (bool pooled)
    mongoc_client_session_destroy (s);
    BSON_ASSERT (!mongoc_server_session_pool_is_empty (client->topology->session_pool));
 
-   _mongoc_usleep (1500 * 1000);
+   mlib_this_thread_sleep_for (mlib_milliseconds (1500));
 
    /* getting a new client session must start a new server session */
    s = mongoc_client_start_session (client, NULL, &error);
@@ -310,7 +312,7 @@ _test_session_pool_reap (bool pooled)
    mongoc_client_session_destroy (a);
    BSON_ASSERT (!mongoc_server_session_pool_is_empty (client->topology->session_pool)); /* session is pooled */
 
-   _mongoc_usleep (1500 * 1000);
+   mlib_this_thread_sleep_for (mlib_milliseconds (1500));
 
    /*
     * returning session B causes session A to be reaped

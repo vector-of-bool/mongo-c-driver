@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <mlib/duration.h>
 #include <bson/bson.h>
 #include <mongoc/mongoc-config.h>
 #ifdef MONGOC_HAVE_DNSAPI

@@ -19,6 +19,8 @@
 #include <mongoc/mongoc-array-private.h>
 #include <mongoc/mongoc-bulkwrite.h>
 #include <mongoc/mongoc-util-private.h> // hex_to_bin
+#include <mlib/duration.h>
+#include <mlib/time_point.h>
 #include "result.h"
 #include "test-diagnostics.h"
 #include "test-libmongoc.h"
@@ -3572,7 +3574,7 @@ operation_wait (test_t *test, operation_t *op, result_t *result, bson_error_t *e
    bson_iter_init_find (&iter, op->arguments, "ms");
    ASSERT (BSON_ITER_HOLDS_INT (&iter));
    const int64_t sleep_msec = bson_iter_as_int64 (&iter);
-   _mongoc_usleep (sleep_msec * 1000);
+   mlib_this_thread_sleep_for (mlib_milliseconds (sleep_msec));
 
    result_from_ok (result);
    return true;
@@ -3872,7 +3874,7 @@ log_filter_hide_server_selection_operation (const mongoc_structured_log_entry_t 
 static void
 _operation_hidden_wait (test_t *test, entity_t *client, const char *name)
 {
-   _mongoc_usleep (WAIT_FOR_EVENT_TICK_MS * 1000);
+   mlib_this_thread_sleep_for (mlib_milliseconds (WAIT_FOR_EVENT_TICK_MS));
 
    // @todo Re-examine this once we have support for connection pools in the unified test
    //    runner. Without pooling, all events we could be waiting on would be coming

@@ -31,6 +31,8 @@
 #include <mongoc/mongoc-collection-private.h>
 
 #include "TestSuite.h"
+#include <mlib/duration.h>
+#include <mlib/time_point.h>
 #include "test-libmongoc.h"
 #include "test-conveniences.h"
 
@@ -2889,7 +2891,7 @@ BSON_THREAD_FUN (insert_docs, p)
       }
 
       bson_mutex_unlock (&ctx->lock);
-      _mongoc_usleep (100 * 1000);  /* 100 ms */
+      mlib_this_thread_sleep_for (mlib_milliseconds (100));
    }
 }
 
@@ -3050,7 +3052,7 @@ test_sample_causal_consistency (mongoc_client_t *client)
    uint32_t increment;
    bson_error_t error;
    bool res;
-   
+
    ASSERT (client);
 
    if (!test_framework_skip_if_no_txns ()) {

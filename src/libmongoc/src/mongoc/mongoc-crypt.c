@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <mlib/time_point.h>
 #define MONGOC_LOG_DOMAIN "client-side-encryption"
 
 #include <mongoc/mongoc-crypt-private.h>
@@ -36,6 +37,8 @@
 #include <mongoc/service-gcp.h>
 #include <common-string-private.h>
 #include <mlib/cmp.h>
+#include <mlib/ckdint.h>
+#include <mlib/duration.h>
 
 // `mcd_mapof_kmsid_to_tlsopts` maps a KMS ID (e.g. `aws` or `aws:myname`) to a
 // `mongoc_ssl_opt_t`. The acryonym TLS is preferred over SSL for
@@ -584,9 +587,7 @@ _state_need_kms (_state_machine_t *state_machine, bson_error_t *error)
       }
 
       sleep_usec = mongocrypt_kms_ctx_usleep (kms_ctx);
-      if (sleep_usec > 0) {
-         _mongoc_usleep (sleep_usec);
-      }
+      mlib_this_thread_sleep_for (mlib_microseconds (sleep_usec));
 
       mongoc_stream_destroy (tls_stream);
       tls_stream = _get_stream (endpoint, sockettimeout, ssl_opt, error);

@@ -24,6 +24,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <mlib/time_point.h>
 
 #include <common-string-private.h>
 
@@ -576,7 +577,7 @@ _test_error (const char *format, ...) BSON_GNUC_PRINTF (1, 2);
                                   BSON_FUNC);                          \
             abort ();                                                  \
          }                                                             \
-         _mongoc_usleep (10 * 1000);                                   \
+         mlib_this_thread_sleep_for (mlib_milliseconds (10));          \
       }                                                                \
    } while (0)
 

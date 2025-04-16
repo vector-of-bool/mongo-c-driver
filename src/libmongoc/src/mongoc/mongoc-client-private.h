@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <mlib/duration.h>
 #include <mongoc/mongoc-prelude.h>
 
 #ifndef MONGOC_CLIENT_PRIVATE_H

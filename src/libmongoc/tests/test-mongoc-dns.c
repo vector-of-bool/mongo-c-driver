@@ -1,3 +1,5 @@
+#include <mlib/duration.h>
+#include <mlib/time_point.h>
 #include <mongoc/mongoc-util-private.h>
 #include <mongoc/mongoc-client-pool-private.h>
 #include <mongoc/mongoc.h>
@@ -788,7 +790,7 @@ _prose_test_update_srv_single (void *resource)
 
    client = resource;
 
-   _mongoc_usleep (2000 * RESCAN_INTERVAL_MS);
+   mlib_this_thread_sleep_for (mlib_duration_mul (mlib_milliseconds (RESCAN_INTERVAL_MS), 2));
 
    /* Avoid ping given `loadBalanced=true`; see prose test 9. */
    if (!mongoc_uri_get_option_as_bool (client->uri, MONGOC_URI_LOADBALANCED, false)) {
@@ -801,7 +803,7 @@ _prose_test_update_srv_pooled (void *resource)
 {
    BSON_ASSERT_PARAM (resource);
 
-   _mongoc_usleep (2000 * RESCAN_INTERVAL_MS);
+   mlib_this_thread_sleep_for (mlib_duration_mul (mlib_milliseconds (RESCAN_INTERVAL_MS), 2));
 }
 
 typedef struct {
