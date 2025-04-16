@@ -3096,7 +3096,7 @@ test_get_timeout (void)
    mlib_duration d;
    found = _mongoc_uri_get_timeout_parameter (uri, &d, "wtimeoutms");
    mlib_check (found);
-   mlib_check (mlib_duration_eq (d, mlib_milliseconds (1200)));
+   mlib_check (mlib_duration_cmp (d, ==, mlib_milliseconds (1200)));
 
    // Other timeout parameter is not defined:
    found = _mongoc_uri_get_timeout_parameter (uri, &d, MONGOC_URI_SOCKETTIMEOUTMS);
@@ -3110,16 +3110,16 @@ test_get_timeout (void)
    found = _mongoc_uri_get_timeout_parameter (uri, &d, "wTimeoutMS");
    mlib_check (found);
    // We get the timeoutMS value of 1200, not wTimeoutMS=42
-   mlib_check (mlib_duration_eq (d, mlib_milliseconds (1200)));
+   mlib_check (mlib_duration_cmp (d, ==, mlib_milliseconds (1200)));
 
    found = _mongoc_uri_get_timeout_parameter (uri, &d, mongoc_uri_param_timeoutMS);
    mlib_check (found);
-   mlib_check (mlib_duration_eq (d, mlib_milliseconds (1200)));
+   mlib_check (mlib_duration_cmp (d, ==, mlib_milliseconds (1200)));
 
    // The `serverSelectionTimeoutMS` parameter is not deprecated, and maintains precedence over timeoutMS
    found = _mongoc_uri_get_timeout_parameter (uri, &d, MONGOC_URI_SERVERSELECTIONTIMEOUTMS);
    mlib_check (found);
-   mlib_check (mlib_duration_eq (d, mlib_milliseconds (1729)));
+   mlib_check (mlib_duration_cmp (d, ==, mlib_milliseconds (1729)));
 
    // The connectTimeoutMS parameter is not deprecated, and should not be overridden by timeoutMS
    found = _mongoc_uri_get_timeout_parameter (uri, &d, MONGOC_URI_CONNECTTIMEOUTMS);
