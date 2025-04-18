@@ -15,10 +15,10 @@
  */
 
 
-#include <mlib/duration.h>
-#include <mlib/time_point.h>
 #include <bson/bson.h>
 
+#include <mlib/duration.h>
+#include <mlib/time_point.h>
 #include <mongoc/mongoc-async-private.h>
 #include <mongoc/mongoc-async-cmd-private.h>
 #include <mongoc/utlist.h>

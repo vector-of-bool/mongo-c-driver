@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#include <mlib/duration.h>
-#include <mlib/time_point.h>
+
 #ifdef _WIN32
 #define _CRT_RAND_S
 #endif
@@ -36,6 +35,8 @@
 #include <mongoc/mongoc-sleep.h>
 #include <mlib/cmp.h>
 #include <mlib/loop.h>
+#include <mlib/duration.h>
+#include <mlib/time_point.h>
 
 const bson_validate_flags_t _mongoc_default_insert_vflags =
    BSON_VALIDATE_UTF8 | BSON_VALIDATE_UTF8_ALLOW_NULL | BSON_VALIDATE_EMPTY_KEYS;
