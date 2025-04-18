@@ -46,6 +46,26 @@ _test_checks (void)
    mlib_assert_aborts () {
       mlib_check (1, neq, 1);
    }
+   // lt
+   mlib_check (1, lt, 4);
+   mlib_assert_aborts () {
+      mlib_check (4, lt, 1);
+   }
+   mlib_check (1, lte, 4);
+   mlib_check (1, lte, 1);
+   mlib_assert_aborts () {
+      mlib_check (4, lte, 3);
+   }
+   // gt
+   mlib_check (4, gt, 2);
+   mlib_assert_aborts () {
+      mlib_check (3, gt, 5);
+   }
+   mlib_check (3, gte, 2);
+   mlib_check (3, gte, 3);
+   mlib_assert_aborts () {
+      mlib_check (3, gte, 5);
+   }
 }
 
 static void
@@ -737,7 +757,7 @@ _test_time_point (void)
 
    // Offset the time point
    mlib_time_point later = mlib_later (t, mlib_seconds (1));
-   mlib_check (mlib_time_cmp (t, later) < 0);
+   mlib_check (mlib_time_cmp (t, <, later));
 
    // Difference between two time points is a duration:
    mlib_duration diff = mlib_time_difference (later, t);
@@ -746,7 +766,7 @@ _test_time_point (void)
    // The time is only ever monotonically increasing
    mlib_foreach_urange (i, 10000) {
       (void) i;
-      mlib_check (mlib_time_cmp (t, mlib_now ()) <= 0);
+      mlib_check (mlib_time_cmp (t, <=, mlib_now ()));
       t = mlib_now ();
    }
 }
@@ -758,8 +778,8 @@ _test_sleep (void)
    int rc = mlib_this_thread_sleep_for (mlib_milliseconds (50));
    mlib_check (rc, eq, 0);
    mlib_duration t = mlib_time_difference (mlib_now (), start);
-   mlib_check (mlib_milliseconds_count (t) >= 50);
-   mlib_check (mlib_milliseconds_count (t) < 200);
+   mlib_check (mlib_milliseconds_count (t), gte, 50);
+   mlib_check (mlib_milliseconds_count (t), lt, 200);
 
    // Sleeping for a negative duration returns immediately with success
    start = mlib_now ();
