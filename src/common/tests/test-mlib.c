@@ -9,6 +9,7 @@
 #include <mlib/test.h>
 #include <mlib/ckdint.h>
 #include <mlib/duration.h>
+#include <mlib/timer.h>
 
 #include <stddef.h>
 
@@ -791,6 +792,35 @@ _test_sleep (void)
    mlib_check (mlib_milliseconds_count (mlib_time_difference (start, mlib_now ())) < 100);
 }
 
+static void
+_test_timer (void)
+{
+   mlib_timer tm = mlib_expiring_after (mlib_milliseconds (200));
+   mlib_check (!mlib_timer_is_expired (tm));
+   mlib_this_thread_sleep_for (mlib_milliseconds (200));
+   mlib_check (mlib_timer_is_expired (tm));
+
+   // Test the once-var condition
+   bool cond = false;
+   // Says not expired on the first call
+   mlib_check (!mlib_timer_is_expired (tm, &cond));
+   mlib_check (cond); // Was set to `true`
+   // Says it was expired on this call:
+   mlib_check (mlib_timer_is_expired (tm, &cond));
+
+   // Try with a not-yet-expired timer
+   cond = false;
+   tm = mlib_expiring_after (mlib_seconds (10));
+   mlib_check (!mlib_timer_is_expired (tm));
+   mlib_check (!mlib_timer_is_expired (tm, &cond));
+   // cond was set to `true`, even though we are not yet expired
+   mlib_check (cond);
+
+   // Create a timer that expired in the past
+   tm = mlib_expires_at (mlib_later (mlib_now (), mlib_seconds (-10)));
+   mlib_check (mlib_timer_is_expired (tm));
+}
+
 void
 test_mlib_install (TestSuite *suite)
 {
@@ -807,6 +837,7 @@ test_mlib_install (TestSuite *suite)
    TestSuite_Add (suite, "/mlib/duration", _test_duration);
    TestSuite_Add (suite, "/mlib/time_point", _test_time_point);
    TestSuite_Add (suite, "/mlib/sleep", _test_sleep);
+   TestSuite_Add (suite, "/mlib/timer", _test_timer);
 }
 
 mlib_diagnostic_pop ();
