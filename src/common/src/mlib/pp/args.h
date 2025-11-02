@@ -86,7 +86,7 @@
     MLIB_IF_ELSE(_mlibIsInPickExpansion()) \
         (_mlibArgcPickDeferred) \
         (_mlibArgcPickImmediate)
-#define _mlibArgcPickImmediate(Prefix, ...) _mlibArgcPickImpl(Prefix, __VA_ARGS__)
+#define _mlibArgcPickImmediate(Prefix, ...) MLIB_EVAL(_mlibArgcPickImpl(Prefix, __VA_ARGS__))
 #define _mlibArgcPickDeferred(Prefix, ...) MLIB_DEFERRED(_mlibArgcPickImpl)(Prefix, __VA_ARGS__)
 
 #define _mlibArgcPickImpl(Prefix, ...) MLIB_ARGC_PASTE(Prefix, __VA_ARGS__)(__VA_ARGS__)
