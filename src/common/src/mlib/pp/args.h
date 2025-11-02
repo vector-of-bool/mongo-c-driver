@@ -81,10 +81,12 @@
  *
  *      MLIB_ARGC_PICK(foo,  (my_type){1, 2, 3} ) // ← Expands to foo_argc_3(...)
  *      MLIB_ARGC_PICK(foo, ((my_type){1, 2, 3})) // ← Expands to foo_argc_1(...)
+ *
+ * XXX: The `MLIB_JUST` forces an additional expansion pass that works around a
+ * bug in the old MSVC preprocessor, but is not required in a conforming preprocessor.
  */
 
-#define MLIB_ARGC_PICK(...) _mlibArgcPickImpl(__VA_ARGS__)
-#define _mlibArgcPickImpl(Prefix, ...) MLIB_ARGC_PASTE(Prefix, __VA_ARGS__)(__VA_ARGS__)
+#define MLIB_ARGC_PICK(Prefix, ...) MLIB_JUST(MLIB_ARGC_PASTE(Prefix, __VA_ARGS__)(__VA_ARGS__))
 
 /**
  * @brief Perform the token-paste done by `MLIB_ARGC_PICK` without invoking the
