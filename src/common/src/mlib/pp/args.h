@@ -41,7 +41,7 @@
  * should be wrapped in parentheses for such function-like macros.
  */
 #define MLIB_ARG_COUNT(...) \
-   _mlibPickSixteenth( \
+   _mlibPick64th( \
         /*-
          * Expand the argument list. For every top-level comma, shifts the
          * argument list over by 1.
@@ -53,12 +53,18 @@
          */ \
         MLIB_OPT_COMMA(__VA_ARGS__) \
         /*-
-         * Argument counts, up to 15. For each top-level comment in __VA_ARGS__,
-         * these are shifted along, with `0` in the sixteenth position to start.
+         * Argument counts, up to 63. For each top-level comma in __VA_ARGS__,
+         * these are shifted along, with `0` in the 64th position to start.
          * To support more than 15 arguments, more integers must be added,
-         * and `_mlibPickSixteenth` needs to be extended to a higher number.
+         * and `_mlibPick64th` needs to be extended to a higher number.
          */ \
-        15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, ~)
+        63, 62, 61, 60, 59, 58, 57, 56, 55, 54, \
+        53, 52, 51, 50, 49, 48, 47, 46, 45, 44, \
+        43, 42, 41, 40, 39, 38, 37, 36, 35, 34, \
+        33, 32, 31, 30, 29, 28, 27, 26, 25, 24, \
+        23, 22, 21, 20, 19, 18, 17, 16, 15, 14, \
+        13, 12, 11, 10,  9,  8,  7,  6,  5,  4, \
+         3,  2,  1,  0, ~)
 
 /**
  * @brief Expand to a different function-like macro invocation based on
@@ -99,10 +105,19 @@
     MLIB_PASTE_3(Prefix, _argc_, MLIB_ARG_COUNT(__VA_ARGS__))
 
 /*-
- * This helper macro expands to its sixteenth argument, no matter how many
- * arguments it is given. You must pass at least sixteen arguments to this macro
+ * This helper macro expands to its 64th argument, no matter how many
+ * arguments it is given. You must pass at least 64 arguments to this macro
  */
-#define _mlibPickSixteenth(...) _mlibPickSixteenth1(__VA_ARGS__, ~)
-#define _mlibPickSixteenth1(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, ...) _16
+#define _mlibPick64th(...) _mlibPick64th_impl(__VA_ARGS__)
+#define _mlibPick64th_impl( \
+                 _0,  _1,  _2,  _3,  _4,  _5,  _6,  _7,  _8,  _9, \
+                _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, \
+                _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, \
+                _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, \
+                _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, \
+                _50, _51, _52, _53, _54, _55, _56, _57, _58, _59, \
+                _60, _61, _62, _63, ...) \
+    _63
+
 
 #endif // MLIB_PP_ARGS_H_INCLUDED

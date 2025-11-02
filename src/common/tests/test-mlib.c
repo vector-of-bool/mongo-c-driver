@@ -4,6 +4,7 @@
 #include <mlib/intencode.h>
 #include <mlib/intutil.h>
 #include <mlib/loop.h>
+#include <mlib/pp/args.h>
 #include <mlib/pp/basic.h>
 #include <mlib/pp/is-empty.h>
 #include <mlib/str.h>

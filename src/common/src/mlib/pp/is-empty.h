@@ -106,7 +106,7 @@
  *
  * The "MSVC workaround" is a workaround for MSVC's old bad preprocessor that
  * expands __VA_ARGS__ at the wrong time, by forcing it to expand before we
- * try to expand `_mlibPickSixteenth`. The `_mlibHasComma1` forces another
+ * try to expand `_mlibPick64th`. The `_mlibHasComma1` forces another
  * expansion pass after the `MLIB_NOTHING` expands.
  *
  * Note that this macro will fail if you pass *too many* top-level commas.
@@ -114,19 +114,23 @@
 #define _mlibHasComma(...) \
    _mlibHasComma1( \
         /*-
-         * We defer the expansion of PickSixteenth because MSVC's old broken
+         * We defer the expansion of Pick64th because MSVC's old broken
          * preprocessor expands __VA_ARGS__ at the wrong time, by forcing
-         * __VA_ARGS__ to expand before we try to expand `_mlibPickSixteenth`.
+         * __VA_ARGS__ to expand before we try to expand `_mlibPick64th`.
          * The `_mlibHasComma1` forces another expansion pass after the
          * `MLIB_DEFERRED` expands.
          */ \
-        MLIB_DEFERRED(_mlibPickSixteenth) \
+        MLIB_DEFERRED(_mlibPick64th) \
         /*-
          * If va-args contains any top-level comma, then all arguments will
-         * be shifted to the right, and a `1` will land in the sixteenth
-         * position. Otherwise, the `0` will be the sixteenth.
+         * be shifted to the right, and a `1` will land in the 64th
+         * position. Otherwise, the `0` will be the 64th.
          */ \
-        (__VA_ARGS__, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, ~))
+        (__VA_ARGS__, \
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, \
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, \
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, \
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, ~))
 #define _mlibHasComma1(...) __VA_ARGS__
 
 /*-
