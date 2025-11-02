@@ -26,7 +26,6 @@
 #include <bson/config.h>
 
 #include <mlib/cmp.h>
-#include <mlib/config.h>
 
 #include <jsonsl/jsonsl.h>
 

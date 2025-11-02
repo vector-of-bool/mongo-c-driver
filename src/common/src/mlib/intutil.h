@@ -20,8 +20,6 @@
 #ifndef MLIB_INTUTIL_H_INCLUDED
 #define MLIB_INTUTIL_H_INCLUDED
 
-#include <mlib/config.h>
-
 #include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>

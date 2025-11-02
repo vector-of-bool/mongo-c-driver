@@ -79,7 +79,7 @@ BSON_BEGIN_DECLS
    } while (0)
 
 #else
-#include <mlib/config.h>
+
 
 typedef struct {
    pthread_t lock_owner;

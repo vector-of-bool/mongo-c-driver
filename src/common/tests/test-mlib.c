@@ -1,10 +1,11 @@
 #include <mlib/ckdint.h>
 #include <mlib/cmp.h>
-#include <mlib/config.h>
 #include <mlib/duration.h>
 #include <mlib/intencode.h>
 #include <mlib/intutil.h>
 #include <mlib/loop.h>
+#include <mlib/pp/basic.h>
+#include <mlib/pp/is-empty.h>
 #include <mlib/str.h>
 #include <mlib/test.h>
 #include <mlib/time_point.h>
@@ -17,9 +18,174 @@
 #undef min // Used as a time unit suffix
 
 mlib_diagnostic_push(); // We don't set any diagnostics, we just want to make sure it compiles
+// We check our basic macros using a different syntax, because mlib_static_assert
+// relies on these macros expanding properly.
+
+// `NOTHING` expands to nothing:
+extern int _preproc_static_assert[(42 MLIB_NOTHING() == 42)];
+extern int _preproc_static_assert[(42 MLIB_NOTHING(MLIB_NOTHING()) == 42)];
+extern int _preproc_static_assert[(42 MLIB_NOTHING(, ) == 42)];
+extern int _preproc_static_assert[(42 MLIB_NOTHING("string") == 42)];
+
+// `JUST` expands to its arguments:
+extern int _preproc_static_assert[(MLIB_JUST(42) == 42)];
+extern int _preproc_static_assert[(MLIB_JUST((42)) == 42)];
+// Empty args is okay:
+extern int _preproc_static_assert[(42 MLIB_JUST() == 42)];
+
+// `FIRST_ARG`:
+extern int _preproc_static_assert[(MLIB_FIRST_ARG(42) == 42)];
+extern int _preproc_static_assert[(MLIB_FIRST_ARG(42, ~) == 42)];
+extern int _preproc_static_assert[(MLIB_FIRST_ARG(42, other) == 42)];
+extern int _preproc_static_assert[(MLIB_FIRST_ARG(42, other, more) == 42)];
+// Empty first arg expands to nothing:
+extern int _preproc_static_assert[(42 MLIB_FIRST_ARG(, other, more) == 42)];
+extern int _preproc_static_assert[(42 MLIB_FIRST_ARG(, ) == 42)];
+// Empty expands to nothing:
+extern int _preproc_static_assert[(42 MLIB_FIRST_ARG() == 42)];
+
+// Token pasting:
+enum { test_enum_name = 42 };
+extern int _preproc_static_assert[(MLIB_PASTE(test_, enum_name) == 42)];
+extern int _preproc_static_assert[(MLIB_PASTE_3(test_, enum_, name) == 42)];
+// Empty arg is okay:
+extern int _preproc_static_assert[(MLIB_PASTE(test_enum_name, ) == 42)];
+extern int _preproc_static_assert[(MLIB_PASTE_4(test, _, enum, _name) == 42)];
+extern int _preproc_static_assert[(MLIB_PASTE_5(test, _, enum, _, name) == 42)];
+// Check that pasting will expand macros:
+#define LHS test_
+#define RHS enum_name
+extern int _preproc_static_assert[(MLIB_PASTE(LHS, RHS) == 42)];
+
+// MLIB_BOOLEAN:
+extern int _preproc_static_assert[(MLIB_BOOLEAN(1) == 1)];
+extern int _preproc_static_assert[(MLIB_BOOLEAN(0) == 0)];
+extern int _preproc_static_assert[(MLIB_BOOLEAN() == 0)];
+// MLIB_NEGATE:
+extern int _preproc_static_assert[(MLIB_NEGATE(1) == 0)];
+extern int _preproc_static_assert[(MLIB_NEGATE(0) == 1)];
+extern int _preproc_static_assert[(MLIB_NEGATE() == 1)];
+// MLIB_OR
+extern int _preproc_static_assert[(MLIB_OR(1, 0) == 1)];
+extern int _preproc_static_assert[(MLIB_OR(0, 1) == 1)];
+extern int _preproc_static_assert[(MLIB_OR(1, 1) == 1)];
+extern int _preproc_static_assert[(MLIB_OR(0, 0) == 0)];
+// MLIB_AND
+extern int _preproc_static_assert[(MLIB_AND(1, 0) == 0)];
+extern int _preproc_static_assert[(MLIB_AND(0, 1) == 0)];
+extern int _preproc_static_assert[(MLIB_AND(1, 1) == 1)];
+extern int _preproc_static_assert[(MLIB_AND(0, 0) == 0)];
+// MLIB_XOR
+extern int _preproc_static_assert[(MLIB_XOR(1, 0) == 1)];
+extern int _preproc_static_assert[(MLIB_XOR(0, 1) == 1)];
+extern int _preproc_static_assert[(MLIB_XOR(1, 1) == 0)];
+extern int _preproc_static_assert[(MLIB_XOR(0, 0) == 0)];
+
+// IF_ELSE
+extern int _preproc_static_assert[(MLIB_IF_ELSE(1)(7)(42) == 7)];
+extern int _preproc_static_assert[(MLIB_IF_ELSE(0)(7)(42) == 42)];
+extern int _preproc_static_assert[(MLIB_IF_ELSE()(1)(42) == 42)];
+// Expands to empty case values:
+extern int _preproc_static_assert[(MLIB_IF_ELSE(1)()(bogus)42 == 42)];
+extern int _preproc_static_assert[(MLIB_IF_ELSE(0)(bogus)() 42 == 42)];
+extern int _preproc_static_assert[(MLIB_IF_ELSE()(bogus)() 42 == 42)];
+
+// MLIB_IS_EMPTY
+extern int _preproc_static_assert[(MLIB_IS_EMPTY())];
+extern int _preproc_static_assert[(!MLIB_IS_EMPTY(1))];
+extern int _preproc_static_assert[(!MLIB_IS_EMPTY(1, 2))];
+extern int _preproc_static_assert[(!MLIB_IS_EMPTY(1, 3, 4))];
+extern int _preproc_static_assert[(!MLIB_IS_EMPTY(, ))];
+extern int _preproc_static_assert[(!MLIB_IS_EMPTY(MLIB_NOTHING(), ))];
+extern int _preproc_static_assert[(!MLIB_IS_EMPTY(, MLIB_NOTHING))];
+// Expansion happens before the empty-test:
+extern int _preproc_static_assert[(MLIB_IS_EMPTY(MLIB_NOTHING()))];
+// Detects function-like macros:
+extern int _preproc_static_assert[(!MLIB_IS_EMPTY(MLIB_NOTHING))];
+// Detects empty parentheses:
+extern int _preproc_static_assert[(!MLIB_IS_EMPTY(()))];
+extern int _preproc_static_assert[(!MLIB_IS_EMPTY(_mlibCommaIfParens))];
+
+#define PLUS_ONE() +1 MLIB_DEFERRED(PLUS_1)()
+#define PLUS_1() +1 MLIB_DEFERRED(PLUS_ONE)()
+// + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 PLUS_1 ();
+
+// if/else nesting
+#define MAYBE_ONE(x) MLIB_IF_ELSE(x)(1)(0)
+#define MAYBE_TOP(Q) MLIB_IF_ELSE(MAYBE_ONE(1))(17)(42)
+extern int _preproc_static_assert[MAYBE_TOP(1) == 17];
+
+// pick nesting
+
+#define COUNT_ARGS(...) MLIB_ARGC_PICK(_countArgs, __VA_ARGS__)
+#define _countArgs_argc_2(...) MLIB_ARGC_PICK(_countArgs1, __VA_ARGS__)
+#define _countArgs1_argc_2(...) 2
+
+extern int _preproc_static_assert[COUNT_ARGS(1, 2) == 2];
+
+// MLIB_IF_NOT_EMPTY:
+// Do not expand to the negative sign:
+extern int _preproc_static_assert[MLIB_IF_NOT_EMPTY()(-) 1];
+extern int _preproc_static_assert[MLIB_IF_NOT_EMPTY(~)(2) - 1];
+extern int _preproc_static_assert[MLIB_IF_NOT_EMPTY(~, )(2) - 1];
+extern int _preproc_static_assert[MLIB_IF_NOT_EMPTY(, )(2) - 1];
+
+// MLIB_IS_PARENTHESIZED:
+extern int _preproc_static_assert[!MLIB_IS_PARENTHESIZED(1)];
+extern int _preproc_static_assert[!MLIB_IS_PARENTHESIZED()];
+extern int _preproc_static_assert[MLIB_IS_PARENTHESIZED((12))];
+extern int _preproc_static_assert[MLIB_IS_PARENTHESIZED((12, 31))];
+
+// MLIB_ARGC_COUNT:
+// Empty yields 0:
+extern int _preproc_static_assert[(MLIB_ARG_COUNT() == 0)];
+extern int _preproc_static_assert[(MLIB_ARG_COUNT(1) == 1)];
+extern int _preproc_static_assert[(MLIB_ARG_COUNT(a, b) == 2)];
+// A single comma causes two empty arguments:
+extern int _preproc_static_assert[(MLIB_ARG_COUNT(, ) == 2)];
+extern int _preproc_static_assert[(MLIB_ARG_COUNT(, , ) == 3)];
+// Arguments are expanded first:
+extern int _preproc_static_assert[(MLIB_ARG_COUNT(_mlibCommaIfParens()) == 2)];
+
+#define test_argc_0() 0
+#define test_argc_1(x) 1
+#define test_argc_2(x, y) 2
+#define test_argc_3(x, y, z) 3
+extern int _preproc_static_assert[(MLIB_ARGC_PICK(test, ) == 0)];
+extern int _preproc_static_assert[(MLIB_ARGC_PICK(test, 1) == 1)];
+extern int _preproc_static_assert[(MLIB_ARGC_PICK(test, (1, 2)) == 1)];
+extern int _preproc_static_assert[(MLIB_ARGC_PICK(test, [ a, b ]) == 2)];
+extern int _preproc_static_assert[(MLIB_ARGC_PICK(test, {a, b}) == 2)];
+extern int _preproc_static_assert[(MLIB_ARGC_PICK(test, 1, 2) == 2)];
+extern int _preproc_static_assert[(MLIB_ARGC_PICK(test, 1, 2, ) == 3)];
+
+mlib_diagnostic_push(); // We don't set any diagnostics, we just want to make sure it compiles
 
 // Not relevant, we just want to test that it compiles:
 mlib_msvc_warning(disable : 4507);
+
+mlib_static_assert(MLIB_FIRST_ARG(1, 2, 3) == 1);
+mlib_static_assert(MLIB_FIRST_ARG(2, 3) == 2);
+// Expanding to nothing is an error:
+mlib_static_assert(MLIB_FIRST_ARG(/* empty */) 42 == 42);
+
+
+mlib_static_assert(MLIB_IS_PARENTHESIZED(()));
+mlib_static_assert(MLIB_IS_PARENTHESIZED((a)));
+mlib_static_assert(MLIB_IS_PARENTHESIZED(((((balanced))))));
+mlib_static_assert(!MLIB_IS_PARENTHESIZED());
+mlib_static_assert(!MLIB_IS_PARENTHESIZED(ident));
+mlib_static_assert(!MLIB_IS_PARENTHESIZED(~));
+
+mlib_static_assert(_mlibHasComma(MLIB_OPT_COMMA(1)));
+mlib_static_assert(!_mlibHasComma(MLIB_OPT_COMMA()));
+// Expands to multiple arguments inline (no parentheses)
+mlib_static_assert(MLIB_ARG_COUNT(MLIB_IF_ELSE(1)(a, b, c)(d, e, f)) == 3);
+// Expands to multiple arguments inline (no parentheses)
+mlib_static_assert(MLIB_ARG_COUNT(MLIB_IF_ELSE(0)(a, b, c)(d, e, f)) == 3);
+// Doesn't drop parentheses:
+mlib_static_assert(MLIB_ARG_COUNT(MLIB_IF_ELSE(1)((a, b, c))((d, e, f))) == 1);
+mlib_static_assert(MLIB_ARG_COUNT(MLIB_IF_ELSE(0)((a, b, c))((d, e, f))) == 1);
 
 static void
 _test_checks(void)
