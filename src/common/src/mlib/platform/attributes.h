@@ -26,7 +26,6 @@
 #define MLIB_PLATFORM_ATTRIBUTES_H_INCLUDED
 
 #include "./compiler.h"
-#include "./os.h"
 
 #include <mlib/static_assert.h>
 
@@ -63,7 +62,7 @@
  */
 #define mlib_diagnostic_push()                         \
    MLIB_IF_GNU_LIKE(mlib_pragma(GCC diagnostic push);) \
-   MLIB_IF_MSVC(mlib_pragma(warning(push));)           \
+   MLIB_PRAGMA_IF_MSVC(warning(push);)                 \
    mlib_static_assert(1, "")
 
 /**
@@ -72,7 +71,7 @@
  */
 #define mlib_diagnostic_pop()                         \
    MLIB_IF_GNU_LIKE(mlib_pragma(GCC diagnostic pop);) \
-   MLIB_IF_MSVC(mlib_pragma(warning(pop));)           \
+   MLIB_PRAGMA_IF_MSVC(warning(pop);)                 \
    mlib_static_assert(1, "")
 
 /**
@@ -96,8 +95,8 @@
 /**
  * @brief Emit an MSVC "warning()" pragma if we are compiling with MSVC
  */
-#define mlib_msvc_warning(...)                      \
-   MLIB_IF_MSVC(mlib_pragma(warning(__VA_ARGS__));) \
+#define mlib_msvc_warning(...)                \
+   MLIB_PRAGMA_IF_MSVC(warning(__VA_ARGS__);) \
    mlib_static_assert(1, "")
 
 /**
