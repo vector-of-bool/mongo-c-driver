@@ -82,18 +82,9 @@
  *      MLIB_ARGC_PICK(foo,  (my_type){1, 2, 3} ) // ← Expands to foo_argc_3(...)
  *      MLIB_ARGC_PICK(foo, ((my_type){1, 2, 3})) // ← Expands to foo_argc_1(...)
  */
-#define MLIB_ARGC_PICK \
-    MLIB_IF_ELSE(_mlibIsInPickExpansion()) \
-        (_mlibArgcPickDeferred) \
-        (_mlibArgcPickImmediate)
-#define _mlibArgcPickImmediate(Prefix, ...) MLIB_EVAL(_mlibArgcPickImpl(Prefix, __VA_ARGS__))
-#define _mlibArgcPickDeferred(Prefix, ...) MLIB_DEFERRED(_mlibArgcPickImpl)(Prefix, __VA_ARGS__)
 
+#define MLIB_ARGC_PICK(...) _mlibArgcPickImpl(__VA_ARGS__)
 #define _mlibArgcPickImpl(Prefix, ...) MLIB_ARGC_PASTE(Prefix, __VA_ARGS__)(__VA_ARGS__)
-
-// This macro expands to `1` iff `_mlibArgcPickImmediate` is currently expanding, otherwise `0`
-#define _mlibIsInPickExpansion() MLIB_IS_NOT_EMPTY(_mlibArgcPickImmediate(_mlibPickDetect, ~))
-#define _mlibPickDetect_argc_1(_nil)
 
 /**
  * @brief Perform the token-paste done by `MLIB_ARGC_PICK` without invoking the

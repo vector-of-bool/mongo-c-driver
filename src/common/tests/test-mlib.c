@@ -117,12 +117,6 @@ extern int _preproc_static_assert[MAYBE_TOP(1) == 17];
 
 // pick nesting
 
-#define COUNT_ARGS(...) MLIB_ARGC_PICK(_countArgs, __VA_ARGS__)
-#define _countArgs_argc_2(...) MLIB_ARGC_PICK(_countArgs1, __VA_ARGS__)
-#define _countArgs1_argc_2(...) 2
-
-extern int _preproc_static_assert[COUNT_ARGS(1, 2) == 2];
-
 // MLIB_IF_NOT_EMPTY:
 // Do not expand to the negative sign:
 extern int _preproc_static_assert[MLIB_IF_NOT_EMPTY()(-) 1];
