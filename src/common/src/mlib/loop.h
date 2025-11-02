@@ -24,6 +24,7 @@
 #include <mlib/pp/if-else.h>
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h> // u/intmax_t
 
 /**
