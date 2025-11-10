@@ -59,8 +59,9 @@
  * @brief Expand to the first argument in the given argument list. If given no
  * arguments, expands to nothing.
  */
-#define MLIB_FIRST_ARG(...) _mlibFirstArg(__VA_ARGS__, ~)
+#define MLIB_FIRST_ARG(...) _mlibFirstArgJust(_mlibFirstArg MLIB_NOTHING("MSVC deferral") (__VA_ARGS__, ~))
 #define _mlibFirstArg(X, ...) X
+#define _mlibFirstArgJust(...) __VA_ARGS__
 
 /**
  * @brief Perform token-pasting after expanding the macro arguments
@@ -83,9 +84,9 @@
 // Paste three tokens
 #define MLIB_PASTE_3(A, B, ...) MLIB_PASTE(A, MLIB_PASTE(B, __VA_ARGS__))
 // Paste four tokens
-#define MLIB_PASTE_4(A, B, C, ...) MLIB_PASTE(MLIB_PASTE(A, B), MLIB_PASTE(C, __VA_ARGS__))
+#define MLIB_PASTE_4(A, B, C, ...) MLIB_PASTE(A, MLIB_PASTE_3(B, C, __VA_ARGS__))
 // Paste five tokens
-#define MLIB_PASTE_5(A, B, C, D, ...) MLIB_PASTE(MLIB_PASTE(A, B), MLIB_PASTE(C, MLIB_PASTE(D, __VA_ARGS__)))
+#define MLIB_PASTE_5(A, B, C, D, ...) MLIB_PASTE(A, MLIB_PASTE_4(B, C, D, __VA_ARGS__))
 #define _mlibPaste(A, ...) A##__VA_ARGS__
 
 /**
@@ -102,10 +103,10 @@
  *      MLIB_STR(FOO) // ← Good: Expands to "the_expanded_macro"
  */
 #define MLIB_STR(...) _mlibStr(__VA_ARGS__)
-#define _mlibStr(...) #__VA_ARGS__
+#define _mlibStr(...) "" #__VA_ARGS__
 
 /**
- * @brief Force macro expansion on the argument list to occur at least 16 times
+ * @brief Force macro expansion on the argument list to occur at least 32 times
  *
  * This is useful in the case that macro expansion causes additional macro forms
  * to appear, which will need their own macro expansions.
