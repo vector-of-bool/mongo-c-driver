@@ -59,7 +59,7 @@
  * @brief Expand to the first argument in the given argument list. If given no
  * arguments, expands to nothing.
  */
-#define MLIB_FIRST_ARG(...) _mlibFirstArgJust(_mlibFirstArg MLIB_NOTHING("MSVC deferral") (__VA_ARGS__, ~))
+#define MLIB_FIRST_ARG(...) _mlibFirstArgJust(_mlibFirstArg MLIB_NOTHING("MSVC deferral")(__VA_ARGS__, ~))
 #define _mlibFirstArg(X, ...) X
 #define _mlibFirstArgJust(...) __VA_ARGS__
 
@@ -80,7 +80,11 @@
  *
  * Additionally, `MLIB_PASTE_<n>` is also defined for pasting 3, 4, and 5 tokens
  */
+#ifndef _MSC_VER
 #define MLIB_PASTE(A, ...) _mlibPaste(A, __VA_ARGS__)
+#else
+#define MLIB_PASTE(A, ...) MLIB_JUST(_mlibPaste(A, __VA_ARGS__))
+#endif
 // Paste three tokens
 #define MLIB_PASTE_3(A, B, ...) MLIB_PASTE(A, MLIB_PASTE(B, __VA_ARGS__))
 // Paste four tokens
@@ -106,12 +110,13 @@
 #define _mlibStr(...) "" #__VA_ARGS__
 
 /**
- * @brief Force macro expansion on the argument list to occur at least 32 times
+ * @brief Force macro expansion on the argument list to occur at least 64 times
  *
  * This is useful in the case that macro expansion causes additional macro forms
  * to appear, which will need their own macro expansions.
  */
-#define MLIB_EVAL(...) _mlibEvalSixteenTimes(__VA_ARGS__)
+#define MLIB_EVAL(...) \
+   _mlibEvalSixteenTimes(_mlibEvalSixteenTimes(_mlibEvalSixteenTimes(_mlibEvalSixteenTimes(__VA_ARGS__))))
 #define _mlibEvalOnce(...) __VA_ARGS__
 #define _mlibEvalFourTimes(...) _mlibEvalOnce(_mlibEvalOnce(_mlibEvalOnce(_mlibEvalOnce(__VA_ARGS__))))
 #define _mlibEvalSixteenTimes(...) \
