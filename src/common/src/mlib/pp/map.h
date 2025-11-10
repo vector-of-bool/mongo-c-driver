@@ -25,28 +25,37 @@
 #include <mlib/pp/is-empty.h>
 
 // clang-format off
-#define MLIB_MAP_MACRO_(Action, Constant, ...) \
-    (MLIB_IS_EMPTY(__VA_ARGS__)) \
-        (MLIB_NOTHING) \
-        (_mlibMapMacro_firstPass)
+
+#define MLIB_MAP_MACRO(Action, Constant, ...) \
+   MLIB_EVAL( \
+      MLIB_IF_ELSE(MLIB_IS_EMPTY(__VA_ARGS__)) \
+         (MLIB_NOTHING) \
+         (_mlibMapMacroFirst) \
+      MLIB_NOTHING()(Action, Constant, __VA_ARGS__))
+
+#define _mlibMapMacroFirst(Action, Constant, ...) \
+   MLIB_IF_ELSE(_mlibHasComma(__VA_ARGS__)) \
+      (_mlibMapMacro_A) \
+      (_mlibMapMacro_final) \
+   MLIB_NOTHING() (Action, Constant, 0, __VA_ARGS__)
+
+#define _mlibMapMacro_final(Action, Constant, Counter, Final) \
+   Action(Final, Constant, (Counter))
+
+#define _mlibMapMacro_A(Action, Constant, Counter, Head, ...) \
+   Action(Head, Constant, (Counter)) \
+   MLIB_IF_ELSE(_mlibHasComma(__VA_ARGS__)) \
+      (_mlibMapMacro_B) \
+      (_mlibMapMacro_final) \
+   MLIB_NOTHING() (Action, Constant, Counter + 1, __VA_ARGS__)
+
+#define _mlibMapMacro_B(Action, Constant, Counter, Head, ...) \
+   Action(Head, Constant, (Counter)) \
+   MLIB_IF_ELSE(_mlibHasComma(__VA_ARGS__)) \
+      (_mlibMapMacro_A) \
+      (_mlibMapMacro_final) \
+   MLIB_NOTHING() (Action, Constant, Counter + 1, __VA_ARGS__)
+
 // clang-format on
-
-#if 1
-#define MLIB_MAP_MACRO(...) \
-   MLIB_IF_ELSE(_mlibIsInMapMacroExpansion())(_mlibMapDeferred(__VA_ARGS__))(_mlibMapImmediate(__VA_ARGS__))
-
-#define _mlibMapImmediate(Func, Constant, ...) MLIB_EVAL(_mlibMapInit(Func, Constant, __VA_ARGS__))
-#define _mlibMapDeferred(Func, Constant, ...) MLIB_DEFERRED(_mlibMapInit)(Func, Constant, __VA_ARGS__)
-
-#define _mlibIsInMapMacroExpansion() MLIB_IS_NOT_EMPTY(_mlibTryGenerateEmptyMap())
-#define _mlibTryGenerateEmptyMap() _mlibMapImmediate(MLIB_NOTHING, ~, ~)
-
-#define _mlibMapInit(Func, Constant, ...) MLIB_IF_NOT_EMPTY(__VA_ARGS__)(_mlibMapImpl(Func, Constant, 0, __VA_ARGS__))
-
-#define _mlibMapImpl(Func, Constant, Counter, Head, ...) \
-   Func(Head, Constant, (Counter))                       \
-      MLIB_IF_NOT_EMPTY(__VA_ARGS__)(MLIB_DEFERRED(_mlibMapNext)()(Func, Constant, Counter + 1, __VA_ARGS__))
-#define _mlibMapNext() _mlibMapImpl
-#endif /// 0
 
 #endif // MLIB_PP_MAP_H_INCLUDED
