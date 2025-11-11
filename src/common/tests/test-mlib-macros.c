@@ -1,11 +1,14 @@
+#include <mlib/platform/attributes.h>
 #include <mlib/pp/args.h>
-#include <mlib/pp/is-empty.h>
-#include <mlib/pp/map.h>
 #include <mlib/pp/basic.h>
 #include <mlib/pp/boolean.h>
+#include <mlib/pp/is-empty.h>
+#include <mlib/pp/map.h>
+#include <mlib/static_assert.h>
 
-#include <mlib/platform/attributes.h>
-#include "mlib/static_assert.h"
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wredundant-decls"
+#endif
 
 /// Define a simple static assert that does not depend on our preprocessor machinery
 #define SUPER_SIMPLE_STATIC_ASSERT(Name, ...) \
@@ -80,20 +83,29 @@ mlib_diagnostic_pop();
 mlib_extern_c_end();
 
 #define DECLARE_VAR(Name, _nil, Counter) int Name = Counter;
-MLIB_MAP_MACRO(DECLARE_VAR, @, foo, bar, baz);
+MLIB_MAP_MACRO(DECLARE_VAR, @, foo, bar, baz)
 
 #define SUM(N, _nil, _counter) +N
 SUPER_SIMPLE_STATIC_ASSERT(sum, MLIB_MAP_MACRO(SUM, ~, 1, 2, 1) == 4);
 
-static int foo_func(int a) {
+/*-
+ * Test: Try to use an MLIB_ARGC_PICK macro definition that ultimately expands to
+ * the same identifier as the original macro expansion. Macro blue-painting rules
+ * state that the final macro should not expand again, but we need to check that
+ * here.
+ */
+int
+foo_func(int a)
+{
    return a;
 }
-
 #define foo_func(...) MLIB_ARGC_PICK(_foo_func, __VA_ARGS__)
 #define _foo_func_argc_1(A) foo_func(A)
 
-#define JUST(X) X
 
-int use_argc_func() {
-   return JUST(foo_func(31) == 31);
+int
+use_argc_func(void)
+{
+   // Force additional macro expansions, which will detect a faulty ARGC_PICK
+   return MLIB_JUST(MLIB_JUST(foo_func(31) == 31));
 }
