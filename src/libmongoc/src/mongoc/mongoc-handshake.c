@@ -42,6 +42,8 @@
 #include <mongoc/mongoc-log.h>
 #include <mongoc/mongoc-version.h>
 
+#include <bson/compat.h>
+
 #include <mlib/cmp.h>
 #include <mlib/config.h>
 
@@ -388,6 +390,20 @@ _get_driver_info(void)
 {
    gMongocHandshake.driver_name = bson_strndup("mongoc", HANDSHAKE_DRIVER_NAME_MAX);
    gMongocHandshake.driver_version = bson_strndup(MONGOC_VERSION_S, HANDSHAKE_DRIVER_VERSION_MAX);
+
+   // For backward compatibility with how the platform string is handled (appending `compiler_info` and `flags`), the
+   // platform metadata associated with the "mongoc" client field is always the LAST element in the "platform" metadata
+   // field, not the first:
+   //
+   //  - "name":     [            "mongoc",     "Library Platform",  "Framework Platform"]
+   //  - "version":  [  "<mongoc version>",    "<library version>", "<framework version>"]
+   //  - "platform": ["<library platform>", "<framework platform>",   "<mongoc platform>"] (!!)
+   //
+   // Due to handshake length limits and truncation, the "<mongoc platform>" value may be excluded completely:
+   //
+   //  - "name":     [            "mongoc",     "Library Platform"]
+   //  - "version":  [  "<mongoc version>",    "<library version>"]
+   //  - "platform": ["<library platform>"                        ] (!!)
 }
 
 static void
@@ -588,6 +604,10 @@ _append_platform_field(bson_t *doc, const mongoc_handshake_t *handshake, bool tr
    const char *const compiler_info = handshake->compiler_info;
    const char *const flags = handshake->flags;
 
+   const bool platform_is_empty = platform == NULL || platform[0] == '\0';
+   const bool compiler_info_is_empty = compiler_info == NULL || compiler_info[0] == '\0';
+   const bool flags_is_empty = flags == NULL || flags[0] == '\0';
+
    const uint32_t overhead = (/* 1 byte for utf8 tag */
                               1 +
                               /* key size */
@@ -606,9 +626,61 @@ _append_platform_field(bson_t *doc, const mongoc_handshake_t *handshake, bool tr
                                         &combined_platform,
                                         truncate ? HANDSHAKE_MAX_SIZE - overhead - doc->len : UINT32_MAX - 1u);
 
-   mcommon_string_append(&combined_platform, platform);
-   mcommon_string_append_all_or_none(&combined_platform, compiler_info);
-   mcommon_string_append_all_or_none(&combined_platform, flags);
+   if (!platform_is_empty) {
+      mcommon_string_append(&combined_platform, platform);
+   }
+
+   // `platform` must be delimited with " / " from any subsequent field values.
+   if (!compiler_info_is_empty && !flags_is_empty) {
+      bool success = false;
+
+      // First try to append both `compiler_info` and `flags`.
+      {
+         char *both = bson_strdup_printf("%s%s", compiler_info, flags);
+
+         if (platform_is_empty) {
+            success = mcommon_string_append_all_or_none(&combined_platform, both);
+         } else {
+            char *delimited = bson_strdup_printf(" / %s", both);
+            success = mcommon_string_append_all_or_none(&combined_platform, delimited);
+            bson_free(delimited);
+         }
+
+         bson_free(both);
+      }
+
+      // Fallback to only `compiler_info`.
+      if (!success) {
+         combined_platform._max_len_exceeded = false;
+
+         if (platform_is_empty) {
+            mcommon_string_append_all_or_none(&combined_platform, compiler_info);
+         } else {
+            char *delimited = bson_strdup_printf(" / %s", compiler_info);
+            mcommon_string_append_all_or_none(&combined_platform, delimited);
+            bson_free(delimited);
+         }
+      }
+   }
+
+   // Only `compiler_info` or `flags` is present.
+   else if (!compiler_info_is_empty) {
+      if (platform_is_empty) {
+         mcommon_string_append_all_or_none(&combined_platform, compiler_info);
+      } else {
+         char *delimited = bson_strdup_printf(" / %s", compiler_info);
+         mcommon_string_append_all_or_none(&combined_platform, delimited);
+         bson_free(delimited);
+      }
+   } else if (!flags_is_empty) {
+      if (platform_is_empty) {
+         mcommon_string_append_all_or_none(&combined_platform, flags);
+      } else {
+         char *delimited = bson_strdup_printf(" / %s", flags);
+         mcommon_string_append_all_or_none(&combined_platform, delimited);
+         bson_free(delimited);
+      }
+   }
 
    bson_append_utf8(doc,
                     HANDSHAKE_PLATFORM_FIELD,
@@ -764,11 +836,22 @@ _mongoc_handshake_freeze(void)
 static void
 _append_and_truncate(char **s, const char *suffix, size_t max_len)
 {
-   char *old_str = *s;
-   const size_t delim_len = strlen(" / ");
-
    BSON_ASSERT_PARAM(s);
    BSON_ASSERT_PARAM(suffix);
+
+   // `max_len` is at most `HANDSHAKE_MAX_SIZE`, which fits well within the range of `int`.
+   BSON_ASSERT(mlib_in_range(int, max_len));
+
+   char *old_str = *s;
+   const char *const delim = " / ";
+   const size_t delim_len = strlen(delim);
+
+   // For backward compatibility, allow `suffix` to contain the " / " delimiter at the end of its value, but strip it so
+   // that `_append_platform_field()` can re-append it only when it is necessary.
+   size_t suffix_len = strlen(suffix);
+   if (suffix_len >= delim_len && strncmp(suffix + (suffix_len - delim_len), delim, delim_len) == 0) {
+      suffix_len -= delim_len;
+   }
 
    const char *const prefix = old_str ? old_str : "";
 
@@ -779,10 +862,13 @@ _append_and_truncate(char **s, const char *suffix, size_t max_len)
       return;
    }
 
-   const size_t space_for_suffix = max_len - required_space;
-   BSON_ASSERT(mlib_in_range(int, space_for_suffix));
+   // `INT_MAX > HANDSHAKE_MAX_SIZE >= max_len > required_space`, therefore `space_for_suffix` is always within range.
+   const int space_for_suffix = (int)(max_len - required_space);
 
-   *s = bson_strdup_printf("%s / %.*s", prefix, (int)space_for_suffix, suffix);
+   // Strip the trailing " / " delimiter and/or truncate to fit within `max_len`.
+   const int truncated_len = mlib_cmp(suffix_len, <, space_for_suffix) ? (int)suffix_len : space_for_suffix;
+
+   *s = bson_strdup_printf("%s / %.*s", prefix, truncated_len, suffix);
    BSON_ASSERT(strlen(*s) <= max_len);
 
    bson_free(old_str);
