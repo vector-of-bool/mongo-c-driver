@@ -452,7 +452,7 @@ test_retry_no_crypto(void *ctx)
    BSON_ASSERT(client);
    ASSERT_CAPTURED_LOG("test_framework_client_new and retryWrites=true",
                        MONGOC_LOG_LEVEL_WARNING,
-                       "retryWrites not supported without an SSL crypto library");
+                       "retryWrites is not fully supported without an SSL crypto library");
    mongoc_client_destroy(client);
 
    clear_captured_logs();
@@ -464,7 +464,7 @@ test_retry_no_crypto(void *ctx)
    BSON_ASSERT(client);
    ASSERT_CAPTURED_LOG("test_framework_client_new_from_uri and retryWrites=true",
                        MONGOC_LOG_LEVEL_WARNING,
-                       "retryWrites not supported without an SSL crypto library");
+                       "retryWrites is not fully supported without an SSL crypto library");
    mongoc_client_destroy(client);
 
    clear_captured_logs();
@@ -473,7 +473,7 @@ test_retry_no_crypto(void *ctx)
    BSON_ASSERT(pool);
    ASSERT_CAPTURED_LOG("test_framework_client_pool_new_from_uri and retryWrites=true",
                        MONGOC_LOG_LEVEL_WARNING,
-                       "retryWrites not supported without an SSL crypto library");
+                       "retryWrites is not fully supported without an SSL crypto library");
    mongoc_client_pool_destroy(pool);
 
    mongoc_uri_destroy(uri);
@@ -1760,7 +1760,8 @@ test_retryable_writes_install(TestSuite *suite)
                      NULL,
                      test_framework_skip_if_not_replset, /* only run against replica sets as mongos does not propagate
                                                             the NoWritesPerformed label to the drivers */
-                     test_framework_skip_if_max_wire_version_less_than_9 /* require 4.4+ for errorLabels */);
+                     test_framework_skip_if_max_wire_version_less_than_9, /* require 4.4+ for errorLabels */
+                     test_framework_skip_if_no_crypto /* require crypto for sessions */);
    TestSuite_AddFull(suite,
                      "/retryable_writes/prose_test_6_case_5",
                      retryable_writes_prose_test_6_case_5,
