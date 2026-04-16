@@ -1,4 +1,6 @@
+#include <mongoc/mongoc-client-private.h>
 #include <mongoc/mongoc-collection-private.h>
+#include <mongoc/mongoc-uri-private.h>
 
 #include <mongoc/mongoc.h>
 
@@ -1258,12 +1260,13 @@ run_admin_command(const char *cmd_str)
 typedef struct {
    uint32_t first_fail_point_error_code;
    const char *second_fail_point_cmd_str;
-} prose_test_6_apm_ctx_t;
+} prose_test_6_case_1_to_3_apm_ctx_t;
 
 static void
-prose_test_6_on_command_failed(const mongoc_apm_command_failed_t *event)
+prose_test_6_case_1_to_3_on_command_failed(const mongoc_apm_command_failed_t *event)
 {
-   prose_test_6_apm_ctx_t *const ctx = (prose_test_6_apm_ctx_t *)mongoc_apm_command_failed_get_context(event);
+   prose_test_6_case_1_to_3_apm_ctx_t *const ctx =
+      (prose_test_6_case_1_to_3_apm_ctx_t *)mongoc_apm_command_failed_get_context(event);
 
    bson_error_t error;
    mongoc_apm_command_failed_get_error(event, &error);
@@ -1274,10 +1277,10 @@ prose_test_6_on_command_failed(const mongoc_apm_command_failed_t *event)
 }
 
 static void
-prose_test_6_set_apm_callbacks(mongoc_client_t *client, prose_test_6_apm_ctx_t *ctx)
+prose_test_6_case_1_to_3_set_apm_callbacks(mongoc_client_t *client, prose_test_6_case_1_to_3_apm_ctx_t *ctx)
 {
    mongoc_apm_callbacks_t *const callbacks = mongoc_apm_callbacks_new();
-   mongoc_apm_set_command_failed_cb(callbacks, prose_test_6_on_command_failed);
+   mongoc_apm_set_command_failed_cb(callbacks, prose_test_6_case_1_to_3_on_command_failed);
 
    mongoc_client_set_apm_callbacks(client, callbacks, ctx);
 
@@ -1323,17 +1326,17 @@ retryable_writes_prose_test_6_case_1(void *ctx)
    // Step 3: Via the command monitoring CommandFailedEvent, configure a fail point with error code `10107`
    // (NotWritablePrimary). Configure the `10107` fail point command only if the the failed event is for the `91` error
    // configured in step 2.
-   prose_test_6_apm_ctx_t apm_ctx = {.first_fail_point_error_code = 91u,
-                                     .second_fail_point_cmd_str = BSON_STR({
-                                        "configureFailPoint" : "failCommand",
-                                        "mode" : "alwaysOn",
-                                        "data" : {
-                                           "failCommands" : ["insert"],
-                                           "errorCode" : 10107,
-                                           "errorLabels" : [ "RetryableError", "SystemOverloadedError" ]
-                                        }
-                                     })};
-   prose_test_6_set_apm_callbacks(client, &apm_ctx);
+   prose_test_6_case_1_to_3_apm_ctx_t apm_ctx = {.first_fail_point_error_code = 91u,
+                                                 .second_fail_point_cmd_str = BSON_STR({
+                                                    "configureFailPoint" : "failCommand",
+                                                    "mode" : "alwaysOn",
+                                                    "data" : {
+                                                       "failCommands" : ["insert"],
+                                                       "errorCode" : 10107,
+                                                       "errorLabels" : [ "RetryableError", "SystemOverloadedError" ]
+                                                    }
+                                                 })};
+   prose_test_6_case_1_to_3_set_apm_callbacks(client, &apm_ctx);
 
    // Step 4: Attempt an `insertOne` operation on any record for any database and collection. Expect the `insertOne` to
    // fail with a server error. Assert that the error code of the server error is `10107`.
@@ -1369,7 +1372,7 @@ retryable_writes_prose_test_6_case_2(void *ctx)
    // Step 3: Via the command monitoring CommandFailedEvent, configure a fail point with error code `10107`
    // (NotWritablePrimary) and a NoWritesPerformed label. Configure the `10107` fail point command only if the the
    // failed event is for the `91` error configured in step 2.
-   prose_test_6_apm_ctx_t apm_ctx = {
+   prose_test_6_case_1_to_3_apm_ctx_t apm_ctx = {
       .first_fail_point_error_code = 91u,
       .second_fail_point_cmd_str = BSON_STR({
          "configureFailPoint" : "failCommand",
@@ -1380,7 +1383,7 @@ retryable_writes_prose_test_6_case_2(void *ctx)
             "errorLabels" : [ "RetryableError", "SystemOverloadedError", "NoWritesPerformed" ]
          }
       })};
-   prose_test_6_set_apm_callbacks(client, &apm_ctx);
+   prose_test_6_case_1_to_3_set_apm_callbacks(client, &apm_ctx);
 
    // Step 4: Attempt an `insertOne` operation on any record for any database and collection. Expect the `insertOne` to
    // fail with a server error. Assert that the error code of the server error is 91.
@@ -1404,30 +1407,29 @@ retryable_writes_prose_test_6_case_3(void *ctx)
 
    // Step 2: Configure a fail point with error code `91` (ShutdownInProgress) with the `RetryableError` and
    // `SystemOverloadedError` error labels.
-   prose_test_6_apm_ctx_t apm_ctx = {.first_fail_point_error_code = 91u,
-                                     .second_fail_point_cmd_str = BSON_STR({
-                                        "configureFailPoint" : "failCommand",
-                                        "mode" : {"times" : 1},
-                                        "data" : {
-                                           "failCommands" : ["insert"],
-                                           "errorLabels" : [ "RetryableError", "SystemOverloadedError" ],
-                                           "errorCode" : 91
-                                        }
-                                     })};
-   prose_test_6_set_apm_callbacks(client, &apm_ctx);
+   run_admin_command(BSON_STR({
+      "configureFailPoint" : "failCommand",
+      "mode" : {"times" : 1},
+      "data" :
+         {"failCommands" : ["insert"], "errorLabels" : [ "RetryableError", "SystemOverloadedError" ], "errorCode" : 91}
+   }));
 
    // Step 3: Via the command monitoring CommandFailedEvent, configure a fail point with error code `91`
    // (ShutdownInProgress) and the `NoWritesPerformed`, `RetryableError` and `SystemOverloadedError` labels.
    // Configure the second fail point command only if the failed event is for the first error configured in step 2.
-   run_admin_command(BSON_STR({
-      "configureFailPoint" : "failCommand",
-      "mode" : "alwaysOn",
-      "data" : {
-         "failCommands" : ["insert"],
-         "errorLabels" : [ "RetryableError", "SystemOverloadedError", "NoWritesPerformed" ],
-         "errorCode" : 91
-      }
-   }));
+   prose_test_6_case_1_to_3_apm_ctx_t apm_ctx = {
+      .first_fail_point_error_code = 91u,
+      .second_fail_point_cmd_str = BSON_STR({
+
+         "configureFailPoint" : "failCommand",
+         "mode" : "alwaysOn",
+         "data" : {
+            "failCommands" : ["insert"],
+            "errorLabels" : [ "RetryableError", "SystemOverloadedError", "NoWritesPerformed" ],
+            "errorCode" : 91
+         }
+      })};
+   prose_test_6_case_1_to_3_set_apm_callbacks(client, &apm_ctx);
 
    // Step 4: Attempt an `insertOne` operation on any record for any database and collection. Expect the `insertOne` to
    // fail with a server error. Assert that the error code of the server error is 91. Assert that the error does not
@@ -1440,6 +1442,176 @@ retryable_writes_prose_test_6_case_3(void *ctx)
 
       bson_destroy(&reply);
    }
+
+   // Step 5: Disable the fail point.
+   disable_fail_point();
+
+   mongoc_client_destroy(client);
+}
+
+typedef struct {
+   const char *second_fail_point_cmd_str;
+   int insert_commands_started_count;
+} prose_test_6_case_4_ctx_t;
+
+static void
+prose_test_6_case_4_on_command_started(const mongoc_apm_command_started_t *event)
+{
+   prose_test_6_case_4_ctx_t *const ctx = (prose_test_6_case_4_ctx_t *)mongoc_apm_command_started_get_context(event);
+
+   if (0 == strcmp(mongoc_apm_command_started_get_command_name(event), "insert")) {
+      ctx->insert_commands_started_count++;
+   }
+}
+
+static void
+prose_test_6_case_4_on_command_failed(const mongoc_apm_command_failed_t *event)
+{
+   prose_test_6_case_4_ctx_t *const ctx = (prose_test_6_case_4_ctx_t *)mongoc_apm_command_failed_get_context(event);
+
+   if (0 != strcmp(mongoc_apm_command_failed_get_command_name(event), "insert")) {
+      return;
+   }
+
+   // Configure the second fail point command only if the failed event is for the first error configured in step 2.
+   if (ctx->second_fail_point_cmd_str) {
+      run_admin_command(ctx->second_fail_point_cmd_str);
+      ctx->second_fail_point_cmd_str = NULL;
+   }
+}
+
+// Case 4: Test that drivers set the maximum number of retries for all retryable write errors when an overload error is
+// encountered.
+void
+retryable_writes_prose_test_6_case_4(void *ctx)
+{
+   BSON_UNUSED(ctx);
+
+   // Step 1: Create a client with `retryWrites=true`.
+   mongoc_client_t *const client = prose_test_6_create_client();
+
+   // Step 2: Configure a fail point with error code 91 (`ShutdownInProgress`) with the `RetryableError` and
+   // `SystemOverloadedError` error labels.
+   run_admin_command(BSON_STR({
+      "configureFailPoint" : "failCommand",
+      "mode" : {"times" : 1},
+      "data" :
+         {"failCommands" : ["insert"], "errorLabels" : [ "RetryableError", "SystemOverloadedError" ], "errorCode" : 91}
+   }));
+
+   // Step 3: Via the command monitoring CommandFailedEvent, configure a fail point with error code 91
+   // (`ShutdownInProgress`) and the `RetryableWriteError` and `RetryableError` labels. Configure the second fail point
+   // command only if the failed event is for the first error configured in step 2.
+   prose_test_6_case_4_ctx_t apm_ctx = {
+      .second_fail_point_cmd_str = BSON_STR({
+         "configureFailPoint" : "failCommand",
+         "mode" : "alwaysOn",
+         "data" :
+            {"failCommands" : ["insert"], "errorLabels" : [ "RetryableError", "RetryableWriteError" ], "errorCode" : 91}
+      }),
+      .insert_commands_started_count = 0,
+   };
+
+   {
+      mongoc_apm_callbacks_t *const callbacks = mongoc_apm_callbacks_new();
+      mongoc_apm_set_command_started_cb(callbacks, prose_test_6_case_4_on_command_started);
+      mongoc_apm_set_command_failed_cb(callbacks, prose_test_6_case_4_on_command_failed);
+      mongoc_client_set_apm_callbacks(client, callbacks, &apm_ctx);
+      mongoc_apm_callbacks_destroy(callbacks);
+   }
+
+   // Step 4: Attempt an `insertOne` operation on any record for any database and collection. Expect the `insertOne` to
+   // fail with a server error. Assert that `MONGOC_DEFAULT_MAXADAPTIVERETRIES + 1` attempts were made.
+   prose_test_6_attempt_insert(client, 91u, NULL);
+   ASSERT_CMPINT(apm_ctx.insert_commands_started_count, ==, MONGOC_DEFAULT_MAXADAPTIVERETRIES + 1);
+
+   // Step 5: Disable the fail point.
+   disable_fail_point();
+
+   mongoc_client_destroy(client);
+}
+
+typedef struct {
+   int count;
+} backoff_counter_t;
+
+static double
+backoff_counting_jitter_source_generate(mongoc_jitter_source_t *source)
+{
+   backoff_counter_t *const counter = (backoff_counter_t *)_mongoc_jitter_source_get_context(source);
+   ++counter->count;
+   return 0.0;
+}
+
+typedef struct {
+   const char *second_fail_point_cmd_str;
+} prose_test_6_case_5_ctx_t;
+
+static void
+prose_test_6_case_5_on_command_failed(const mongoc_apm_command_failed_t *event)
+{
+   prose_test_6_case_5_ctx_t *const ctx = (prose_test_6_case_5_ctx_t *)mongoc_apm_command_failed_get_context(event);
+
+   if (0 != strcmp(mongoc_apm_command_failed_get_command_name(event), "insert")) {
+      return;
+   }
+
+   // Configure the second fail point command only if the failed event is for the first error configured in step 2.
+   if (ctx->second_fail_point_cmd_str) {
+      run_admin_command(ctx->second_fail_point_cmd_str);
+      ctx->second_fail_point_cmd_str = NULL;
+   }
+}
+
+// Case 5: Test that drivers do not apply backoff to non-overload errors.
+void
+retryable_writes_prose_test_6_case_5(void *ctx)
+{
+   BSON_UNUSED(ctx);
+
+   // Step 1: Create a client with `retryWrites=true`.
+   mongoc_client_t *const client = prose_test_6_create_client();
+
+   backoff_counter_t backoff_counter = {0};
+   {
+      mongoc_jitter_source_t *const jitter_source = _mongoc_jitter_source_new(backoff_counting_jitter_source_generate);
+      _mongoc_jitter_source_set_context(jitter_source, &backoff_counter);
+      _mongoc_client_set_jitter_source(client, jitter_source);
+   }
+
+   // Step 2: Configure a fail point with error code 91 (`ShutdownInProgress`) with the `RetryableError` and
+   // `SystemOverloadedError` error labels.
+   run_admin_command(BSON_STR({
+      "configureFailPoint" : "failCommand",
+      "mode" : {"times" : 1},
+      "data" :
+         {"failCommands" : ["insert"], "errorLabels" : [ "RetryableError", "SystemOverloadedError" ], "errorCode" : 91}
+   }));
+
+   // Step 3: Via the command monitoring CommandFailedEvent, configure a fail point with error code 91
+   // (`ShutdownInProgress`) and the `RetryableWriteError` and `RetryableError` labels. Configure the second fail point
+   // command only if the failed event is for the first error configured in step 2.
+   prose_test_6_case_5_ctx_t apm_ctx = {
+      .second_fail_point_cmd_str = BSON_STR({
+         "configureFailPoint" : "failCommand",
+         "mode" : "alwaysOn",
+         "data" :
+            {"failCommands" : ["insert"], "errorLabels" : [ "RetryableError", "RetryableWriteError" ], "errorCode" : 91}
+      }),
+   };
+
+   {
+      mongoc_apm_callbacks_t *const callbacks = mongoc_apm_callbacks_new();
+      mongoc_apm_set_command_failed_cb(callbacks, prose_test_6_case_5_on_command_failed);
+      mongoc_client_set_apm_callbacks(client, callbacks, &apm_ctx);
+      mongoc_apm_callbacks_destroy(callbacks);
+   }
+
+   // Step 4: Attempt an `insertOne` operation on any record for any database and collection. Expect the `insertOne` to
+   // fail with a server error. Assert that backoff was applied only once for the initial overload error and not for the
+   // subsequent non-overload retryable errors.
+   prose_test_6_attempt_insert(client, 91u, NULL);
+   ASSERT_CMPINT(backoff_counter.count, ==, 1);
 
    // Step 5: Disable the fail point.
    disable_fail_point();
@@ -1581,4 +1753,20 @@ test_retryable_writes_install(TestSuite *suite)
       test_framework_skip_if_not_replset, /* only run against replica sets as mongos does not propagate
                                              the NoWritesPerformed label to the drivers */
       test_framework_skip_if_max_wire_version_less_than_17 /* run against server versions 6.0 and above */);
+   TestSuite_AddFull(suite,
+                     "/retryable_writes/prose_test_6_case_4",
+                     retryable_writes_prose_test_6_case_4,
+                     NULL,
+                     NULL,
+                     test_framework_skip_if_not_replset, /* only run against replica sets as mongos does not propagate
+                                                            the NoWritesPerformed label to the drivers */
+                     test_framework_skip_if_max_wire_version_less_than_9 /* require 4.4+ for errorLabels */);
+   TestSuite_AddFull(suite,
+                     "/retryable_writes/prose_test_6_case_5",
+                     retryable_writes_prose_test_6_case_5,
+                     NULL,
+                     NULL,
+                     test_framework_skip_if_not_replset, /* only run against replica sets as mongos does not propagate
+                                                            the NoWritesPerformed label to the drivers */
+                     test_framework_skip_if_max_wire_version_less_than_9 /* require 4.4+ for errorLabels */);
 }
