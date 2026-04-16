@@ -11,6 +11,10 @@ libmongoc 2.3.0 [UNRELEASED]
     * Add URI option `maxAdaptiveRetries` to configure the maximum number of retries for operations that fail with a `SystemOverloadedError` (default: `2`).
     * Add URI option `enableOverloadRetargeting` to control whether retries of `SystemOverloadedError` will attempt to use a different server (default: `false`).
 
+## Removed
+
+* Support for macOS versions 13 and older. These versions are EOL and not tested. Use macOS version 14 or newer.
+
 libmongoc 2.2.4
 ===============
 
