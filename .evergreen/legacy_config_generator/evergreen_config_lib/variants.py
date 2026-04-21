@@ -331,6 +331,7 @@ all_variants = [
         [
             'debian-package-build',
             OD([('name', 'rpm-package-build'), ('distros', ['rhel90-arm64-small'])]),
+            '.packaging',
         ],
         {},
         tags=['pr-merge-gate'],
