@@ -393,7 +393,9 @@ deb.packages:
     # The Debian package build uses information from Git, so copy in relevant files
     COPY --dir .git/ .gitignore .gitattributes $MCD_DIR
     # Commit all working changes for the build.
-    RUN git -C $MCD_DIR add --all . && \
+    RUN git -C $MCD_DIR config user.email "earthly-build@localhost" && \
+        git -C $MCD_DIR config user.name "Earthly Build" && \
+        git -C $MCD_DIR add --all . && \
         git -C $MCD_DIR commit --no-verify --allow-empty --message "Working changes for Debian package build"
     # Run the build
     RUN bash /tmp/build.sh
