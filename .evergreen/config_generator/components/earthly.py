@@ -335,7 +335,7 @@ def tasks() -> Iterable[EvgTask]:
                 DockerLoginAmazonECR.call(),
                 earthly_exec(kind='test', target='deb.test', platform=f'linux/{plat}'),
             ],
-            tags=['packaging'],
+            tags=['packaging', 'pr-merge-gate'],
             run_on=CONTAINER_RUN_DISTROS,
         )
 

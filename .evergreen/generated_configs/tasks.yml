@@ -5605,7 +5605,7 @@ tasks:
       - debian12-latest-large
       - ubuntu2204-large
       - ubuntu2404-large
-    tags: [packaging]
+    tags: [packaging, pr-merge-gate]
     commands:
       - func: docker-login-amazon-ecr
       - command: subprocess.exec
@@ -5627,7 +5627,7 @@ tasks:
       - debian12-latest-large
       - ubuntu2204-large
       - ubuntu2404-large
-    tags: [packaging]
+    tags: [packaging, pr-merge-gate]
     commands:
       - func: docker-login-amazon-ecr
       - command: subprocess.exec
