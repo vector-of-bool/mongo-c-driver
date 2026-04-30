@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# This script prepare the Debian environment for the building of Debian packages.
+# This script prepares the Debian environment for the building of Debian packages.
 # This script should be run with root privileges within the build environment
 # (chroot or container)
 

@@ -7,7 +7,7 @@ set -euo pipefail
 : "${MCD_DIR:=$(dirname "$(dirname "$(dirname "${BASH_SOURCE[0]}")")")}"
 # The Git remote from which we will pull the Debian package control files
 : "${DEBIAN_REMOTE:="https://github.com/mongodb/mongo-c-driver"}"
-# The branh within the remote that will be used for package control files
+# The branch within the remote that will be used for package control files
 : "${DEBIAN_BRANCH:="debian/unstable"}"
 # Directory where temporary files will be written
 : "${SCRATCH_DIR:=$PWD/.scratch}"

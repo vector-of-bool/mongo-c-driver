@@ -203,7 +203,7 @@ Build & Test Tasks
 .. program:: +deb.test
 .. earthly-target:: +deb.test
 
-   Test the packages that are build by the `+deb.packages` target.
+   Test the packages that are built by the `+deb.packages` target.
 
    Also supports the `+deb.packages --debian_version` parameter.
 
