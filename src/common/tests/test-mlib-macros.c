@@ -131,7 +131,7 @@ SUPER_SIMPLE_STATIC_ASSERT(opt_comma_empty, MLIB_ARG_COUNT(a MLIB_OPT_COMMA() b)
 // parenthesis; trailing tokens are ignored.
 SUPER_SIMPLE_STATIC_ASSERT(is_paren_group, MLIB_IS_PARENTHESIZED((a, b)));
 SUPER_SIMPLE_STATIC_ASSERT(is_paren_single, MLIB_IS_PARENTHESIZED((foo)));
-SUPER_SIMPLE_STATIC_ASSERT(is_paren_trailing, MLIB_IS_PARENTHESIZED((a) b c));
+SUPER_SIMPLE_STATIC_ASSERT(is_paren_trailing, MLIB_IS_PARENTHESIZED((a)b c));
 SUPER_SIMPLE_STATIC_ASSERT(is_paren_not, !MLIB_IS_PARENTHESIZED(foo));
 // `foo(bar)` does not begin with a parenthesis, so it is not parenthesized:
 SUPER_SIMPLE_STATIC_ASSERT(is_paren_call, !MLIB_IS_PARENTHESIZED(foo(bar)));
@@ -143,8 +143,8 @@ SUPER_SIMPLE_STATIC_ASSERT(arg_count, MLIB_ARG_COUNT(a, b) == 2);
 SUPER_SIMPLE_STATIC_ASSERT(arg_count, MLIB_ARG_COUNT(, ) == 2);
 SUPER_SIMPLE_STATIC_ASSERT(arg_count, MLIB_ARG_COUNT(()) == 1);
 SUPER_SIMPLE_STATIC_ASSERT(arg_count, MLIB_ARG_COUNT((a, b)) == 1);
-SUPER_SIMPLE_STATIC_ASSERT(arg_count_ten,
-                           MLIB_ARG_COUNT(a, b, c, d, e, f, g, h, i, j) == 10);
+SUPER_SIMPLE_STATIC_ASSERT(arg_count_ten, MLIB_ARG_COUNT(a, b, c, d, e, f, g, h, i, j) == 10);
+// clang-format off
 // The documented maximum of 63 arguments (bounded by _mlibPick64th):
 SUPER_SIMPLE_STATIC_ASSERT(arg_count_max,
                            MLIB_ARG_COUNT(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, //  10
@@ -154,6 +154,7 @@ SUPER_SIMPLE_STATIC_ASSERT(arg_count_max,
                                           1, 1, 1, 1, 1, 1, 1, 1, 1, 1, //  50
                                           1, 1, 1, 1, 1, 1, 1, 1, 1, 1, //  60
                                           1, 1, 1) == 63);              //  63
+// clang-format on
 
 // MLIB_ARGC_PASTE forms the `<prefix>_argc_<N>` token without invoking it. Here
 // it forms `argc_paste_helper_argc_2` (2 arguments), which we define to a value.
