@@ -68,10 +68,21 @@
  *      // ✓ Good:
  *      #define OUTER(x, k, n) _mlibMapMacro(Inner, x, p, q)
  *
- * If `xs` is empty, this expands to nothing. `xs` may hold at most **63** items.
- * That ceiling comes from `_mlibPick64th` (see `mlib/pp/basic.h`) by way of
- * `_mlibHasComma`. Exceeding it does not fail cleanly: expect a stray pasting
- * diagnostic from `MLIB_IS_EMPTY` followed by unexpanded garbage in the output.
+ * If `xs` is empty, this expands to nothing — but the empty list must be spelled
+ * as an explicit empty argument, with the trailing comma retained:
+ *
+ *      MLIB_MAP_MACRO(F, K, )   // ✓ Supported: `...` gets one empty argument
+ *      MLIB_MAP_MACRO(F, K)     // ✗ Not supported: `...` gets no argument
+ *
+ * Both *ought* to expand to nothing, but C99 requires the `...` of a variadic
+ * macro to receive at least one argument. An argument made of no preprocessing
+ * tokens satisfies that; omitting the argument entirely does not, and GCC/Clang
+ * diagnose it under `-pedantic`.
+ *
+ * `xs` may hold at most **63** items. That ceiling comes from `_mlibPick64th`
+ * (see `mlib/pp/basic.h`) by way of `_mlibHasComma`. Exceeding it does not fail
+ * cleanly: expect a stray pasting diagnostic from `MLIB_IS_EMPTY` followed by
+ * unexpanded garbage in the output.
  */
 #define MLIB_MAP_MACRO(Action, Constant, ...) MLIB_EVAL(_mlibMapMacro(Action, Constant, __VA_ARGS__))
 

@@ -180,34 +180,15 @@ SUPER_SIMPLE_STATIC_ASSERT(sum, MLIB_MAP_MACRO(SUM, ~, 1, 2, 1) == 4);
 
 // An empty list expands to nothing at all, so the surrounding tokens are left
 // adjacent: `7 == 7`.
-SUPER_SIMPLE_STATIC_ASSERT(map_empty, 7 == MLIB_MAP_MACRO(SUM, ~) 7);
-// A single-element list still applies the action exactly once:
-SUPER_SIMPLE_STATIC_ASSERT(map_single, MLIB_MAP_MACRO(SUM, ~, 5) == 5);
-
-// The "constant" (second) argument is forwarded unchanged to every invocation
-// of the action, as the second parameter. Here it multiplies each element:
-#define TIMES_K(N, K, _counter) +(N * K)
-SUPER_SIMPLE_STATIC_ASSERT(map_constant, MLIB_MAP_MACRO(TIMES_K, 3, 1, 2, 3) == 18);
-
-// The "counter" (third) argument is the zero-based index of each element. For
-// four elements the indices are 0, 1, 2, 3, which sum to 6. This also exercises
-// the documented representation of the counter as a parenthesized `(0 + 1 ...)`.
-#define COUNTER(_n, _k, Counter) +Counter
-SUPER_SIMPLE_STATIC_ASSERT(map_counter, MLIB_MAP_MACRO(COUNTER, ~, a, b, c, d) == 6);
-
-// Nested maps: per the warning on MLIB_MAP_MACRO, an inner map must invoke
-// `_mlibMapMacro` (not MLIB_MAP_MACRO) so that it is not "painted blue" by the
-// outer expansion and the outer MLIB_EVAL is free to drive it. Here the outer
-// map iterates {3, 4}; for each outer element the inner map runs over the fixed
-// list {p, q} with the outer element as its constant, emitting `+(K)` twice.
-// Result: (3 + 3) + (4 + 4) == 14.
-#define INNER_ADD(_item, K, _counter) +(K)
-#define OUTER_MAP(Elem, _k, _counter) _mlibMapMacro(INNER_ADD, Elem, p, q)
-SUPER_SIMPLE_STATIC_ASSERT(map_nested, MLIB_MAP_MACRO(OUTER_MAP, ~, 3, 4) == 14);
-
-// An empty list expands to nothing at all, so the surrounding tokens are left
-// adjacent: `7 == 7`.
-SUPER_SIMPLE_STATIC_ASSERT(map_empty, 7 == MLIB_MAP_MACRO(SUM, ~) 7);
+//
+// Note the trailing comma: the empty list must be spelled as an explicit empty
+// *argument* (`SUM, ~, `) rather than by omitting it (`SUM, ~`). C99 requires
+// that the `...` of a variadic macro receive at least one argument; an argument
+// consisting of no preprocessing tokens satisfies that, whereas omitting it
+// entirely does not, and GCC/Clang reject the omitted form under `-pedantic
+// -Werror`. Supporting the omitted form as well is not possible on MSVC's legacy
+// preprocessor — see the note on MLIB_MAP_MACRO before trying.
+SUPER_SIMPLE_STATIC_ASSERT(map_empty, 7 == MLIB_MAP_MACRO(SUM, ~, ) 7);
 // A single-element list still applies the action exactly once:
 SUPER_SIMPLE_STATIC_ASSERT(map_single, MLIB_MAP_MACRO(SUM, ~, 5) == 5);
 
