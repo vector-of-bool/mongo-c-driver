@@ -43,21 +43,37 @@
  *   • If you passed `true` or `false` and you are compiling in C99 mode, it
  *     indicates that your standard library has #define'd `true` or `false` to
  *     some non-trivial expression of type `_Bool`.
- *   • If your argument begins with an operator, punctuation (including an
+ *   • If your argument begins with an operator or punctuation (including an
  *     opening parenthesis), you will also see the above error.
+ *
+ * • If you see an error naming an undeclared identifier `_mlibBooleanNormalize_<x>`
+ *   (or a warning about an implicit declaration of that function), it means you
+ *   passed an ordinary identifier `<x>` that is not one of the recognized
+ *   spellings. This is the most common mistake, and note that it is *not*
+ *   diagnosed by the preprocessor: the paste succeeds and produces a name that
+ *   is simply never defined, so the error surfaces later as a C/C++ error at the
+ *   point of use, with no indication that a preprocessor condition was at fault.
  */
 #define MLIB_BOOLEAN(Cond)                                                       \
    /*-                                                                           \
     * Check the answer by token-pasting with a prefix to form one of a fixed set \
-    * of function-like macro names that will expand to either `0` or `1`         \
+    * of function-like macro names that will expand to either `0` or `1`.        \
+    *                                                                            \
+    * The trailing `()` invokes that name. The normalization forms are           \
+    * deliberately function-like rather than object-like: an object-like macro   \
+    * would be expanded eagerly by `MLIB_PASTE`'s own rescan, before we get a    \
+    * chance to form the full name, and the empty-`Cond` case would need to      \
+    * define the bare name `_mlibBooleanNormalize_`. Requiring the `()` keeps    \
+    * the result inert until it is explicitly invoked here.                      \
     */                                                                           \
    MLIB_PASTE(_mlibBooleanNormalize_, Cond)()
-// The following normalization forms are set. Adding new forms will support
-// additional spellings for MLIB_BOOLEAN.
+// The following normalization forms are the complete set of spellings accepted
+// by MLIB_BOOLEAN. Adding new forms here will support additional spellings.
+// Each must be function-like and take no arguments; see the note above.
 // Simple 0/1:
 #define _mlibBooleanNormalize_1() 1
 #define _mlibBooleanNormalize_0() 0
-// Detect `true` or `false` (not recommmended in C99)
+// Detect `true` or `false` (not recommended in C99)
 #define _mlibBooleanNormalize_true() 1
 #define _mlibBooleanNormalize_false() 0
 // Formed if `Cond` is an empty token
@@ -129,7 +145,7 @@
  * Troubleshooting: Refer to "troubleshooting" on MLIB_BOOLEAN
  */
 #define MLIB_XOR(A, B) MLIB_PASTE_3(_mlibBooleanExclusiveDisjunction_, MLIB_BOOLEAN(A), MLIB_BOOLEAN(B))()
-// "or" truth table:
+// "xor" truth table:
 #define _mlibBooleanExclusiveDisjunction_11() 0
 #define _mlibBooleanExclusiveDisjunction_10() 1
 #define _mlibBooleanExclusiveDisjunction_01() 1

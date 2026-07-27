@@ -33,7 +33,6 @@
 #include "./basic.h"   // paste, nothing
 #include "./boolean.h" // boolean, negate
 
-#undef MLIB_IF_ELSE
 /**
  * @brief A ternary conditional macro. Expects three argument lists in sequence:
  *
@@ -53,6 +52,15 @@
 #define _mlibIfElse_0(...)       \
    /* Drops the first arglist */ \
    _mlibIfElseExpand /* ← Expand the next arglist */
+/*-
+ * Textually identical to `MLIB_JUST`, but deliberately a distinct macro: do not
+ * "simplify" this away. `MLIB_IF_ELSE` is used inside recursive constructs (see
+ * `mlib/pp/map.h`) whose expansion may already have a `MLIB_JUST` in flight. A
+ * macro currently being expanded is "painted blue" and will not be expanded
+ * again during its own rescan, so reusing `MLIB_JUST` here would silently leave
+ * the else-branch unexpanded in exactly those cases. The separate name keeps
+ * this expansion pass independent of any other.
+ */
 #define _mlibIfElseExpand(...) __VA_ARGS__
 
 /**
@@ -60,7 +68,12 @@
  *
  *    MLIB_IF (<condition>) (<content>)
  *
- * Where `<condition>` is evalualted using `MLIB_BOOLEAN`
+ * Where `<condition>` is evaluated using `MLIB_BOOLEAN`
+ *
+ * The trailing `()` reads backwards, so beware: it is the *then*-branch, and it
+ * is empty. The user's `(<content>)` becomes the *else*-branch. Negating the
+ * condition flips the sense back, so the net effect is "expand <content> when
+ * <condition> is truthy", as documented.
  */
 #define MLIB_IF(...) MLIB_IF_ELSE(MLIB_NEGATE(__VA_ARGS__))()
 /**
@@ -68,7 +81,11 @@
  *
  *    MLIB_UNLESS (<condition>) (<content>)
  *
- * Where `<condition>` is evalualted using `MLIB_BOOLEAN`
+ * Where `<condition>` is evaluated using `MLIB_BOOLEAN`
+ *
+ * The same trick as `MLIB_IF`, minus the negation: the empty `()` is the
+ * then-branch that is taken (and discarded) when the condition is truthy, and
+ * the user's `(<content>)` lands in the else-branch.
  */
 #define MLIB_UNLESS(...) MLIB_IF_ELSE(__VA_ARGS__)()
 

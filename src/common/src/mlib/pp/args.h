@@ -22,14 +22,15 @@
 #ifndef MLIB_PP_ARGS_H_INCLUDED
 #define MLIB_PP_ARGS_H_INCLUDED
 
-#include "./if-else.h"
-#include "./is-empty.h"
+#include "./basic.h"    // paste, just, pick64th
+#include "./if-else.h"  // if_else
+#include "./is-empty.h" // is_empty
 
 // clang-format off
 
 /**
  * @brief Expands to an integer literal corresponding to the number of macro
- * arguments. Supports up to 15 arguments.
+ * arguments. Supports up to 63 arguments.
  *
  * This may be replaced someday in the future with a possible __VA_NARG__()
  * preprocessor intrinsic.
@@ -52,7 +53,7 @@
             /*-
             * Argument counts, up to 63. For each top-level comma in __VA_ARGS__,
             * these are shifted along, with `0` in the 64th position to start.
-            * To support more than 15 arguments, more integers must be added,
+            * To support more than 63 arguments, more integers must be added,
             * and `_mlibPick64th` needs to be extended to a higher number.
             */ \
             63, 62, 61, 60, 59, 58, 57, 56, 55, 54, \
@@ -75,6 +76,12 @@
  *
  *      <prefix>_argc_<N>(<args>)
  *
+ * Note that `<N>` may be zero: invoking with an empty `<args>` expands to
+ * `<prefix>_argc_0()`, so a caller that wants to accept zero arguments must
+ * define a `<prefix>_argc_0` overload. If it is not defined, the error appears
+ * at the point of use as an unknown identifier rather than as a preprocessor
+ * diagnostic.
+ *
  * @warning The preprocessor only counts parentheses when looking at token
  * grouping. This means that things like C99 compound literals will count as
  * more than one argument if they have more than one initializer (and thus
@@ -88,7 +95,6 @@
  * XXX: The `MLIB_JUST` forces an additional expansion pass that works around a
  * bug in the old MSVC preprocessor, but is not required in a conforming preprocessor.
  */
-
 #define MLIB_ARGC_PICK(Prefix, ...) MLIB_JUST(MLIB_ARGC_PASTE(Prefix, __VA_ARGS__)(__VA_ARGS__))
 
 /**
