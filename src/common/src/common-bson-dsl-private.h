@@ -35,8 +35,9 @@ enum {
 
 #ifdef __GNUC__
 // GCC has a bug handling pragma statements that disable warnings within complex
-// nested macro expansions. If we're GCC, just disable -Wshadow outright:
-mlib_gcc_warning_disable("-Wshadow");
+// nested macro expansions. On any GNU-like compiler, just disable -Wshadow
+// outright.
+mlib_gnu_warning_disable("-Wshadow");
 #endif
 
 #define _bsonDSL_disableWarnings()          \
