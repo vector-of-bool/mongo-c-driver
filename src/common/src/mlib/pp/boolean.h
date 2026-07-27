@@ -35,6 +35,15 @@
  * these to non-trivial macros of type `(_Bool)`, and a required token-pasting
  * will fail.
  *
+ * @note This is deliberately declared as a variadic macro even though it accepts
+ * only a single condition. A single *named* parameter would make the legal
+ * empty-condition spelling `MLIB_BOOLEAN()` look like a call with zero arguments
+ * to the old (non-conforming) MSVC preprocessor, which then emits warning C4003
+ * ("not enough arguments for function-like macro invocation"). A variadic
+ * parameter treats `()` as a well-formed empty argument list, so the empty
+ * spelling is warning-free everywhere. The `Cond` should still be a single token
+ * (or empty); passing a top-level comma is a usage error.
+ *
  * Troubleshooting:
  *
  * • If you see "pasting formed … an invalid preprocessing token", it indicates
@@ -54,7 +63,7 @@
  *   is simply never defined, so the error surfaces later as a C/C++ error at the
  *   point of use, with no indication that a preprocessor condition was at fault.
  */
-#define MLIB_BOOLEAN(Cond)                                                       \
+#define MLIB_BOOLEAN(...)                                                        \
    /*-                                                                           \
     * Check the answer by token-pasting with a prefix to form one of a fixed set \
     * of function-like macro names that will expand to either `0` or `1`.        \
@@ -66,7 +75,7 @@
     * define the bare name `_mlibBooleanNormalize_`. Requiring the `()` keeps    \
     * the result inert until it is explicitly invoked here.                      \
     */                                                                           \
-   MLIB_PASTE(_mlibBooleanNormalize_, Cond)()
+   MLIB_PASTE(_mlibBooleanNormalize_, __VA_ARGS__)()
 // The following normalization forms are the complete set of spellings accepted
 // by MLIB_BOOLEAN. Adding new forms here will support additional spellings.
 // Each must be function-like and take no arguments; see the note above.
@@ -87,15 +96,18 @@
  *
  * Expands to `0` if the condition is truthy, otherwise `1`.
  *
+ * @note Variadic for the same reason as `MLIB_BOOLEAN`: to keep the empty
+ * spelling `MLIB_NEGATE()` from tripping MSVC's C4003 warning.
+ *
  * Troubleshooting: Refer to the troubleshooting section on `MLIB_BOOLEAN`
  */
-#define MLIB_NEGATE(Cond)                                                           \
+#define MLIB_NEGATE(...)                                                            \
    /*-                                                                              \
     * Like MLIB_BOOLEAN, but uses a prefix that just swaps zero and one literals.   \
     * First normalizes to 0/1 using MLIB_BOOLEAN, so we can rely on the same set of \
     * boolean word detection.                                                       \
     */                                                                              \
-   MLIB_PASTE(_mlibBooleanNegation_, MLIB_BOOLEAN(Cond))()
+   MLIB_PASTE(_mlibBooleanNegation_, MLIB_BOOLEAN(__VA_ARGS__))()
 // The negation swappers:
 #define _mlibBooleanNegation_1() 0
 #define _mlibBooleanNegation_0() 1

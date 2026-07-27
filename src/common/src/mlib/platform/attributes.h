@@ -134,7 +134,7 @@
 
 #if mlib_is_gnu_like()
 #define mlib_have_typeof() 1
-#elif defined _MSC_VER && _MSC_VER >= 1939 && !__cplusplus
+#elif defined _MSC_VER && _MSC_VER >= 1939 && !defined(__cplusplus)
 // We can __typeof__ in MSVC 19.39+
 #define mlib_have_typeof() 1
 #else
