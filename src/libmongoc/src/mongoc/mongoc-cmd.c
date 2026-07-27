@@ -41,6 +41,7 @@ mongoc_cmd_parts_init(mongoc_cmd_parts_t *parts,
    parts->body = command_body;
    parts->user_query_flags = user_query_flags;
    parts->read_prefs = NULL;
+   parts->is_raw_command = false;
    parts->is_read_command = false;
    parts->is_write_command = false;
    parts->prohibit_lsid = false;
@@ -877,8 +878,12 @@ mongoc_cmd_parts_assemble(mongoc_cmd_parts_t *parts, mongoc_server_stream_t *ser
             }
 
             _mongoc_cmd_parts_ensure_copied(parts);
-            _mongoc_client_session_append_read_concern(
-               cs, &parts->read_concern_document, parts->is_read_command, &parts->assembled_body);
+            _mongoc_client_session_append_read_concern(cs,
+                                                       &parts->read_concern_document,
+                                                       parts->is_read_command,
+                                                       parts->is_write_command,
+                                                       parts->assembled.command_name,
+                                                       &parts->assembled_body);
          } else if (!bson_empty(&parts->read_concern_document)) {
             _mongoc_cmd_parts_ensure_copied(parts);
             bson_append_document(&parts->assembled_body, "readConcern", 11, &parts->read_concern_document);

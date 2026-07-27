@@ -27,6 +27,11 @@ mkdir -p "$cache_dir"
 exe_filename="earthly-$OS_FAMILY-$arch$EXE_SUFFIX"
 EARTHLY_EXE="$cache_dir/$exe_filename"
 
+if is-file "$EARTHLY_EXE" && ! "$EARTHLY_EXE" --version; then
+  echo "Failed to execute Earthly executable, removing and re-downloading"
+  rm "$EARTHLY_EXE"
+fi
+
 # Download if it isn't already present
 if ! is-file "$EARTHLY_EXE"; then
   echo "Downloading $exe_filename $EARTHLY_VERSION"
@@ -40,5 +45,14 @@ run-earthly() {
 }
 
 if is-main; then
+  if [[ "${EARTHLY_RETRY_WITH_DELAY:-}" == "1" ]]; then
+    for _delay in 1 10 30; do
+      if run-earthly "$@"; then
+        exit 0
+      fi
+      echo "Earthly failed. Retrying in ${_delay}s..." >&2
+      sleep "$_delay"
+    done
+  fi
   run-earthly "$@"
 fi

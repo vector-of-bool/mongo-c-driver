@@ -175,7 +175,7 @@ mlib_gcc_warning_disable("-Wshadow");
    _bsonDSL_begin("array(%s)", _bsonDSL_strElide(30, __VA_ARGS__));                        \
    /* Write to this variable as the child array: */                                        \
    bson_t _bbArray = BSON_INITIALIZER;                                                     \
-   if (!bson_append_array_begin(_bsonBuildAppendArgs, &_bbArray)) {                        \
+   if (!bson_append_array_unsafe_begin(_bsonBuildAppendArgs, &_bbArray)) {                 \
       bsonBuildError = "Error while initializing child array: " MLIB_STR(__VA_ARGS__);     \
    } else {                                                                                \
       _bsonBuildArray(_bbArray, __VA_ARGS__);                                              \

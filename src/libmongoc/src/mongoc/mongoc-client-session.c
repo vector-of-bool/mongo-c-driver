@@ -23,11 +23,12 @@
 #include <mongoc/mongoc-rand-private.h>
 #include <mongoc/mongoc-read-concern-private.h>
 #include <mongoc/mongoc-read-prefs-private.h>
+#include <mongoc/mongoc-retry-backoff-generator-private.h>
 #include <mongoc/mongoc-trace-private.h>
 #include <mongoc/mongoc-util-private.h>
 
 #include <mlib/duration.h>
-#include <mlib/time_point.h>
+#include <mlib/timer.h>
 
 #define WITH_TXN_TIMEOUT_MS (120 * 1000)
 
@@ -121,7 +122,7 @@ txn_abort(mongoc_client_session_t *session, bson_t *reply, bson_error_t *error)
    /* Transactions Spec: "Drivers MUST retry the commitTransaction command once
     * after it fails with a retryable error", same for abort. Note that a
     * RetryableWriteError label has already been appended here. */
-   if (mongoc_error_has_label(&reply_local, RETRYABLE_WRITE_ERROR)) {
+   if (mongoc_error_has_label(&reply_local, MONGOC_ERROR_LABEL_RETRYABLEWRITEERROR)) {
       _mongoc_client_session_unpin(session);
       bson_destroy(&reply_local);
       r = mongoc_client_write_command_with_opts(session->client, "admin", &cmd, &opts, &reply_local, err_ptr);
@@ -244,7 +245,7 @@ retry:
       _mongoc_client_session_unpin(session);
       if (reply) {
          bsonBuildAppend(*reply, insert(reply_local, not(key("errorLabels"))));
-         _mongoc_error_copy_labels_and_upsert(&reply_local, reply, UNKNOWN_COMMIT_RESULT);
+         _mongoc_error_copy_labels_and_upsert(&reply_local, reply, MONGOC_ERROR_LABEL_UNKNOWNTRANSACTIONCOMMITRESULT);
       }
    } else if (reply) {
       /* maintain invariants: reply & reply_local are valid until the end */
@@ -425,6 +426,39 @@ mongoc_session_opts_set_snapshot(mongoc_session_opt_t *opts, bool snapshot)
    EXIT;
 }
 
+void
+mongoc_session_opts_set_snapshot_time(mongoc_session_opt_t *opts, uint32_t timestamp, uint32_t increment)
+{
+   ENTRY;
+
+   BSON_ASSERT_PARAM(opts);
+
+   opts->snapshot_time_timestamp = timestamp;
+   opts->snapshot_time_increment = increment;
+   opts->snapshot_time_set = true;
+
+   EXIT;
+}
+
+bool
+mongoc_session_opts_get_snapshot_time(const mongoc_session_opt_t *opts, uint32_t *timestamp, uint32_t *increment)
+{
+   ENTRY;
+
+   BSON_ASSERT_PARAM(opts);
+   BSON_ASSERT_PARAM(timestamp);
+   BSON_ASSERT_PARAM(increment);
+
+   if (!opts->snapshot_time_set) {
+      RETURN(false);
+   }
+
+   *timestamp = opts->snapshot_time_timestamp;
+   *increment = opts->snapshot_time_increment;
+
+   RETURN(true);
+}
+
 mongoc_session_opt_t *
 mongoc_session_opts_new(void)
 {
@@ -484,6 +518,9 @@ _mongoc_session_opts_copy(const mongoc_session_opt_t *src, mongoc_session_opt_t 
 {
    mongoc_optional_copy(&src->causal_consistency, &dst->causal_consistency);
    mongoc_optional_copy(&src->snapshot, &dst->snapshot);
+   dst->snapshot_time_timestamp = src->snapshot_time_timestamp;
+   dst->snapshot_time_increment = src->snapshot_time_increment;
+   dst->snapshot_time_set = src->snapshot_time_set;
    txn_opts_copy(&src->default_txn_opts, &dst->default_txn_opts);
 }
 
@@ -622,11 +659,9 @@ _mongoc_client_session_handle_reply(mongoc_client_session_t *session,
       (!strcmp(cmd_name, "find") || !strcmp(cmd_name, "aggregate") || !strcmp(cmd_name, "distinct"));
 
    if (mongoc_error_has_label(reply, "TransientTransactionError")) {
-      /* Transaction Spec: "Drivers MUST unpin a ClientSession when a command
-       * within a transaction, including commitTransaction and abortTransaction,
-       * fails with a TransientTransactionError". If the server reply included
-       * a TransientTransactionError, we unpin here. If a network error caused
-       * us to add a label client-side, we unpin in network_error_reply. */
+      // Transaction Spec: "Drivers MUST unpin a ClientSession when a command within a transaction, including
+      // commitTransaction and abortTransaction, fails with a TransientTransactionError".
+      // If the server reply is labeled, unpin here. On a network error, label and unpin in _handle_network_error.
       _mongoc_client_session_unpin(session);
    }
 
@@ -759,9 +794,15 @@ _mongoc_client_session_new(mongoc_client_t *client,
    /* snapshot_time_set is false by default */
    _mongoc_client_session_clear_snapshot_time(session);
 
+   if (opts && opts->snapshot_time_set) {
+      _mongoc_client_session_set_snapshot_time(session, opts->snapshot_time_timestamp, opts->snapshot_time_increment);
+   }
+
    /* these values are used for testing only. */
    session->with_txn_timeout_ms = 0;
    session->fail_commit_label = NULL;
+
+   session->jitter_source = _mongoc_jitter_source_new(_mongoc_jitter_source_generate_default);
 
    RETURN(session);
 }
@@ -811,6 +852,34 @@ mongoc_client_session_get_server_id(const mongoc_client_session_t *session)
    BSON_ASSERT(session);
 
    return session->server_id;
+}
+
+bool
+mongoc_client_session_get_snapshot_time(const mongoc_client_session_t *session,
+                                        uint32_t *timestamp,
+                                        uint32_t *increment,
+                                        bson_error_t *error)
+{
+   BSON_ASSERT(session);
+   BSON_ASSERT(timestamp);
+   BSON_ASSERT(increment);
+
+   if (!mongoc_session_opts_get_snapshot(&session->opts)) {
+      _mongoc_set_error(error,
+                        MONGOC_ERROR_CLIENT,
+                        MONGOC_ERROR_CLIENT_SESSION_FAILURE,
+                        "Cannot get snapshotTime on a non-snapshot session");
+      return false;
+   }
+
+   if (!session->snapshot_time_set) {
+      return false;
+   }
+
+   *timestamp = session->snapshot_time_timestamp;
+   *increment = session->snapshot_time_increment;
+
+   return true;
 }
 
 void
@@ -864,13 +933,6 @@ mongoc_client_session_advance_operation_time(mongoc_client_session_t *session, u
 }
 
 static bool
-timeout_exceeded(int64_t expire_at)
-{
-   int64_t current_time = bson_get_monotonic_time();
-   return current_time >= expire_at;
-}
-
-static bool
 _max_time_ms_failure(bson_t *reply)
 {
    bson_iter_t iter;
@@ -898,6 +960,10 @@ _max_time_ms_failure(bson_t *reply)
    return false;
 }
 
+#define MONGOC_WITH_TRANSACTION_RETRY_BACKOFF_GROWTH_FACTOR 1.5
+#define MONGOC_WITH_TRANSACTION_RETRY_BACKOFF_INITIAL mlib_duration(5, ms)
+#define MONGOC_WITH_TRANSACTION_RETRY_BACKOFF_MAX mlib_duration(500, ms)
+
 bool
 mongoc_client_session_with_transaction(mongoc_client_session_t *session,
                                        mongoc_client_session_with_transaction_cb_t cb,
@@ -908,7 +974,6 @@ mongoc_client_session_with_transaction(mongoc_client_session_t *session,
 {
    mongoc_internal_transaction_state_t state;
    int64_t timeout;
-   int64_t expire_at;
    bson_t local_reply;
    bson_t *active_reply = NULL;
    bool res;
@@ -917,7 +982,18 @@ mongoc_client_session_with_transaction(mongoc_client_session_t *session,
 
    timeout = session->with_txn_timeout_ms > 0 ? session->with_txn_timeout_ms : WITH_TXN_TIMEOUT_MS;
 
-   expire_at = bson_get_monotonic_time() + ((int64_t)timeout * 1000);
+   const mlib_timer timer = mlib_expires_after(timeout, ms);
+
+   const mongoc_retry_backoff_params_t retry_backoff_params = {
+      .growth_factor = MONGOC_WITH_TRANSACTION_RETRY_BACKOFF_GROWTH_FACTOR,
+      .backoff_initial = MONGOC_WITH_TRANSACTION_RETRY_BACKOFF_INITIAL,
+      .backoff_max = MONGOC_WITH_TRANSACTION_RETRY_BACKOFF_MAX,
+   };
+
+   mongoc_retry_backoff_generator_t *const retry_backoff_generator =
+      _mongoc_retry_backoff_generator_new(retry_backoff_params, session->jitter_source);
+
+   bool is_first_attempt = true;
 
    /* Attempt to wrap a user callback in start- and end- transaction semantics.
       If this fails for transient reasons, restart, either from the very
@@ -927,6 +1003,23 @@ mongoc_client_session_with_transaction(mongoc_client_session_t *session,
       At the top of this loop, active_reply should always be NULL, and
       local_reply should always be uninitialized. */
    while (true) {
+      if (is_first_attempt) {
+         is_first_attempt = false;
+      } else {
+         const mlib_duration backoff_duration = _mongoc_retry_backoff_generator_next(retry_backoff_generator);
+
+         const mlib_timer backoff_timer = mlib_expires_after(backoff_duration);
+
+         const bool backoff_would_exceed_timeout = mlib_time_cmp(backoff_timer.expires_at, >=, timer.expires_at);
+
+         if (backoff_would_exceed_timeout) {
+            res = false;
+            GOTO(done);
+         }
+
+         mlib_sleep_until(backoff_timer.expires_at);
+      }
+
       res = mongoc_client_session_start_transaction(session, opts, error);
 
       if (!res) {
@@ -948,7 +1041,8 @@ mongoc_client_session_with_transaction(mongoc_client_session_t *session,
             BSON_ASSERT(mongoc_client_session_abort_transaction(session, NULL));
          }
 
-         if (mongoc_error_has_label(active_reply, TRANSIENT_TXN_ERR) && !timeout_exceeded(expire_at)) {
+         if (mongoc_error_has_label(active_reply, MONGOC_ERROR_LABEL_TRANSIENTTRANSACTIONERROR) &&
+             !mlib_timer_is_expired(timer)) {
             bson_destroy(active_reply);
             active_reply = NULL;
             continue;
@@ -985,7 +1079,8 @@ mongoc_client_session_with_transaction(mongoc_client_session_t *session,
                GOTO(done);
             }
 
-            if (mongoc_error_has_label(active_reply, UNKNOWN_COMMIT_RESULT) && !timeout_exceeded(expire_at)) {
+            if (mongoc_error_has_label(active_reply, MONGOC_ERROR_LABEL_UNKNOWNTRANSACTIONCOMMITRESULT) &&
+                !mlib_timer_is_expired(timer)) {
                /* Commit_transaction applies majority write concern on retry
                 * attempts.
                 *
@@ -996,7 +1091,8 @@ mongoc_client_session_with_transaction(mongoc_client_session_t *session,
                continue;
             }
 
-            if (mongoc_error_has_label(active_reply, TRANSIENT_TXN_ERR) && !timeout_exceeded(expire_at)) {
+            if (mongoc_error_has_label(active_reply, MONGOC_ERROR_LABEL_TRANSIENTTRANSACTIONERROR) &&
+                !mlib_timer_is_expired(timer)) {
                /* In the case of a transient txn error, go back to outside loop.
                   We must set the reply to NULL so it may be used by the cb. */
                bson_destroy(active_reply);
@@ -1014,6 +1110,8 @@ mongoc_client_session_with_transaction(mongoc_client_session_t *session,
    }
 
 done:
+   _mongoc_retry_backoff_generator_destroy(retry_backoff_generator);
+
    /* At this point, active_reply is either pointing to the user's reply
       object, or our local one on the stack, or is NULL. */
    if (reply && active_reply) {
@@ -1426,6 +1524,37 @@ _mongoc_client_session_append_txn(mongoc_client_session_t *session, bson_t *cmd,
 }
 
 
+/* Write commands that carry readConcern.afterClusterTime in a
+ * causally-consistent session (DRIVERS-3274). */
+static bool
+_mongoc_write_command_supports_after_cluster_time(const char *command_name)
+{
+   static const char *const allowlist[] = {
+      "insert",
+      "update",
+      "findAndModify",
+      "delete",
+      "bulkWrite",
+      "create",
+      "createIndexes",
+      "drop",
+      "dropDatabase",
+      "dropIndexes",
+   };
+
+   if (!command_name) {
+      return false;
+   }
+
+   for (size_t i = 0; i < sizeof(allowlist) / sizeof(allowlist[0]); i++) {
+      if (!strcmp(command_name, allowlist[i])) {
+         return true;
+      }
+   }
+
+   return false;
+}
+
 /*
  *--------------------------------------------------------------------------
  *
@@ -1437,6 +1566,11 @@ _mongoc_client_session_append_txn(mongoc_client_session_t *session, bson_t *cmd,
  *       are "level" and/or "afterClusterTime" - if both are empty, don't add
  *       read concern.
  *
+ *       In a causally-consistent session, afterClusterTime is also sent on
+ *       the allowlisted write commands (see
+ *       _mongoc_write_command_supports_after_cluster_time), identified by
+ *       command_name.
+ *
  * Side effects:
  *       None.
  *
@@ -1447,6 +1581,8 @@ void
 _mongoc_client_session_append_read_concern(const mongoc_client_session_t *cs,
                                            const bson_t *rc,
                                            bool is_read_command,
+                                           bool is_write_command,
+                                           const char *command_name,
                                            bson_t *cmd)
 {
    const mongoc_read_concern_t *txn_rc;
@@ -1469,7 +1605,10 @@ _mongoc_client_session_append_read_concern(const mongoc_client_session_t *cs,
       return;
    }
 
-   has_timestamp = (txn_state == MONGOC_INTERNAL_TRANSACTION_STARTING || is_read_command) &&
+   const bool after_cluster_time_is_supported =
+      is_read_command || (is_write_command && _mongoc_write_command_supports_after_cluster_time(command_name));
+
+   has_timestamp = (txn_state == MONGOC_INTERNAL_TRANSACTION_STARTING || after_cluster_time_is_supported) &&
                    mongoc_session_opts_get_causal_consistency(&cs->opts) && cs->operation_timestamp;
    is_snapshot = mongoc_session_opts_get_snapshot(&cs->opts);
    user_rc_has_level = rc && bson_has_field(rc, "level");
@@ -1554,6 +1693,8 @@ mongoc_client_session_destroy(mongoc_client_session_t *session)
    txn_opts_cleanup(&session->opts.default_txn_opts);
    txn_opts_cleanup(&session->txn.opts);
 
+   _mongoc_jitter_source_destroy(session->jitter_source);
+
    bson_destroy(&session->cluster_time);
    bson_destroy(session->recovery_token);
    bson_free(session);
@@ -1594,6 +1735,13 @@ _mongoc_client_session_clear_snapshot_time(mongoc_client_session_t *session)
    BSON_ASSERT(session);
 
    session->snapshot_time_set = false;
+}
+
+void
+_mongoc_client_session_set_jitter_source(mongoc_client_session_t *session, mongoc_jitter_source_t *source)
+{
+   _mongoc_jitter_source_destroy(session->jitter_source);
+   session->jitter_source = source;
 }
 
 bool

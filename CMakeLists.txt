@@ -301,10 +301,6 @@ if (NOT MSVC)
    include (LLDLinker)
 endif ()
 
-if ( (ENABLE_BUILD_DEPENDECIES STREQUAL OFF) AND (NOT CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR) )
-   set (ENABLE_BUILD_DEPENDECIES ON)
-endif ()
-
 mongo_pick(MONGOC_ENABLE_RDTSCP 1 0 ENABLE_RDTSCP)
 
 mongo_pick(MONGOC_ENABLE_STATIC_BUILD 1 0 ENABLE_STATIC)
@@ -394,14 +390,14 @@ add_custom_target(mongo_c_driver_examples)
 
 add_subdirectory (src/common)
 
+if (WIN32)
+   add_definitions (-D_CRT_SECURE_NO_WARNINGS)
+   list (APPEND CMAKE_REQUIRED_DEFINITIONS -D_CRT_SECURE_NO_WARNINGS)
+endif ()
+
 if (NOT USING_SYSTEM_BSON)
    message (STATUS "Using bundled libbson")
    add_subdirectory (src/libbson)
-endif ()
-
-if (MSVC)
-   add_definitions (-D_CRT_SECURE_NO_WARNINGS)
-   list (APPEND CMAKE_REQUIRED_DEFINITIONS -D_CRT_SECURE_NO_WARNINGS)
 endif ()
 
 if (ENABLE_MONGOC)

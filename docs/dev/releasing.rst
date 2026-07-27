@@ -16,7 +16,7 @@ MongoDB C driver library. The release includes the following steps:
 .. _latest-build: https://spruce.mongodb.com/commits/mongo-c-driver
 .. _evg-release: https://spruce.mongodb.com/commits/mongo-c-driver-latest-release
 .. _evg-release-settings: https://spruce.mongodb.com/project/mongo-c-driver-latest-release/settings/general
-.. _snyk: https://app.snyk.io
+.. _snyk: https://app.snyk.io/org/dev-prod/
 .. _dbx-c-cxx-releases-github: https://github.com/orgs/mongodb/teams/dbx-c-cxx-releases/
 .. _dbx-c-cxx-releases-mana: https://mana.corp.mongodb.com/resources/68029673d39aa9f7de6399f9
 
@@ -557,6 +557,13 @@ Click ``Edit`` on the hook for ``https://githook.mongodb.com/``.
 Add the new release branch to the ``Payload URL``. Remove unmaintained
 release branches.
 
+Update Branch Protection Rules
+******************************
+
+Notify a repository administrator that the previous stable release branch (which will no longer recieve any further
+updates) may now be "locked" by removing the exclude rule from the "Restrict Branch Updates" ruleset and adding an
+exclude rule for the new branch.
+
 
 Comment on the Generated DOCSP Ticket
 *************************************
@@ -676,6 +683,9 @@ __ https://github.com/conan-io/conan-center-index/issues/20879
 
 Docker
 ######
+
+.. warning::
+   This step is currently skipped. Publishing the Docker image is currently suspended. See `CXX-3042 <https://jira.mongodb.org/browse/CXX-3042>`_.
 
 The C driver does not have its own container image, but it may be useful to
 update the C driver used in the C++ container image build.

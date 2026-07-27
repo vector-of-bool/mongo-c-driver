@@ -74,10 +74,9 @@ and the existing codes or domains are inappropriate.
                               
 ### Adding a new symbol
 
-This should be done rarely but there are several things that you need to do
-when adding a new symbol.
-
- - Add documentation for the new symbol in `doc/mongoc_your_new_symbol_name.rst`
+See the *Adding New Symbols* section of the [API and ABI Policy](docs/dev/api-abi-policy.rst)
+for the full procedure (header declaration, `MONGOC_EXPORT`/`BSON_EXPORT`
+annotation, documentation, and ABI compliance check).
 
 ### Documentation
 
@@ -252,11 +251,13 @@ An Azure:
 * `MONGOC_TEST_AZURE_TENANT_ID=<string>`
 * `MONGOC_TEST_AZURE_CLIENT_ID=<string>`
 * `MONGOC_TEST_AZURE_CLIENT_SECRET=<string>`
+* `MONGOC_TEST_AZURE_ACCESS_TOKEN=<string>`
 
 For GCP:
 
 * `MONGOC_TEST_GCP_EMAIL=<string>`
 * `MONGOC_TEST_GCP_PRIVATEKEY=<string>`
+* `MONGOC_TEST_GCP_ACCESS_TOKEN=<string>`
 
 Tests of In-Use Encryption also require temporary credentials to external KMS providers.
 
@@ -281,7 +282,6 @@ The set of mock KMS servers running in the background and their corresponding in
 
 | Port | CA File | Cert File | Command |
 | --- | --- | --- | --- |
-| 8999 | ca.pem | server.pem | python -u kms_http_server.py --ca_file ../x509gen/ca.pem --cert_file ../x509gen/server.pem --port 8999
 | 9000 | ca.pem | expired.pem | python -u kms_http_server.py --ca_file ../x509gen/ca.pem --cert_file ../x509gen/expired.pem --port 9000
 | 9001 | ca.pem | wrong-host.pem | python -u kms_http_server.py --ca_file ../x509gen/ca.pem --cert_file ../x509gen/wrong-host.pem --port 9001
 | 9002 | ca.pem | server.pem | python -u kms_http_server.py --ca_file ../x509gen/ca.pem --cert_file ../x509gen/server.pem --require_client_cert --port 9002
@@ -301,7 +301,7 @@ This can be useful in debugging a specific test case in a spec test file with mu
 
 ```sh
 MONGOC_JSON_SUBTEST="Insert with randomized encryption, then find it" \
-  ./cmake-build/src/libmongoc/test-libmongoc -l "/client_side_encryption/legacy/basic"
+  ./cmake-build/src/libmongoc/test-libmongoc -l "/client_side_encryption/unified/basic"
 ```
 
 To test with a declared API version, you can pass the API version using an environment variable:
@@ -323,6 +323,11 @@ To run test cases with large allocations, set:
 * `MONGOC_TEST_OIDC=on` to test OIDC using a test environment described [here](https://github.com/mongodb-labs/drivers-evergreen-tools/tree/d7a7337b384392a09fbe7fc80a7244e6f1226c18/.evergreen/auth_oidc).
 * `MONGOC_AZURE_RESOURCE=<resource>` to test OIDC using an Azure test environment described [here](https://github.com/mongodb-labs/drivers-evergreen-tools/blob/d7a7337b384392a09fbe7fc80a7244e6f1226c18/.evergreen/auth_oidc/azure/README.md).
 * `MONGOC_GCP_RESOURCE=<resource>` to test OIDC using an GCP test environment described [here](https://github.com/mongodb-labs/drivers-evergreen-tools/tree/d7a7337b384392a09fbe7fc80a7244e6f1226c18/.evergreen/auth_oidc/gcp).
+* `MONGOC_TEST_OIDC_K8S=ON` to test OIDC using an Kubernetes test environment described [here](https://github.com/mongodb-labs/drivers-evergreen-tools/tree/b26580ac7b03a7eb282053871da0a050c7075288/.evergreen/auth_oidc/k8s).
+
+To skip tests sensitive to high runtime variance on the server:
+
+* `MONGOC_TEST_SKIP_TIMEOUT_SENSITIVE=on` Useful in macOS Evergreen test environments. See [DEVPROD-1167](https://jira.mongodb.org/browse/DEVPROD-1167).
 
 All tests should pass before submitting a patch.
 

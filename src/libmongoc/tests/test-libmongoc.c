@@ -2252,6 +2252,18 @@ test_framework_skip_if_not_replset(void)
    return !test_framework_skip_if_replset();
 }
 
+int
+test_framework_skip_if_not_replset_with_secondary(void)
+{
+   if (0 == test_framework_skip_if_not_replset()) {
+      return 0; // Not replset. Skip.
+   }
+   if (test_framework_data_nodes_count() < 2) {
+      return 0; // Not enough data nodes to have a secondary. Skip.
+   }
+   return 1;
+}
+
 /* convenience skip functions based on the wire version. */
 #define WIRE_VERSION_CHECKS(wv)                                                                     \
    int test_framework_skip_if_max_wire_version_more_than_##wv(void)                                 \
@@ -2309,6 +2321,8 @@ WIRE_VERSION_CHECKS(25)
 WIRE_VERSION_CHECKS(26)
 /* wire version 27 begins with the 8.2 release. */
 WIRE_VERSION_CHECKS(27)
+/* wire version 29 begins with the 9.0 release. */
+WIRE_VERSION_CHECKS(29)
 
 int
 test_framework_skip_if_no_dual_ip_hostname(void)
@@ -2479,7 +2493,7 @@ windows_exception_handler(EXCEPTION_POINTERS *pExceptionInfo)
    char exception_string[128];
    bson_snprintf(exception_string,
                  sizeof(exception_string),
-                 (exception_code == EXCEPTION_ACCESS_VIOLATION) ? "(access violation)" : "0x%08X",
+                 (exception_code == EXCEPTION_ACCESS_VIOLATION) ? "(access violation)" : "0x%08lX",
                  exception_code);
 
    char address_string[32];
@@ -2544,7 +2558,7 @@ windows_exception_handler(EXCEPTION_POINTERS *pExceptionInfo)
 
       DWORD offset_ln = 0;
       if (SymGetLineFromAddr64(process, (DWORD64)stack_frame.AddrPC.Offset, &offset_ln, &line)) {
-         fprintf(stderr, " %s:%d ", line.FileName, line.LineNumber);
+         fprintf(stderr, " %s:%lu ", line.FileName, line.LineNumber);
       }
 
       fprintf(stderr, "\n");
@@ -2708,4 +2722,13 @@ test_framework_set_oidc_callback(mongoc_client_t *client)
    mongoc_oidc_callback_t *callback = mongoc_oidc_callback_new(oidc_callback_fn);
    mongoc_client_set_oidc_callback(client, callback);
    mongoc_oidc_callback_destroy(callback);
+}
+
+int
+skip_if_high_server_runtime_variance(void)
+{
+   if (test_framework_getenv_bool("MONGOC_TEST_SKIP_TIMEOUT_SENSITIVE")) {
+      return 0; // Skip.
+   }
+   return 1; // Proceed.
 }

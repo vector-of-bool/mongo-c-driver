@@ -970,6 +970,11 @@ entity_client_new(entity_map_t *em, bson_t *bson, bson_error_t *error)
    }
    bson_free(gcp_resource);
 
+   const bool testing_k8s_oidc = test_framework_getenv_bool("MONGOC_TEST_OIDC_K8S");
+   if (uri_requests_oidc && testing_k8s_oidc) {
+      mongoc_uri_set_mechanism_properties(uri, tmp_bson("{'ENVIRONMENT': 'k8s'}"));
+   }
+
    if (!mongoc_uri_has_option(uri, MONGOC_URI_HEARTBEATFREQUENCYMS)) {
       can_reduce_heartbeat = true;
    }
@@ -980,7 +985,7 @@ entity_client_new(entity_map_t *em, bson_t *bson, bson_error_t *error)
 
    client = test_framework_client_new_from_uri(uri, api);
 
-   if (uri_requests_oidc && !testing_azure_oidc && !testing_gcp_oidc) {
+   if (uri_requests_oidc && !testing_azure_oidc && !testing_gcp_oidc && !testing_k8s_oidc) {
       test_framework_set_oidc_callback(client);
    }
 
@@ -1179,8 +1184,12 @@ _parse_kms_provider_azure(
          if (!_append_kms_provider_value_or_getenv(&child, key, value, "MONGOC_TEST_AZURE_CLIENT_SECRET", error)) {
             return false;
          }
+      } else if (strcmp(key, "accessToken") == 0) {
+         if (!_append_kms_provider_value_or_getenv(&child, key, value, "MONGOC_TEST_AZURE_ACCESS_TOKEN", error)) {
+            return false;
+         }
       } else {
-         test_set_error(error, "unexpected field '%s'", value);
+         test_set_error(error, "unexpected field '%s'", key);
          return false;
       }
    }
@@ -1222,8 +1231,12 @@ _parse_kms_provider_gcp(
          if (value) {
             BSON_ASSERT(BSON_APPEND_UTF8(&child, key, value));
          }
+      } else if (strcmp(key, "accessToken") == 0) {
+         if (!_append_kms_provider_value_or_getenv(&child, key, value, "MONGOC_TEST_GCP_ACCESS_TOKEN", error)) {
+            return false;
+         }
       } else {
-         test_set_error(error, "unexpected field '%s'", value);
+         test_set_error(error, "unexpected field '%s'", key);
          return false;
       }
    }
@@ -1274,7 +1287,7 @@ _parse_kms_provider_kmip(
             BSON_ASSERT(bson_append_document_end(tls_opts, &tls_child));
          }
       } else {
-         test_set_error(error, "unexpected field '%s'", value);
+         test_set_error(error, "unexpected field '%s'", key);
          return false;
       }
    }
@@ -1318,7 +1331,7 @@ _parse_kms_provider_local(
             BSON_APPEND_BINARY(&child, "key", BSON_SUBTYPE_BINARY, data, 96);
          }
       } else {
-         test_set_error(error, "unexpected field '%s'", value);
+         test_set_error(error, "unexpected field '%s'", key);
          return false;
       }
    }
@@ -1809,7 +1822,7 @@ done:
 }
 
 mongoc_session_opt_t *
-session_opts_new(bson_t *bson, bson_error_t *error)
+session_opts_new(entity_map_t *entity_map, bson_t *bson, bson_error_t *error)
 {
    bool ret = false;
    mongoc_session_opt_t *opts = NULL;
@@ -1817,6 +1830,8 @@ session_opts_new(bson_t *bson, bson_error_t *error)
    bson_parser_t *bp_opts = NULL;
    bool *causal_consistency = NULL;
    bool *snapshot = NULL;
+   char *snapshot_time_entity_id = NULL;
+   bson_val_t *snapshot_time_val = NULL;
    bson_t *default_transaction_opts = NULL;
    mongoc_write_concern_t *wc = NULL;
    mongoc_read_concern_t *rc = NULL;
@@ -1826,6 +1841,7 @@ session_opts_new(bson_t *bson, bson_error_t *error)
    bp = bson_parser_new();
    bson_parser_bool_optional(bp, "causalConsistency", &causal_consistency);
    bson_parser_bool_optional(bp, "snapshot", &snapshot);
+   bson_parser_utf8_optional(bp, "snapshotTime", &snapshot_time_entity_id);
    bson_parser_doc_optional(bp, "defaultTransactionOptions", &default_transaction_opts);
    if (!bson_parser_parse(bp, bson, error)) {
       goto done;
@@ -1837,6 +1853,21 @@ session_opts_new(bson_t *bson, bson_error_t *error)
    }
    if (snapshot) {
       mongoc_session_opts_set_snapshot(opts, *snapshot);
+   }
+   if (snapshot_time_entity_id) {
+      const bson_value_t *value;
+
+      snapshot_time_val = entity_map_get_bson(entity_map, snapshot_time_entity_id, error);
+      if (!snapshot_time_val) {
+         goto done;
+      }
+      value = bson_val_to_value(snapshot_time_val);
+      if (value->value_type != BSON_TYPE_TIMESTAMP) {
+         test_set_error(error, "expected entity '%s' to be a timestamp for snapshotTime", snapshot_time_entity_id);
+         goto done;
+      }
+      mongoc_session_opts_set_snapshot_time(
+         opts, value->value.v_timestamp.timestamp, value->value.v_timestamp.increment);
    }
 
    if (default_transaction_opts) {
@@ -1912,7 +1943,7 @@ entity_session_new(entity_map_t *entity_map,
       goto done;
    }
    if (session_opts_bson) {
-      session_opts = session_opts_new(session_opts_bson, error);
+      session_opts = session_opts_new(entity_map, session_opts_bson, error);
       if (!session_opts) {
          goto done;
       }

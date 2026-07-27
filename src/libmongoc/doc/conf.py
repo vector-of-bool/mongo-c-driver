@@ -170,34 +170,37 @@ rst_prolog = rf"""
     :cmake:command:`find_package() <command:find_package>`
 
 .. |bson_t-storage-ptr| replace::
-    non-``NULL`` pointer to `overwritable storage`_ for a :symbol:`bson_t`
+    non-``NULL`` pointer to :doc:`overwritable storage <bson:lifetimes>` for a :symbol:`bson_t`
 
 .. |bson_t-opt-storage-ptr| replace::
-    maybe-``NULL`` pointer to `overwritable storage`_ for a :symbol:`bson_t`
+    maybe-``NULL`` pointer to :doc:`overwritable storage <bson:lifetimes>` for a :symbol:`bson_t`
 
-.. _overwritable storage: https://www.mongodb.com/docs/languages/c/c-driver/current/libbson/guides/lifetimes/#overwritable-storage
-
-.. |encrypt-text-is-experimental| replace::
-    The "TextPreview" algorithm is in preview and should be used for experimental workloads only.
-    These features are unstable and their security is not guaranteed until released as Generally
-    Available (GA). The GA version of these features may not be backwards compatible with the
+.. |encrypt-string-substring-is-experimental| replace::
+    The "substringPreview" query type is in preview and should be used for experimental workloads only.
+    This feature is unstable and its security is not guaranteed until released as Generally
+    Available (GA). The GA version of this feature may not be backwards compatible with the
     preview version.
+
 
 .. _mongodb_docs_cdriver: https://www.mongodb.com/docs/languages/c/c-driver/current/
 
-.. _queryable-encryption: https://www.mongodb.com/docs/languages/c/c-driver/current/libmongoc/guides/queryable-encryption/
+.. _queryable-encryption: https://www.mongodb.com/docs/languages/c/c-driver/current/security/in-use-encryption/#std-label-c-queryable-encryption/
+
+.. _explicit-encryption-qe: https://www.mongodb.com/docs/manual/core/queryable-encryption/fundamentals/manual-encryption/#std-label-qe-fundamentals-manual-encryption
 
 .. _authentication: https://www.mongodb.com/docs/languages/c/c-driver/current/libmongoc/authentication/
 
 .. _bulk: https://www.mongodb.com/docs/languages/c/c-driver/current/libmongoc/guides/bulk/
 
-.. _client-side-field-level-encryption: https://www.mongodb.com/docs/languages/c/c-driver/current/libmongoc/guides/client-side-field-level-encryption/
+.. _client-side-field-level-encryption: https://www.mongodb.com/docs/languages/c/c-driver/current/security/in-use-encryption/#client-side-field-level-encryption
+
+.. _explicit-encryption-csfle: https://www.mongodb.com/docs/manual/core/csfle/fundamentals/manual-encryption/#std-label-csfle-fundamentals-manual-encryption
 
 .. _configuring_tls: https://www.mongodb.com/docs/languages/c/c-driver/current/libmongoc/guides/configuring_tls/
 
 .. _connection-pooling: https://www.mongodb.com/docs/languages/c/c-driver/current/connect/connection-pools/.
 
-.. _in-use-encryption: https://www.mongodb.com/docs/languages/c/c-driver/current/libmongoc/guides/in-use-encryption/
+.. _in-use-encryption: https://www.mongodb.com/docs/languages/c/c-driver/current/security/in-use-encryption
 
 .. _manage-collection-indexes: https://www.mongodb.com/docs/languages/c/c-driver/current/libmongoc/guides/manage-collection-indexes/
 
@@ -210,8 +213,6 @@ rst_prolog = rf"""
 .. _cursors_tailable: https://www.mongodb.com/docs/languages/c/c-driver/current/libmongoc/guides/cursors/#tailable-cursors
 
 .. _bson_errors: https://www.mongodb.com/docs/languages/c/c-driver/current/libbson/tutorials/errors/
-
-.. _bson_lifetimes: https://www.mongodb.com/docs/languages/c/c-driver/current/libbson/guides/lifetimes/
 
 .. |ssl:naming| replace::
     Though some API names include the term "ssl", the C driver only support TLS protocols, which supersede SSL.

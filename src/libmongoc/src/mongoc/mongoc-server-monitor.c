@@ -19,6 +19,7 @@
 #include <mongoc/mongoc-client-private.h>
 #include <mongoc/mongoc-error-private.h>
 #include <mongoc/mongoc-handshake-private.h>
+#include <mongoc/mongoc-rpc-private.h>
 #include <mongoc/mongoc-server-monitor-private.h>
 #include <mongoc/mongoc-ssl-private.h>
 #include <mongoc/mongoc-stream-private.h>
@@ -29,9 +30,13 @@
 
 #include <mongoc/mcd-rpc.h>
 
+#include <bson/macros.h>
+
 #include <mlib/intencode.h>
 
 #include <inttypes.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #undef MONGOC_LOG_DOMAIN
 #define MONGOC_LOG_DOMAIN "monitor"
@@ -307,7 +312,9 @@ _server_monitor_send_and_recv_hello_opmsg(mongoc_server_monitor_t *server_monito
    // msgHeader consists of four int32 fields.
    const int32_t message_header_length = 4u * sizeof(int32_t);
 
-   if (message_length < message_header_length) {
+   // Malformed message.
+   if (BSON_UNLIKELY(message_length < message_header_length ||
+                     message_length > server_monitor->description->max_msg_size)) {
       _mongoc_set_error(error,
                         MONGOC_ERROR_PROTOCOL,
                         MONGOC_ERROR_PROTOCOL_INVALID_REPLY,
@@ -333,7 +340,8 @@ _server_monitor_send_and_recv_hello_opmsg(mongoc_server_monitor_t *server_monito
 
    mcd_rpc_message_ingress(rpc);
 
-   if (!mcd_rpc_message_decompress_if_necessary(rpc, &decompressed_data, &decompressed_data_len)) {
+   if (!mcd_rpc_message_decompress_if_necessary(
+          rpc, &decompressed_data, &decompressed_data_len, server_monitor->description->max_msg_size)) {
       _mongoc_set_error(error,
                         MONGOC_ERROR_PROTOCOL,
                         MONGOC_ERROR_PROTOCOL_INVALID_REPLY,
@@ -420,7 +428,8 @@ _server_monitor_send_and_recv_opquery(mongoc_server_monitor_t *server_monitor,
    // msgHeader consists of four int32 fields.
    const int32_t message_header_length = 4u * sizeof(int32_t);
 
-   if (message_length < message_header_length) {
+   if (BSON_UNLIKELY(message_length < message_header_length ||
+                     message_length > server_monitor->description->max_msg_size)) {
       _mongoc_set_error(error,
                         MONGOC_ERROR_PROTOCOL,
                         MONGOC_ERROR_PROTOCOL_INVALID_REPLY,
@@ -446,7 +455,8 @@ _server_monitor_send_and_recv_opquery(mongoc_server_monitor_t *server_monitor,
 
    mcd_rpc_message_ingress(rpc);
 
-   if (!mcd_rpc_message_decompress_if_necessary(rpc, &decompressed_data, &decompressed_data_len)) {
+   if (!mcd_rpc_message_decompress_if_necessary(
+          rpc, &decompressed_data, &decompressed_data_len, server_monitor->description->max_msg_size)) {
       _mongoc_set_error(error,
                         MONGOC_ERROR_PROTOCOL,
                         MONGOC_ERROR_PROTOCOL_INVALID_REPLY,
@@ -716,7 +726,8 @@ _server_monitor_awaitable_hello_recv(mongoc_server_monitor_t *server_monitor,
 
    mcd_rpc_message_ingress(rpc);
 
-   if (!mcd_rpc_message_decompress_if_necessary(rpc, &decompressed_data, &decompressed_data_len)) {
+   if (!mcd_rpc_message_decompress_if_necessary(
+          rpc, &decompressed_data, &decompressed_data_len, server_monitor->description->max_msg_size)) {
       _mongoc_set_error(error, MONGOC_ERROR_PROTOCOL, MONGOC_ERROR_PROTOCOL_INVALID_REPLY, "decompression failure");
       GOTO(fail);
    }
@@ -955,6 +966,25 @@ fail:
    RETURN(ret);
 }
 
+static bool
+use_streaming_mode(const mongoc_server_monitor_t *server_monitor,
+                   const mongoc_server_description_t *previous_description)
+{
+   if (server_monitor->mode == MONGOC_SERVER_MONITORING_POLL) {
+      // URI requested with "serverMonitoringMode=poll".
+      return false;
+   }
+   if (bson_empty(&previous_description->topology_version)) {
+      // Server does not support stream monitoring.
+      return false;
+   }
+   if (_mongoc_handshake_get()->env != MONGOC_HANDSHAKE_ENV_NONE) {
+      // Only use stream monitoring in FaaS environments if requested in URI with "serverMonitoringMode=stream".
+      return server_monitor->mode == MONGOC_SERVER_MONITORING_STREAM;
+   }
+   return true;
+}
+
 /**
  * @brief Perform a hello check on a server
  *
@@ -1011,15 +1041,7 @@ _server_monitor_check_server(mongoc_server_monitor_t *server_monitor,
       GOTO(exit);
    }
 
-   if (server_monitor->mode != MONGOC_SERVER_MONITORING_POLL && !bson_empty(&previous_description->topology_version) &&
-       (_mongoc_handshake_get()->env == MONGOC_HANDSHAKE_ENV_NONE ||
-        server_monitor->mode == MONGOC_SERVER_MONITORING_STREAM)) {
-      // Use stream monitoring if:
-      // - serverMonitoringMode != "poll"
-      // - Server supports stream monitoring (indicated by `topologyVersion`).
-      // - ONE OF:
-      //    - Application is not in an FaaS environment (e.g. AWS Lambda).
-      //    - serverMonitoringMode == "stream"
+   if (use_streaming_mode(server_monitor, previous_description)) {
       awaited = true;
       _server_monitor_heartbeat_started(server_monitor, awaited);
       MONITOR_LOG(server_monitor, "awaitable hello");
@@ -1198,8 +1220,8 @@ static BSON_THREAD_FUN(_server_monitor_thread, server_monitor_void)
       _update_topology_description(server_monitor, description);
 
       /* Immediately proceed to the next check if the previous response was
-       * successful and included the topologyVersion field. */
-      if (description->type != MONGOC_SERVER_UNKNOWN && !bson_empty(&description->topology_version)) {
+       * successful and streaming is enabled. */
+      if (description->type != MONGOC_SERVER_UNKNOWN && use_streaming_mode(server_monitor, description)) {
          MONITOR_LOG(server_monitor, "immediately proceeding due to topologyVersion");
          continue;
       }

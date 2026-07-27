@@ -176,6 +176,8 @@ test_framework_skip_if_not_mongos(void);
 int
 test_framework_skip_if_not_replset(void);
 int
+test_framework_skip_if_not_replset_with_secondary(void);
+int
 test_framework_skip_if_not_single(void);
 int
 test_framework_skip_if_offline(void);
@@ -216,7 +218,8 @@ WIRE_VERSION_CHECK_DECLS(25)
 WIRE_VERSION_CHECK_DECLS(26)
 /* wire version 27 begins with the 8.2 release. */
 WIRE_VERSION_CHECK_DECLS(27)
-
+/* wire version 29 begins with the 9.0 release. */
+WIRE_VERSION_CHECK_DECLS(29)
 #undef WIRE_VERSION_CHECK_DECLS
 
 typedef struct _debug_stream_stats_t {
@@ -295,5 +298,10 @@ test_framework_skip_if_no_server_ssl(void);
 // consuming with ASan.
 int
 skip_if_no_large_allocations(void);
+
+// `skip_if_high_server_runtime_variance` skips if the environment indicates there is high runtime variance in the
+// server. Useful to skip time sensitive tests on macOS in Evergreen.
+int
+skip_if_high_server_runtime_variance(void);
 
 #endif

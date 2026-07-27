@@ -44,76 +44,6 @@
 
 #include <mlib/cmp.h>
 
-static void
-_before_test(json_test_ctx_t *ctx, const bson_t *test)
-{
-   mongoc_client_t *client;
-   mongoc_collection_t *keyvault_coll;
-   bson_iter_t iter;
-   bson_error_t error;
-   bool ret;
-   mongoc_write_concern_t *wc;
-   bson_t insert_opts;
-
-   BSON_UNUSED(test);
-
-   /* Insert data into the key vault. */
-   client = test_framework_new_default_client();
-   wc = mongoc_write_concern_new();
-   mongoc_write_concern_set_w(wc, MONGOC_WRITE_CONCERN_W_MAJORITY);
-   bson_init(&insert_opts);
-   mongoc_write_concern_append(wc, &insert_opts);
-
-   if (bson_iter_init_find(&iter, ctx->config->scenario, "key_vault_data")) {
-      keyvault_coll = mongoc_client_get_collection(client, "keyvault", "datakeys");
-
-      /* Drop and recreate, inserting data. */
-      ret = mongoc_collection_drop(keyvault_coll, &error);
-      if (!ret) {
-         /* Ignore "namespace does not exist" error. */
-         ASSERT_OR_PRINT(error.code == 26, error);
-      }
-
-      bson_iter_recurse(&iter, &iter);
-      while (bson_iter_next(&iter)) {
-         bson_t doc;
-
-         bson_iter_bson(&iter, &doc);
-         ret = mongoc_collection_insert_one(keyvault_coll, &doc, &insert_opts, NULL /* reply */, &error);
-         ASSERT_OR_PRINT(ret, error);
-      }
-      mongoc_collection_destroy(keyvault_coll);
-   }
-
-   bson_destroy(&insert_opts);
-   mongoc_write_concern_destroy(wc);
-   mongoc_client_destroy(client);
-}
-
-static bool
-_run_operation(json_test_ctx_t *ctx, const bson_t *test, const bson_t *operation)
-{
-   bson_t reply;
-   bool res;
-
-   res = json_test_operation(ctx, test, operation, ctx->collection, NULL, &reply);
-
-   bson_destroy(&reply);
-
-   return res;
-}
-
-static void
-test_client_side_encryption_cb(void *scenario)
-{
-   json_test_config_t config = JSON_TEST_CONFIG_INIT;
-   config.before_test_cb = _before_test;
-   config.run_operation_cb = _run_operation;
-   config.scenario = scenario;
-   config.command_started_events_only = true;
-   config.command_monitoring_allow_subset = false;
-   run_json_general_test(&config);
-}
 
 /* This is the hex form of the base64 encoded value:
  * Mng0NCt4ZHVUYUJCa1kxNkVyNUR1QURhZ2h2UzR2d2RrZzh0cFBwM3R6NmdWMDFBMUN3YkQ5aXRRMkhGRGdQV09wOGVNYUMxT2k3NjZKelhaQmRCZGJkTXVyZG9uSjFk
@@ -147,10 +77,11 @@ _set_extra_crypt_shared(bson_t *extra)
 
 /* Convenience helper to check if spawning mongocryptd should be bypassed */
 static void
-_check_bypass(mongoc_auto_encryption_opts_t *opts)
+_set_extra(mongoc_auto_encryption_opts_t *opts)
 {
    bson_t extra = BSON_INITIALIZER;
    _set_extra_bypass(&extra);
+   _set_extra_crypt_shared(&extra);
    mongoc_auto_encryption_opts_set_extra(opts, &extra);
    bson_destroy(&extra);
 }
@@ -314,7 +245,7 @@ _make_kms_masterkey(char const *provider)
    }
 
    if (strcmp(provider, "azure") == 0) {
-      return BCON_NEW("keyVaultEndpoint", "key-vault-csfle.vault.azure.net", "keyName", "key-name-csfle");
+      return BCON_NEW("keyVaultEndpoint", "drivers-3392-key-vault.vault.azure.net", "keyName", "drivers-3392-keyname");
    }
 
    if (strcmp(provider, "gcp") == 0) {
@@ -422,7 +353,7 @@ test_bson_size_limits_and_batch_splitting(bool with_qe)
 
    kms_providers = _make_kms_providers(false /* aws */, true /* local */);
    opts = mongoc_auto_encryption_opts_new();
-   _check_bypass(opts);
+   _set_extra(opts);
    mongoc_auto_encryption_opts_set_keyvault_namespace(opts, "keyvault", "datakeys");
    mongoc_auto_encryption_opts_set_kms_providers(opts, kms_providers);
 
@@ -647,8 +578,8 @@ test_datakey_and_double_encryption_creating_and_using(mongoc_client_encryption_t
    } else if (0 == strcmp(kms_provider, "azure")) {
       mongoc_client_encryption_datakey_opts_set_masterkey(
          opts,
-         tmp_bson("{'keyVaultEndpoint': 'key-vault-csfle.vault.azure.net', "
-                  "'keyName': 'key-name-csfle'}"));
+         tmp_bson("{'keyVaultEndpoint': 'drivers-3392-key-vault.vault.azure.net', "
+                  "'keyName': 'drivers-3392-keyname'}"));
    } else if (0 == strcmp(kms_provider, "gcp")) {
       mongoc_client_encryption_datakey_opts_set_masterkey(opts,
                                                           tmp_bson("{'projectId': 'devprod-drivers','location': "
@@ -958,7 +889,7 @@ test_datakey_and_double_encryption(void *unused)
    auto_encryption_opts = mongoc_auto_encryption_opts_new();
    kms_providers = _make_kms_providers(true /* aws */, true /* local */);
    tls_opts = _make_tls_opts();
-   _check_bypass(auto_encryption_opts);
+   _set_extra(auto_encryption_opts);
    mongoc_auto_encryption_opts_set_kms_providers(auto_encryption_opts, kms_providers);
    mongoc_auto_encryption_opts_set_tls_opts(auto_encryption_opts, tls_opts);
    mongoc_auto_encryption_opts_set_keyvault_namespace(auto_encryption_opts, "keyvault", "datakeys");
@@ -1052,7 +983,7 @@ _test_key_vault(bool with_external_key_vault)
    client_encrypted = test_framework_new_default_client();
    mongoc_client_set_error_api(client_encrypted, MONGOC_ERROR_API_VERSION_2);
    auto_encryption_opts = mongoc_auto_encryption_opts_new();
-   _check_bypass(auto_encryption_opts);
+   _set_extra(auto_encryption_opts);
    schema = get_bson_from_json_file("./src/libmongoc/tests/"
                                     "client_side_encryption_prose/external/"
                                     "external-schema.json");
@@ -1162,7 +1093,7 @@ test_views_are_prohibited(void *unused)
 
    client_encrypted = test_framework_new_default_client();
    auto_encryption_opts = mongoc_auto_encryption_opts_new();
-   _check_bypass(auto_encryption_opts);
+   _set_extra(auto_encryption_opts);
    kms_providers = _make_kms_providers(false /* aws */, true /* local */);
    mongoc_auto_encryption_opts_set_kms_providers(auto_encryption_opts, kms_providers);
    mongoc_auto_encryption_opts_set_keyvault_namespace(auto_encryption_opts, "keyvault", "datakeys");
@@ -1431,7 +1362,8 @@ test_custom_endpoint(void *unused)
 
    /* Case 7: Azure successful case */
    _endpoint_setup(keyvault_client, &client_encryption, &client_encryption_invalid);
-   masterkey = BCON_NEW("keyVaultEndpoint", "key-vault-csfle.vault.azure.net", "keyName", "key-name-csfle");
+   masterkey =
+      BCON_NEW("keyVaultEndpoint", "drivers-3392-key-vault.vault.azure.net", "keyName", "drivers-3392-keyname");
    mongoc_client_encryption_datakey_opts_set_masterkey(datakey_opts, masterkey);
    res = mongoc_client_encryption_create_datakey(client_encryption, "azure", datakey_opts, &keyid, &error);
    ASSERT_OR_PRINT(res, error);
@@ -1836,7 +1768,7 @@ _test_corpus(bool local_schema)
    client_encrypted = test_framework_new_default_client();
    auto_encryption_opts = mongoc_auto_encryption_opts_new();
    mongoc_auto_encryption_opts_set_schema_map(auto_encryption_opts, schema_map);
-   _check_bypass(auto_encryption_opts);
+   _set_extra(auto_encryption_opts);
    kms_providers = _make_kms_providers(true /* aws */, true /* local */);
    mongoc_auto_encryption_opts_set_kms_providers(auto_encryption_opts, kms_providers);
    tls_opts = _make_tls_opts();
@@ -1944,13 +1876,7 @@ _reset(mongoc_client_pool_t **pool,
 
    mongoc_auto_encryption_opts_destroy(*opts);
    *opts = mongoc_auto_encryption_opts_new();
-   {
-      bson_t extra = BSON_INITIALIZER;
-      _set_extra_bypass(&extra);
-      _set_extra_crypt_shared(&extra);
-      mongoc_auto_encryption_opts_set_extra(*opts, &extra);
-      bson_destroy(&extra);
-   }
+   _set_extra(*opts);
    mongoc_auto_encryption_opts_set_keyvault_namespace(*opts, "db", "keyvault");
    kms_providers = _make_kms_providers(false /* aws */, true /* local */);
    mongoc_auto_encryption_opts_set_kms_providers(*opts, kms_providers);
@@ -2223,7 +2149,7 @@ _test_multi_threaded(bool external_key_vault)
    ASSERT_OR_PRINT(mongoc_collection_insert_one(coll, datakey, NULL /* opts */, NULL /* reply */, &error), error);
 
    /* create pool with auto encryption */
-   _check_bypass(opts);
+   _set_extra(opts);
 
    mongoc_auto_encryption_opts_set_keyvault_namespace(opts, "db", "keyvault");
    kms_providers = _make_kms_providers(false /* aws */, true /* local */);
@@ -2579,10 +2505,10 @@ test_kms_tls_cert_valid(void *unused)
 
 #if defined(MONGOC_ENABLE_SSL_SECURE_CHANNEL)
    /* Certificate verification fails with Secure Channel given
-    * "127.0.0.1:8999" with error: "hostname doesn't match certificate". */
-   ASSERT_OR_PRINT(_mongoc_host_list_from_string_with_err(&host, "localhost:8999", &error), error);
+    * "127.0.0.1:9002" with error: "hostname doesn't match certificate". */
+   ASSERT_OR_PRINT(_mongoc_host_list_from_string_with_err(&host, "localhost:9002", &error), error);
 #else
-   ASSERT_OR_PRINT(_mongoc_host_list_from_string_with_err(&host, "127.0.0.1:8999", &error), error);
+   ASSERT_OR_PRINT(_mongoc_host_list_from_string_with_err(&host, "127.0.0.1:9002", &error), error);
 #endif
 
    base_stream = mongoc_client_connect_tcp(connecttimeoutms, &host, &error);
@@ -3377,13 +3303,21 @@ typedef struct {
    mongoc_client_encryption_t *clientEncryption;
    mongoc_client_t *encryptedClient;
    mongoc_collection_t *encryptedColl;
+   mongoc_collection_t *encryptedColl_c10;
 } ee_fixture;
 
 static ee_fixture *
-explicit_encryption_setup_full(const char *encrypted_fields_path, const char *key_path)
+explicit_encryption_setup(void)
 {
+   char *encrypted_fields_path =
+      "./src/libmongoc/tests/client_side_encryption_prose/explicit_encryption/encryptedFields.json";
+   char *encrypted_fields_c10_path =
+      "./src/libmongoc/tests/client_side_encryption_prose/explicit_encryption/encryptedFields-c10.json";
+   char *key_path = "./src/libmongoc/tests/client_side_encryption_prose/explicit_encryption/key1-document.json";
+
    ee_fixture *eef = (ee_fixture *)bson_malloc0(sizeof(ee_fixture));
    bson_t *encryptedFields = get_bson_from_json_file(encrypted_fields_path);
+   bson_t *encryptedFields_c10 = get_bson_from_json_file(encrypted_fields_c10_path);
    bson_t *key1Document = get_bson_from_json_file(key_path);
    mongoc_client_t *setupClient = test_framework_new_default_client();
 
@@ -3416,6 +3350,31 @@ explicit_encryption_setup_full(const char *encrypted_fields_path, const char *ke
       mongoc_collection_destroy(coll);
 
       coll = mongoc_database_create_collection(db, "explicit_encryption", opts, &error);
+      ASSERT_OR_PRINT(coll, error);
+
+      mongoc_collection_destroy(coll);
+      bson_destroy(opts);
+      mongoc_database_destroy(db);
+   }
+
+   /* Drop and create the collection ``db.explicit_encryption_c10`` using
+    * ``encryptedFields_c10`` as an option. */
+   {
+      mongoc_database_t *db = mongoc_client_get_database(setupClient, "db");
+      mongoc_collection_t *coll = mongoc_database_get_collection(db, "explicit_encryption_c10");
+      bson_error_t error;
+      bson_t *opts;
+
+      opts = BCON_NEW("encryptedFields", BCON_DOCUMENT(encryptedFields_c10));
+
+      if (!mongoc_collection_drop_with_opts(coll, opts, &error)) {
+         if (error.code != MONGOC_SERVER_ERR_NS_NOT_FOUND) {
+            test_error("unexpected error in drop: %s", error.message);
+         }
+      }
+      mongoc_collection_destroy(coll);
+
+      coll = mongoc_database_create_collection(db, "explicit_encryption_c10", opts, &error);
       ASSERT_OR_PRINT(coll, error);
 
       mongoc_collection_destroy(coll);
@@ -3487,21 +3446,14 @@ explicit_encryption_setup_full(const char *encrypted_fields_path, const char *ke
       bson_destroy(kms_providers);
       mongoc_auto_encryption_opts_destroy(aeOpts);
       eef->encryptedColl = mongoc_client_get_collection(eef->encryptedClient, "db", "explicit_encryption");
+      eef->encryptedColl_c10 = mongoc_client_get_collection(eef->encryptedClient, "db", "explicit_encryption_c10");
    }
 
    mongoc_client_destroy(setupClient);
    bson_destroy(key1Document);
+   bson_destroy(encryptedFields_c10);
    bson_destroy(encryptedFields);
    return eef;
-}
-
-static ee_fixture *
-explicit_encryption_setup(void)
-{
-   return explicit_encryption_setup_full("./src/libmongoc/tests/client_side_encryption_prose/explicit_encryption/"
-                                         "encryptedFields.json",
-                                         "./src/libmongoc/tests/client_side_encryption_prose/explicit_encryption/"
-                                         "key1-document.json");
 }
 
 static void
@@ -3511,6 +3463,7 @@ explicit_encryption_destroy(ee_fixture *eef)
       return;
    }
 
+   mongoc_collection_destroy(eef->encryptedColl_c10);
    mongoc_collection_destroy(eef->encryptedColl);
    mongoc_client_destroy(eef->encryptedClient);
    mongoc_client_encryption_destroy(eef->clientEncryption);
@@ -4277,7 +4230,7 @@ test_explicit_encryption_case2(void *unused)
 
       ASSERT(BSON_APPEND_VALUE(&to_insert, "encryptedIndexed", &insertPayload));
 
-      ok = mongoc_collection_insert_one(eef->encryptedColl, &to_insert, NULL /* opts */, NULL /* reply */, &error);
+      ok = mongoc_collection_insert_one(eef->encryptedColl_c10, &to_insert, NULL /* opts */, NULL /* reply */, &error);
       ASSERT_OR_PRINT(ok, error);
 
       bson_value_destroy(&insertPayload);
@@ -4285,40 +4238,6 @@ test_explicit_encryption_case2(void *unused)
       mongoc_client_encryption_encrypt_opts_destroy(eopts);
    }
 
-   /* Find with contention factor of 0. Expect < 10 documents returned.
-    */
-   {
-      bson_value_t findPayload;
-      mongoc_cursor_t *cursor;
-      bson_t filter = BSON_INITIALIZER;
-      const bson_t *got;
-      int got_count = 0;
-
-      eopts = mongoc_client_encryption_encrypt_opts_new();
-      mongoc_client_encryption_encrypt_opts_set_keyid(eopts, &eef->key1ID);
-      mongoc_client_encryption_encrypt_opts_set_algorithm(eopts, MONGOC_ENCRYPT_ALGORITHM_INDEXED);
-      mongoc_client_encryption_encrypt_opts_set_query_type(eopts, MONGOC_ENCRYPT_QUERY_TYPE_EQUALITY);
-      mongoc_client_encryption_encrypt_opts_set_contention_factor(eopts, 0);
-
-      ok = mongoc_client_encryption_encrypt(eef->clientEncryption, &plaintext, eopts, &findPayload, &error);
-      ASSERT_OR_PRINT(ok, error);
-
-      ASSERT(BSON_APPEND_VALUE(&filter, "encryptedIndexed", &findPayload));
-
-      cursor = mongoc_collection_find_with_opts(eef->encryptedColl, &filter, NULL /* opts */, NULL /* read_prefs */);
-
-      while (mongoc_cursor_next(cursor, &got)) {
-         got_count++;
-         ASSERT_MATCH(got, "{ 'encryptedIndexed': 'encrypted indexed value' }");
-      }
-      ASSERT_OR_PRINT(!mongoc_cursor_error(cursor, &error), error);
-      ASSERT_CMPINT(got_count, <, 10);
-
-      bson_value_destroy(&findPayload);
-      mongoc_cursor_destroy(cursor);
-      mongoc_client_encryption_encrypt_opts_destroy(eopts);
-      bson_destroy(&filter);
-   }
 
    /* Find with contention factor of 10. Expect all 10 documents returned. */
    {
@@ -4339,7 +4258,8 @@ test_explicit_encryption_case2(void *unused)
 
       ASSERT(BSON_APPEND_VALUE(&filter, "encryptedIndexed", &findPayload));
 
-      cursor = mongoc_collection_find_with_opts(eef->encryptedColl, &filter, NULL /* opts */, NULL /* read_prefs */);
+      cursor =
+         mongoc_collection_find_with_opts(eef->encryptedColl_c10, &filter, NULL /* opts */, NULL /* read_prefs */);
 
       while (mongoc_cursor_next(cursor, &got)) {
          got_count++;
@@ -4510,348 +4430,1003 @@ test_explicit_encryption_case5(void *unused)
    explicit_encryption_destroy(eef);
 }
 
-static void
-test_explicit_encryption_text(void *unused)
+// string_explicit_encryption_fixture is a fixture for the String Explicit Encryption prose tests.
+typedef struct {
+   bson_value_t key1ID;
+   mongoc_client_t *keyVaultClient;
+   mongoc_client_encryption_t *clientEncryption;
+   mongoc_client_t *explicitEncryptedClient;
+   mongoc_client_t *autoEncryptedClient;
+   mongoc_client_encryption_encrypt_string_prefix_opts_t *prefixOpts;
+   mongoc_client_encryption_encrypt_string_suffix_opts_t *suffixOpts;
+   mongoc_client_encryption_encrypt_string_substring_opts_t *substringOpts;
+   bson_t wc_majority_opts; // bson_t opts with majority write concern appended.
+} string_explicit_encryption_fixture;
+
+static bool
+server_supports_queryType(const char *queryType)
 {
-   bson_error_t error;
+   if (0 == strcmp(queryType, MONGOC_ENCRYPT_QUERY_TYPE_PREFIX) ||
+       0 == strcmp(queryType, MONGOC_ENCRYPT_QUERY_TYPE_SUFFIX) ||
+       0 == strcmp(queryType, MONGOC_ENCRYPT_QUERY_TYPE_SUBSTRING)) {
+      return test_framework_get_server_version() >= test_framework_str_to_version("9.0.0");
+   } else if (0 == strcmp(queryType, MONGOC_ENCRYPT_QUERY_TYPE_PREFIXPREVIEW) ||
+              0 == strcmp(queryType, MONGOC_ENCRYPT_QUERY_TYPE_SUFFIXPREVIEW) ||
+              0 == strcmp(queryType, MONGOC_ENCRYPT_QUERY_TYPE_SUBSTRINGPREVIEW)) {
+      return test_framework_get_server_version() >= test_framework_str_to_version("8.2.0") &&
+             test_framework_get_server_version() < test_framework_str_to_version("9.0.0");
+   } else {
+      test_error("Do not know server support for queryType: %s", queryType);
+   }
+   return false;
+}
+
+static string_explicit_encryption_fixture *
+string_explicit_encryption_setup(void)
+{
    bool ok;
+   bson_error_t error;
+
+   string_explicit_encryption_fixture *seef =
+      (string_explicit_encryption_fixture *)bson_malloc0(sizeof(string_explicit_encryption_fixture));
+   mongoc_client_t *setupClient = test_framework_new_default_client();
+
+   bool server_supports_prefix_suffix_substring = server_supports_queryType(MONGOC_ENCRYPT_QUERY_TYPE_PREFIX) &&
+                                                  server_supports_queryType(MONGOC_ENCRYPT_QUERY_TYPE_SUFFIX) &&
+                                                  server_supports_queryType(MONGOC_ENCRYPT_QUERY_TYPE_SUBSTRING);
+
+   // Create majority write concern opts for reuse.
+   {
+      bson_init(&seef->wc_majority_opts);
+      mongoc_write_concern_t *wc_majority = mongoc_write_concern_new();
+      mongoc_write_concern_set_w(wc_majority, MONGOC_WRITE_CONCERN_W_MAJORITY);
+      ASSERT(mongoc_write_concern_append(wc_majority, &seef->wc_majority_opts));
+      mongoc_write_concern_destroy(wc_majority);
+   }
+
+
+   // "drop and create" the QE collections:
+   {
+      char *names[5] = {0}; // NULL terminated.
+
+      size_t idx = 0;
+
+      if (server_supports_prefix_suffix_substring) {
+         names[idx++] = "prefix-suffix";
+         names[idx++] = "prefix-suffix-ci-di";
+         names[idx++] = "substring";
+         names[idx++] = "substring-ci-di";
+      } else {
+         names[idx++] = "prefix-suffix-preview";
+         names[idx++] = "substring-preview";
+      }
+
+      for (char **name_iter = names; *name_iter; name_iter++) {
+         const char *name = *name_iter;
+         bson_t *opts;
+
+         char *encryptedFields_path = bson_strdup_printf(
+            "./src/libmongoc/tests/client_side_encryption_prose/explicit_encryption/encryptedFields-%s.json", name);
+         bson_t *encryptedFields = get_bson_from_json_file(encryptedFields_path);
+         opts = BCON_NEW("encryptedFields", BCON_DOCUMENT(encryptedFields));
+         ASSERT(bson_concat(opts, &seef->wc_majority_opts));
+
+         mongoc_database_t *db = mongoc_client_get_database(setupClient, "db");
+         mongoc_collection_t *coll = mongoc_database_get_collection(db, name);
+         if (!mongoc_collection_drop_with_opts(coll, opts, &error)) {
+            if (error.code != MONGOC_SERVER_ERR_NS_NOT_FOUND) {
+               test_error("unexpected error in drop: %s", error.message);
+            }
+         }
+         mongoc_collection_destroy(coll);
+
+         coll = mongoc_database_create_collection(db, name, opts, &error);
+         ASSERT_OR_PRINT(coll, error);
+
+         bson_destroy(encryptedFields);
+         bson_free(encryptedFields_path);
+         mongoc_collection_destroy(coll);
+         bson_destroy(opts);
+         mongoc_database_destroy(db);
+      }
+   }
+
+   // "Load the file key1-document.json":
+   char *key_path = "./src/libmongoc/tests/client_side_encryption_prose/explicit_encryption/key1-document.json";
+   bson_t *key1Document = get_bson_from_json_file(key_path);
+   {
+      bson_iter_t iter;
+      const bson_value_t *value;
+
+      ASSERT(bson_iter_init_find(&iter, key1Document, "_id"));
+      value = bson_iter_value(&iter);
+      bson_value_copy(value, &seef->key1ID);
+   }
+
+
+   // Drop and create the collection `keyvault.datakeys`:
+   {
+      mongoc_database_t *db = mongoc_client_get_database(setupClient, "keyvault");
+      mongoc_collection_t *coll = mongoc_database_get_collection(db, "datakeys");
+      bson_error_t error;
+
+
+      if (!mongoc_collection_drop(coll, &error)) {
+         if (error.code != MONGOC_SERVER_ERR_NS_NOT_FOUND) {
+            test_error("unexpected error in drop: %s", error.message);
+         }
+      }
+      mongoc_collection_destroy(coll);
+
+      coll = mongoc_database_create_collection(db, "datakeys", NULL /* opts */, &error);
+      ASSERT_OR_PRINT(coll, error);
+
+      // "Insert `keyDocument1` in `keyvault.datakeys` with write concern majority"
+      ASSERT_OR_PRINT(
+         mongoc_collection_insert_one(coll, key1Document, &seef->wc_majority_opts, NULL /* reply */, &error), error);
+
+      mongoc_collection_destroy(coll);
+      mongoc_database_destroy(db);
+   }
+
+   // "Create a MongoClient named `keyVaultClient`":
+   seef->keyVaultClient = test_framework_new_default_client();
+
+   // "Create a ClientEncryption object named `clientEncryption`":
+   {
+      mongoc_client_encryption_opts_t *ceOpts = mongoc_client_encryption_opts_new();
+      bson_t *kms_providers = _make_local_kms_provider(NULL);
+      bson_error_t error;
+
+      mongoc_client_encryption_opts_set_keyvault_client(ceOpts, seef->keyVaultClient);
+      mongoc_client_encryption_opts_set_keyvault_namespace(ceOpts, "keyvault", "datakeys");
+      mongoc_client_encryption_opts_set_kms_providers(ceOpts, kms_providers);
+
+      seef->clientEncryption = mongoc_client_encryption_new(ceOpts, &error);
+      ASSERT_OR_PRINT(seef->clientEncryption, error);
+
+      bson_destroy(kms_providers);
+      mongoc_client_encryption_opts_destroy(ceOpts);
+   }
+
+   // "Create a MongoClient named `explicitEncryptedClient`":
+   {
+      mongoc_auto_encryption_opts_t *aeOpts = mongoc_auto_encryption_opts_new();
+      bson_t *kms_providers = _make_local_kms_provider(NULL);
+      bson_error_t error;
+
+      mongoc_auto_encryption_opts_set_keyvault_namespace(aeOpts, "keyvault", "datakeys");
+      mongoc_auto_encryption_opts_set_kms_providers(aeOpts, kms_providers);
+      mongoc_auto_encryption_opts_set_bypass_query_analysis(aeOpts, true);
+      seef->explicitEncryptedClient = test_framework_new_default_client();
+      ASSERT_OR_PRINT(mongoc_client_enable_auto_encryption(seef->explicitEncryptedClient, aeOpts, &error), error);
+
+      bson_destroy(kms_providers);
+      mongoc_auto_encryption_opts_destroy(aeOpts);
+   }
+
+   // "Create a MongoClient named `autoEncryptedClient`":
+   {
+      mongoc_auto_encryption_opts_t *aeOpts = mongoc_auto_encryption_opts_new();
+      bson_t *kms_providers = _make_local_kms_provider(NULL);
+      bson_error_t error;
+
+      mongoc_auto_encryption_opts_set_keyvault_namespace(aeOpts, "keyvault", "datakeys");
+      mongoc_auto_encryption_opts_set_kms_providers(aeOpts, kms_providers);
+      _set_extra(aeOpts);
+      seef->autoEncryptedClient = test_framework_new_default_client();
+      ASSERT_OR_PRINT(mongoc_client_enable_auto_encryption(seef->autoEncryptedClient, aeOpts, &error), error);
+
+      bson_destroy(kms_providers);
+      mongoc_auto_encryption_opts_destroy(aeOpts);
+   }
+
+   // Create prefix / suffix / substring options:
+   {
+      seef->prefixOpts = mongoc_client_encryption_encrypt_string_prefix_opts_new();
+      mongoc_client_encryption_encrypt_string_prefix_opts_set_str_max_query_length(seef->prefixOpts, 10);
+      mongoc_client_encryption_encrypt_string_prefix_opts_set_str_min_query_length(seef->prefixOpts, 2);
+      seef->suffixOpts = mongoc_client_encryption_encrypt_string_suffix_opts_new();
+      mongoc_client_encryption_encrypt_string_suffix_opts_set_str_max_query_length(seef->suffixOpts, 10);
+      mongoc_client_encryption_encrypt_string_suffix_opts_set_str_min_query_length(seef->suffixOpts, 2);
+
+      seef->substringOpts = mongoc_client_encryption_encrypt_string_substring_opts_new();
+      mongoc_client_encryption_encrypt_string_substring_opts_set_str_max_length(seef->substringOpts, 10);
+      mongoc_client_encryption_encrypt_string_substring_opts_set_str_max_query_length(seef->substringOpts, 6);
+      mongoc_client_encryption_encrypt_string_substring_opts_set_str_min_query_length(seef->substringOpts, 2);
+   }
+
+
    bson_value_t plaintext = {0};
-   ee_fixture *eef =
-      explicit_encryption_setup_full("./src/libmongoc/tests/client_side_encryption_prose/explicit_encryption/"
-                                     "encryptedFields-prefix-suffix.json",
-                                     "./src/libmongoc/tests/client_side_encryption_prose/explicit_encryption/"
-                                     "key1-document.json");
-
-   BSON_UNUSED(unused);
-
    plaintext.value_type = BSON_TYPE_UTF8;
    plaintext.value.v_utf8.str = "foobarbaz";
    plaintext.value.v_utf8.len = (uint32_t)strlen(plaintext.value.v_utf8.str);
 
-   mongoc_client_encryption_encrypt_text_prefix_opts_t *popts = mongoc_client_encryption_encrypt_text_prefix_opts_new();
-   mongoc_client_encryption_encrypt_text_prefix_opts_set_str_max_query_length(popts, 10);
-   mongoc_client_encryption_encrypt_text_prefix_opts_set_str_min_query_length(popts, 2);
-   mongoc_client_encryption_encrypt_text_suffix_opts_t *sopts = mongoc_client_encryption_encrypt_text_suffix_opts_new();
-   mongoc_client_encryption_encrypt_text_suffix_opts_set_str_max_query_length(sopts, 10);
-   mongoc_client_encryption_encrypt_text_suffix_opts_set_str_min_query_length(sopts, 2);
-   mongoc_client_encryption_encrypt_text_substring_opts_t *ssopts =
-      mongoc_client_encryption_encrypt_text_substring_opts_new();
-   mongoc_client_encryption_encrypt_text_substring_opts_set_str_max_length(ssopts, 10);
-   mongoc_client_encryption_encrypt_text_substring_opts_set_str_max_query_length(ssopts, 10);
-   mongoc_client_encryption_encrypt_text_substring_opts_set_str_min_query_length(ssopts, 2);
-
-   /* Prefix and suffix tests */
-   /* Insert 'foobarbaz' with both prefix and suffix indexing */
+   // Insert "foobarbaz" into db.prefix-suffix or db.prefix-suffix-preview:
    {
       bson_value_t insertPayload;
       bson_t to_insert = BSON_INITIALIZER;
 
       mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
-      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &eef->key1ID);
-      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_TEXTPREVIEW);
+      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &seef->key1ID);
+      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_STRING);
       mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
 
-      mongoc_client_encryption_encrypt_text_opts_t *topts = mongoc_client_encryption_encrypt_text_opts_new();
-      mongoc_client_encryption_encrypt_text_opts_set_prefix(topts, popts);
-      mongoc_client_encryption_encrypt_text_opts_set_suffix(topts, sopts);
-      mongoc_client_encryption_encrypt_text_opts_set_diacritic_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_text_opts_set_case_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_opts_set_text_opts(eo, topts);
+      mongoc_client_encryption_encrypt_string_opts_t *topts = mongoc_client_encryption_encrypt_string_opts_new();
+      mongoc_client_encryption_encrypt_string_opts_set_prefix(topts, seef->prefixOpts);
+      mongoc_client_encryption_encrypt_string_opts_set_suffix(topts, seef->suffixOpts);
+      mongoc_client_encryption_encrypt_string_opts_set_diacritic_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_string_opts_set_case_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_opts_set_string_opts(eo, topts);
 
-      ok = mongoc_client_encryption_encrypt(eef->clientEncryption, &plaintext, eo, &insertPayload, &error);
+      ok = mongoc_client_encryption_encrypt(seef->clientEncryption, &plaintext, eo, &insertPayload, &error);
       ASSERT_OR_PRINT(ok, error);
 
       ASSERT(BSON_APPEND_VALUE(&to_insert, "encryptedText", &insertPayload));
 
-      ok = mongoc_collection_insert_one(eef->encryptedColl, &to_insert, NULL /* opts */, NULL /* reply */, &error);
+      const char *coll_name = server_supports_prefix_suffix_substring ? "prefix-suffix" : "prefix-suffix-preview";
+      mongoc_collection_t *coll = mongoc_client_get_collection(seef->explicitEncryptedClient, "db", coll_name);
+      ok = mongoc_collection_insert_one(coll, &to_insert, &seef->wc_majority_opts, NULL /* reply */, &error);
       ASSERT_OR_PRINT(ok, error);
+      mongoc_collection_destroy(coll);
 
       bson_value_destroy(&insertPayload);
       bson_destroy(&to_insert);
-      mongoc_client_encryption_encrypt_text_opts_destroy(topts);
+      mongoc_client_encryption_encrypt_string_opts_destroy(topts);
       mongoc_client_encryption_encrypt_opts_destroy(eo);
    }
 
-   /* Find the document using the 'foo' prefix */
-   {
-      bson_value_t findPayload;
-      mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
-      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &eef->key1ID);
-      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_TEXTPREVIEW);
-      mongoc_client_encryption_encrypt_opts_set_query_type(eo, MONGOC_ENCRYPT_QUERY_TYPE_PREFIXPREVIEW);
-      mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
-
-      mongoc_client_encryption_encrypt_text_opts_t *topts = mongoc_client_encryption_encrypt_text_opts_new();
-      mongoc_client_encryption_encrypt_text_opts_set_prefix(topts, popts);
-      mongoc_client_encryption_encrypt_text_opts_set_diacritic_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_text_opts_set_case_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_opts_set_text_opts(eo, topts);
-
-      plaintext.value.v_utf8.str = "foo";
-      plaintext.value.v_utf8.len = 3;
-      ok = mongoc_client_encryption_encrypt(eef->clientEncryption, &plaintext, eo, &findPayload, &error);
-
-      bsonBuildDecl(
-         expr,
-         kv("$expr",
-            doc(kv("$encStrStartsWith", doc(kv("input", cstr("$encryptedText")), kv("prefix", value(findPayload)))))));
-      ASSERT_OR_PRINT(ok, error);
-
-      mongoc_cursor_t *cursor;
-      const bson_t *got;
-
-      cursor = mongoc_collection_find_with_opts(eef->encryptedColl, &expr, NULL /* opts */, NULL /* read_prefs */);
-      ASSERT(mongoc_cursor_next(cursor, &got));
-      ASSERT_OR_PRINT(!mongoc_cursor_error(cursor, &error), error);
-      ASSERT_MATCH(got, "{ 'encryptedText': 'foobarbaz' }");
-      ASSERT(!mongoc_cursor_next(cursor, &got) && "expected one document to be returned, got more than one");
-
-      bson_value_destroy(&findPayload);
-      mongoc_cursor_destroy(cursor);
-      bson_destroy(&expr);
-      mongoc_client_encryption_encrypt_text_opts_destroy(topts);
-      mongoc_client_encryption_encrypt_opts_destroy(eo);
-   }
-
-   /* Find the document using the 'baz' suffix */
-   {
-      bson_value_t findPayload;
-      mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
-      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &eef->key1ID);
-      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_TEXTPREVIEW);
-      mongoc_client_encryption_encrypt_opts_set_query_type(eo, MONGOC_ENCRYPT_QUERY_TYPE_SUFFIXPREVIEW);
-      mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
-
-      mongoc_client_encryption_encrypt_text_opts_t *topts = mongoc_client_encryption_encrypt_text_opts_new();
-      mongoc_client_encryption_encrypt_text_opts_set_suffix(topts, sopts);
-      mongoc_client_encryption_encrypt_text_opts_set_diacritic_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_text_opts_set_case_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_opts_set_text_opts(eo, topts);
-
-      plaintext.value.v_utf8.str = "baz";
-      plaintext.value.v_utf8.len = 3;
-      ok = mongoc_client_encryption_encrypt(eef->clientEncryption, &plaintext, eo, &findPayload, &error);
-
-      bsonBuildDecl(
-         expr,
-         kv("$expr",
-            doc(kv("$encStrEndsWith", doc(kv("input", cstr("$encryptedText")), kv("suffix", value(findPayload)))))));
-      ASSERT_OR_PRINT(ok, error);
-
-      mongoc_cursor_t *cursor;
-      const bson_t *got;
-
-      cursor = mongoc_collection_find_with_opts(eef->encryptedColl, &expr, NULL /* opts */, NULL /* read_prefs */);
-      ASSERT(mongoc_cursor_next(cursor, &got));
-      ASSERT_OR_PRINT(!mongoc_cursor_error(cursor, &error), error);
-      ASSERT_MATCH(got, "{ 'encryptedText': 'foobarbaz' }");
-      ASSERT(!mongoc_cursor_next(cursor, &got) && "expected one document to be returned, got more than one");
-
-      bson_value_destroy(&findPayload);
-      mongoc_cursor_destroy(cursor);
-      bson_destroy(&expr);
-      mongoc_client_encryption_encrypt_text_opts_destroy(topts);
-      mongoc_client_encryption_encrypt_opts_destroy(eo);
-   }
-
-   /* Ensure querying for a 'foo' suffix returns no documents */
-   {
-      bson_value_t findPayload;
-      mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
-      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &eef->key1ID);
-      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_TEXTPREVIEW);
-      mongoc_client_encryption_encrypt_opts_set_query_type(eo, MONGOC_ENCRYPT_QUERY_TYPE_SUFFIXPREVIEW);
-      mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
-
-      mongoc_client_encryption_encrypt_text_opts_t *topts = mongoc_client_encryption_encrypt_text_opts_new();
-      mongoc_client_encryption_encrypt_text_opts_set_suffix(topts, sopts);
-      mongoc_client_encryption_encrypt_text_opts_set_diacritic_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_text_opts_set_case_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_opts_set_text_opts(eo, topts);
-
-      plaintext.value.v_utf8.str = "foo";
-      plaintext.value.v_utf8.len = 3;
-      ok = mongoc_client_encryption_encrypt(eef->clientEncryption, &plaintext, eo, &findPayload, &error);
-
-      bsonBuildDecl(
-         expr,
-         kv("$expr",
-            doc(kv("$encStrEndsWith", doc(kv("input", cstr("$encryptedText")), kv("suffix", value(findPayload)))))));
-      ASSERT_OR_PRINT(ok, error);
-
-      mongoc_cursor_t *cursor;
-      const bson_t *got;
-
-      cursor = mongoc_collection_find_with_opts(eef->encryptedColl, &expr, NULL /* opts */, NULL /* read_prefs */);
-      ASSERT(!mongoc_cursor_next(cursor, &got) && "expected no documents to be returned, got some");
-      mongoc_cursor_next(cursor, &got);
-
-      bson_value_destroy(&findPayload);
-      mongoc_cursor_destroy(cursor);
-      bson_destroy(&expr);
-      mongoc_client_encryption_encrypt_text_opts_destroy(topts);
-      mongoc_client_encryption_encrypt_opts_destroy(eo);
-   }
-
-   /* Ensure querying for a 'baz' prefix returns no documents */
-   {
-      bson_value_t findPayload;
-      mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
-      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &eef->key1ID);
-      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_TEXTPREVIEW);
-      mongoc_client_encryption_encrypt_opts_set_query_type(eo, MONGOC_ENCRYPT_QUERY_TYPE_PREFIXPREVIEW);
-      mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
-
-      mongoc_client_encryption_encrypt_text_opts_t *topts = mongoc_client_encryption_encrypt_text_opts_new();
-      mongoc_client_encryption_encrypt_text_opts_set_prefix(topts, popts);
-      mongoc_client_encryption_encrypt_text_opts_set_diacritic_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_text_opts_set_case_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_opts_set_text_opts(eo, topts);
-
-      plaintext.value.v_utf8.str = "baz";
-      plaintext.value.v_utf8.len = 3;
-      ok = mongoc_client_encryption_encrypt(eef->clientEncryption, &plaintext, eo, &findPayload, &error);
-
-      bsonBuildDecl(
-         expr,
-         kv("$expr",
-            doc(kv("$encStrStartsWith", doc(kv("input", cstr("$encryptedText")), kv("prefix", value(findPayload)))))));
-      ASSERT_OR_PRINT(ok, error);
-
-      mongoc_cursor_t *cursor;
-      const bson_t *got;
-
-      cursor = mongoc_collection_find_with_opts(eef->encryptedColl, &expr, NULL /* opts */, NULL /* read_prefs */);
-      ASSERT(!mongoc_cursor_next(cursor, &got) && "expected no documents to be returned, got some");
-
-      bson_value_destroy(&findPayload);
-      mongoc_cursor_destroy(cursor);
-      bson_destroy(&expr);
-      mongoc_client_encryption_encrypt_text_opts_destroy(topts);
-      mongoc_client_encryption_encrypt_opts_destroy(eo);
-   }
-
-
-   /* Substring tests */
-   explicit_encryption_destroy(eef);
-   eef = explicit_encryption_setup_full("./src/libmongoc/tests/client_side_encryption_prose/explicit_encryption/"
-                                        "encryptedFields-substring.json",
-                                        "./src/libmongoc/tests/client_side_encryption_prose/explicit_encryption/"
-                                        "key1-document.json");
-   /* Insert 'foobarbaz' with substring indexing */
+   // Insert "foobarbaz" into db.substring or db.substring-preview:
    {
       bson_value_t insertPayload;
       bson_t to_insert = BSON_INITIALIZER;
 
       mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
-      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &eef->key1ID);
-      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_TEXTPREVIEW);
+      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &seef->key1ID);
+      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_STRING);
       mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
 
-      mongoc_client_encryption_encrypt_text_opts_t *topts = mongoc_client_encryption_encrypt_text_opts_new();
-      mongoc_client_encryption_encrypt_text_opts_set_substring(topts, ssopts);
-      mongoc_client_encryption_encrypt_text_opts_set_diacritic_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_text_opts_set_case_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_opts_set_text_opts(eo, topts);
+      mongoc_client_encryption_encrypt_string_opts_t *topts = mongoc_client_encryption_encrypt_string_opts_new();
+      mongoc_client_encryption_encrypt_string_opts_set_substring(topts, seef->substringOpts);
+      mongoc_client_encryption_encrypt_string_opts_set_diacritic_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_string_opts_set_case_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_opts_set_string_opts(eo, topts);
 
-      plaintext.value.v_utf8.str = "foobarbaz";
-      plaintext.value.v_utf8.len = 9;
-      ok = mongoc_client_encryption_encrypt(eef->clientEncryption, &plaintext, eo, &insertPayload, &error);
+      ok = mongoc_client_encryption_encrypt(seef->clientEncryption, &plaintext, eo, &insertPayload, &error);
       ASSERT_OR_PRINT(ok, error);
 
       ASSERT(BSON_APPEND_VALUE(&to_insert, "encryptedText", &insertPayload));
 
-      ok = mongoc_collection_insert_one(eef->encryptedColl, &to_insert, NULL /* opts */, NULL /* reply */, &error);
+      const char *coll_name = server_supports_prefix_suffix_substring ? "substring" : "substring-preview";
+      mongoc_collection_t *coll = mongoc_client_get_collection(seef->explicitEncryptedClient, "db", coll_name);
+      ok = mongoc_collection_insert_one(coll, &to_insert, &seef->wc_majority_opts, NULL /* reply */, &error);
       ASSERT_OR_PRINT(ok, error);
 
+      mongoc_collection_destroy(coll);
       bson_value_destroy(&insertPayload);
       bson_destroy(&to_insert);
-      mongoc_client_encryption_encrypt_text_opts_destroy(topts);
+      mongoc_client_encryption_encrypt_string_opts_destroy(topts);
       mongoc_client_encryption_encrypt_opts_destroy(eo);
    }
 
-   /* Find the document using the 'bar' substring */
-   {
-      bson_value_t findPayload;
+   mongoc_client_destroy(setupClient);
+   bson_destroy(key1Document);
+   return seef;
+}
+
+static void
+string_explicit_encryption_destroy(string_explicit_encryption_fixture *seef)
+{
+   if (!seef) {
+      return;
+   }
+
+   bson_destroy(&seef->wc_majority_opts);
+   mongoc_client_encryption_encrypt_string_prefix_opts_destroy(seef->prefixOpts);
+   mongoc_client_encryption_encrypt_string_suffix_opts_destroy(seef->suffixOpts);
+   mongoc_client_encryption_encrypt_string_substring_opts_destroy(seef->substringOpts);
+
+   mongoc_client_destroy(seef->autoEncryptedClient);
+   mongoc_client_destroy(seef->explicitEncryptedClient);
+   mongoc_client_encryption_destroy(seef->clientEncryption);
+   mongoc_client_destroy(seef->keyVaultClient);
+   bson_value_destroy(&seef->key1ID);
+   bson_free(seef);
+}
+
+#define assert_cursor_matches(cursor, expected_json)                                       \
+   {                                                                                       \
+      const bson_t *got;                                                                   \
+      bool found = mongoc_cursor_next(cursor, &got);                                       \
+      ASSERT_OR_PRINT(!mongoc_cursor_error(cursor, &error), error);                        \
+      ASSERT(found);                                                                       \
+      ASSERT_MATCH(got, expected_json);                                                    \
+      if (mongoc_cursor_next(cursor, &got)) {                                              \
+         test_error("expected one document to be returned, got extra: %s", tmp_json(got)); \
+      }                                                                                    \
+   }
+
+#define assert_cursor_empty(cursor)                                                        \
+   {                                                                                       \
+      const bson_t *got;                                                                   \
+      bool found = mongoc_cursor_next(cursor, &got);                                       \
+      ASSERT_OR_PRINT(!mongoc_cursor_error(cursor, &error), error);                        \
+      if (found) {                                                                         \
+         test_error("expected no documents to be returned, but found: %s", tmp_json(got)); \
+      }                                                                                    \
+   }
+
+static void
+test_string_explicit_encryption(void *unused)
+{
+   bson_error_t error;
+   bool ok;
+
+   BSON_UNUSED(unused);
+
+   typedef struct {
+      const char *queryType;
+      const char *collection;
+   } text_subcase_t;
+
+   text_subcase_t prefix_subcases[] = {
+      {.queryType = MONGOC_ENCRYPT_QUERY_TYPE_PREFIX, .collection = "prefix-suffix"},
+      {.queryType = MONGOC_ENCRYPT_QUERY_TYPE_PREFIXPREVIEW, .collection = "prefix-suffix-preview"}};
+   text_subcase_t suffix_subcases[] = {
+      {.queryType = MONGOC_ENCRYPT_QUERY_TYPE_SUFFIX, .collection = "prefix-suffix"},
+      {.queryType = MONGOC_ENCRYPT_QUERY_TYPE_SUFFIXPREVIEW, .collection = "prefix-suffix-preview"}};
+   text_subcase_t substring_subcases[] = {
+      {.queryType = MONGOC_ENCRYPT_QUERY_TYPE_SUBSTRING, .collection = "substring"},
+      {.queryType = MONGOC_ENCRYPT_QUERY_TYPE_SUBSTRINGPREVIEW, .collection = "substring-preview"}};
+
+
+   // Case 1: can find a document by prefix
+   for (size_t i = 0; i < sizeof(prefix_subcases) / sizeof(text_subcase_t); i++) {
+      text_subcase_t subcase = prefix_subcases[i];
+      if (!server_supports_queryType(subcase.queryType)) {
+         MONGOC_DEBUG("skipping unsupported queryType: %s", subcase.queryType);
+         continue;
+      }
+      string_explicit_encryption_fixture *seef = string_explicit_encryption_setup();
       mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
-      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &eef->key1ID);
-      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_TEXTPREVIEW);
-      mongoc_client_encryption_encrypt_opts_set_query_type(eo, MONGOC_ENCRYPT_QUERY_TYPE_SUBSTRINGPREVIEW);
+      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &seef->key1ID);
+      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_STRING);
+      mongoc_client_encryption_encrypt_opts_set_query_type(eo, subcase.queryType);
       mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
 
-      mongoc_client_encryption_encrypt_text_opts_t *topts = mongoc_client_encryption_encrypt_text_opts_new();
-      mongoc_client_encryption_encrypt_text_opts_set_substring(topts, ssopts);
-      mongoc_client_encryption_encrypt_text_opts_set_diacritic_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_text_opts_set_case_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_opts_set_text_opts(eo, topts);
+      mongoc_client_encryption_encrypt_string_opts_t *topts = mongoc_client_encryption_encrypt_string_opts_new();
+      mongoc_client_encryption_encrypt_string_opts_set_prefix(topts, seef->prefixOpts);
+      mongoc_client_encryption_encrypt_string_opts_set_diacritic_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_string_opts_set_case_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_opts_set_string_opts(eo, topts);
 
+      bson_value_t plaintext = {0};
+      plaintext.value_type = BSON_TYPE_UTF8;
+      plaintext.value.v_utf8.str = "foo";
+      plaintext.value.v_utf8.len = 3;
+
+      bson_value_t findPayload;
+      ok = mongoc_client_encryption_encrypt(seef->clientEncryption, &plaintext, eo, &findPayload, &error);
+      ASSERT_OR_PRINT(ok, error);
+
+      bsonBuildDecl(
+         expr,
+         kv("$expr",
+            doc(kv("$encStrStartsWith", doc(kv("input", cstr("$encryptedText")), kv("prefix", value(findPayload)))))));
+
+      mongoc_collection_t *coll = mongoc_client_get_collection(seef->explicitEncryptedClient, "db", subcase.collection);
+      mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(coll, &expr, NULL /* opts */, NULL /* read_prefs */);
+      assert_cursor_matches(cursor, "{ 'encryptedText': 'foobarbaz' }");
+
+      mongoc_collection_destroy(coll);
+      bson_value_destroy(&findPayload);
+      mongoc_cursor_destroy(cursor);
+      bson_destroy(&expr);
+      mongoc_client_encryption_encrypt_string_opts_destroy(topts);
+      mongoc_client_encryption_encrypt_opts_destroy(eo);
+      string_explicit_encryption_destroy(seef);
+   }
+
+   // Case 2: can find a document by suffix
+   for (size_t i = 0; i < sizeof(suffix_subcases) / sizeof(text_subcase_t); i++) {
+      text_subcase_t subcase = suffix_subcases[i];
+      if (!server_supports_queryType(subcase.queryType)) {
+         MONGOC_DEBUG("skipping unsupported queryType: %s", subcase.queryType);
+         continue;
+      }
+      string_explicit_encryption_fixture *seef = string_explicit_encryption_setup();
+      mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
+      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &seef->key1ID);
+      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_STRING);
+      mongoc_client_encryption_encrypt_opts_set_query_type(eo, subcase.queryType);
+      mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
+
+      mongoc_client_encryption_encrypt_string_opts_t *topts = mongoc_client_encryption_encrypt_string_opts_new();
+      mongoc_client_encryption_encrypt_string_opts_set_suffix(topts, seef->suffixOpts);
+      mongoc_client_encryption_encrypt_string_opts_set_diacritic_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_string_opts_set_case_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_opts_set_string_opts(eo, topts);
+
+      bson_value_t plaintext = {0};
+      plaintext.value_type = BSON_TYPE_UTF8;
+      plaintext.value.v_utf8.str = "baz";
+      plaintext.value.v_utf8.len = 3;
+
+      bson_value_t findPayload;
+      ok = mongoc_client_encryption_encrypt(seef->clientEncryption, &plaintext, eo, &findPayload, &error);
+      ASSERT_OR_PRINT(ok, error);
+
+      bsonBuildDecl(
+         expr,
+         kv("$expr",
+            doc(kv("$encStrEndsWith", doc(kv("input", cstr("$encryptedText")), kv("suffix", value(findPayload)))))));
+
+      mongoc_collection_t *coll = mongoc_client_get_collection(seef->explicitEncryptedClient, "db", subcase.collection);
+      mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(coll, &expr, NULL /* opts */, NULL /* read_prefs */);
+      assert_cursor_matches(cursor, "{ 'encryptedText': 'foobarbaz' }");
+
+      mongoc_collection_destroy(coll);
+      bson_value_destroy(&findPayload);
+      mongoc_cursor_destroy(cursor);
+      bson_destroy(&expr);
+      mongoc_client_encryption_encrypt_string_opts_destroy(topts);
+      mongoc_client_encryption_encrypt_opts_destroy(eo);
+      string_explicit_encryption_destroy(seef);
+   }
+
+   // Case 3: assert no document found by prefix
+   for (size_t i = 0; i < sizeof(prefix_subcases) / sizeof(text_subcase_t); i++) {
+      text_subcase_t subcase = prefix_subcases[i];
+      if (!server_supports_queryType(subcase.queryType)) {
+         MONGOC_DEBUG("skipping unsupported queryType: %s", subcase.queryType);
+         continue;
+      }
+      string_explicit_encryption_fixture *seef = string_explicit_encryption_setup();
+      mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
+      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &seef->key1ID);
+      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_STRING);
+      mongoc_client_encryption_encrypt_opts_set_query_type(eo, subcase.queryType);
+      mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
+
+      mongoc_client_encryption_encrypt_string_opts_t *topts = mongoc_client_encryption_encrypt_string_opts_new();
+      mongoc_client_encryption_encrypt_string_opts_set_prefix(topts, seef->prefixOpts);
+      mongoc_client_encryption_encrypt_string_opts_set_diacritic_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_string_opts_set_case_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_opts_set_string_opts(eo, topts);
+
+      bson_value_t plaintext = {0};
+      plaintext.value_type = BSON_TYPE_UTF8;
+      plaintext.value.v_utf8.str = "baz";
+      plaintext.value.v_utf8.len = 3;
+
+      bson_value_t findPayload;
+      ok = mongoc_client_encryption_encrypt(seef->clientEncryption, &plaintext, eo, &findPayload, &error);
+      ASSERT_OR_PRINT(ok, error);
+
+      bsonBuildDecl(
+         expr,
+         kv("$expr",
+            doc(kv("$encStrStartsWith", doc(kv("input", cstr("$encryptedText")), kv("prefix", value(findPayload)))))));
+
+      mongoc_collection_t *coll = mongoc_client_get_collection(seef->explicitEncryptedClient, "db", subcase.collection);
+      mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(coll, &expr, NULL /* opts */, NULL /* read_prefs */);
+      assert_cursor_empty(cursor);
+
+      mongoc_collection_destroy(coll);
+      bson_value_destroy(&findPayload);
+      mongoc_cursor_destroy(cursor);
+      bson_destroy(&expr);
+      mongoc_client_encryption_encrypt_string_opts_destroy(topts);
+      mongoc_client_encryption_encrypt_opts_destroy(eo);
+      string_explicit_encryption_destroy(seef);
+   }
+
+   // Case 4: assert no document found by suffix
+   for (size_t i = 0; i < sizeof(suffix_subcases) / sizeof(text_subcase_t); i++) {
+      text_subcase_t subcase = suffix_subcases[i];
+      if (!server_supports_queryType(subcase.queryType)) {
+         MONGOC_DEBUG("skipping unsupported queryType: %s", subcase.queryType);
+         continue;
+      }
+      string_explicit_encryption_fixture *seef = string_explicit_encryption_setup();
+      mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
+      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &seef->key1ID);
+      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_STRING);
+      mongoc_client_encryption_encrypt_opts_set_query_type(eo, subcase.queryType);
+      mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
+
+      mongoc_client_encryption_encrypt_string_opts_t *topts = mongoc_client_encryption_encrypt_string_opts_new();
+      mongoc_client_encryption_encrypt_string_opts_set_suffix(topts, seef->suffixOpts);
+      mongoc_client_encryption_encrypt_string_opts_set_diacritic_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_string_opts_set_case_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_opts_set_string_opts(eo, topts);
+
+      bson_value_t plaintext = {0};
+      plaintext.value_type = BSON_TYPE_UTF8;
+      plaintext.value.v_utf8.str = "foo";
+      plaintext.value.v_utf8.len = 3;
+
+      bson_value_t findPayload;
+      ok = mongoc_client_encryption_encrypt(seef->clientEncryption, &plaintext, eo, &findPayload, &error);
+      ASSERT_OR_PRINT(ok, error);
+
+      bsonBuildDecl(
+         expr,
+         kv("$expr",
+            doc(kv("$encStrEndsWith", doc(kv("input", cstr("$encryptedText")), kv("suffix", value(findPayload)))))));
+
+      mongoc_collection_t *coll = mongoc_client_get_collection(seef->explicitEncryptedClient, "db", subcase.collection);
+      mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(coll, &expr, NULL /* opts */, NULL /* read_prefs */);
+      assert_cursor_empty(cursor);
+
+      mongoc_collection_destroy(coll);
+      bson_value_destroy(&findPayload);
+      mongoc_cursor_destroy(cursor);
+      bson_destroy(&expr);
+      mongoc_client_encryption_encrypt_string_opts_destroy(topts);
+      mongoc_client_encryption_encrypt_opts_destroy(eo);
+      string_explicit_encryption_destroy(seef);
+   }
+
+   // Case 5: can find a document by substring
+   for (size_t i = 0; i < sizeof(substring_subcases) / sizeof(substring_subcases[0]); i++) {
+      text_subcase_t subcase = substring_subcases[i];
+
+      if (!server_supports_queryType(subcase.queryType)) {
+         MONGOC_DEBUG("skipping case because server does not support query type %s", subcase.queryType);
+         continue;
+      }
+
+      string_explicit_encryption_fixture *seef = string_explicit_encryption_setup();
+      mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
+      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &seef->key1ID);
+      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_STRING);
+      mongoc_client_encryption_encrypt_opts_set_query_type(eo, subcase.queryType);
+      mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
+
+      mongoc_client_encryption_encrypt_string_opts_t *topts = mongoc_client_encryption_encrypt_string_opts_new();
+      mongoc_client_encryption_encrypt_string_opts_set_substring(topts, seef->substringOpts);
+      mongoc_client_encryption_encrypt_string_opts_set_diacritic_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_string_opts_set_case_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_opts_set_string_opts(eo, topts);
+
+      bson_value_t plaintext = {0};
+      plaintext.value_type = BSON_TYPE_UTF8;
       plaintext.value.v_utf8.str = "bar";
       plaintext.value.v_utf8.len = 3;
-      ok = mongoc_client_encryption_encrypt(eef->clientEncryption, &plaintext, eo, &findPayload, &error);
+
+      bson_value_t findPayload;
+      ok = mongoc_client_encryption_encrypt(seef->clientEncryption, &plaintext, eo, &findPayload, &error);
+      ASSERT_OR_PRINT(ok, error);
 
       bsonBuildDecl(
          expr,
          kv("$expr",
             doc(kv("$encStrContains", doc(kv("input", cstr("$encryptedText")), kv("substring", value(findPayload)))))));
-      ASSERT_OR_PRINT(ok, error);
 
-      mongoc_cursor_t *cursor;
-      const bson_t *got;
+      mongoc_collection_t *coll = mongoc_client_get_collection(seef->explicitEncryptedClient, "db", subcase.collection);
+      mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(coll, &expr, NULL /* opts */, NULL /* read_prefs */);
+      assert_cursor_matches(cursor, "{ 'encryptedText': 'foobarbaz' }");
 
-      cursor = mongoc_collection_find_with_opts(eef->encryptedColl, &expr, NULL /* opts */, NULL /* read_prefs */);
-      ASSERT(mongoc_cursor_next(cursor, &got));
-      ASSERT_OR_PRINT(!mongoc_cursor_error(cursor, &error), error);
-      ASSERT_MATCH(got, "{ 'encryptedText': 'foobarbaz' }");
-      ASSERT(!mongoc_cursor_next(cursor, &got) && "expected one document to be returned, got more than one");
-
+      mongoc_collection_destroy(coll);
       bson_value_destroy(&findPayload);
       mongoc_cursor_destroy(cursor);
       bson_destroy(&expr);
-      mongoc_client_encryption_encrypt_text_opts_destroy(topts);
+      mongoc_client_encryption_encrypt_string_opts_destroy(topts);
       mongoc_client_encryption_encrypt_opts_destroy(eo);
+      string_explicit_encryption_destroy(seef);
    }
 
-   /* Ensure querying for a 'qux' substring returns no documents */
-   {
-      bson_value_t findPayload;
+   // Case 6: assert no document found by substring
+   for (size_t i = 0; i < sizeof(substring_subcases) / sizeof(substring_subcases[0]); i++) {
+      text_subcase_t subcase = substring_subcases[i];
+
+      if (!server_supports_queryType(subcase.queryType)) {
+         MONGOC_DEBUG("skipping case because server does not support query type %s", subcase.queryType);
+         continue;
+      }
+      string_explicit_encryption_fixture *seef = string_explicit_encryption_setup();
       mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
-      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &eef->key1ID);
-      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_TEXTPREVIEW);
-      mongoc_client_encryption_encrypt_opts_set_query_type(eo, MONGOC_ENCRYPT_QUERY_TYPE_SUBSTRINGPREVIEW);
+      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &seef->key1ID);
+      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_STRING);
+      mongoc_client_encryption_encrypt_opts_set_query_type(eo, subcase.queryType);
       mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
 
-      mongoc_client_encryption_encrypt_text_opts_t *topts = mongoc_client_encryption_encrypt_text_opts_new();
-      mongoc_client_encryption_encrypt_text_opts_set_substring(topts, ssopts);
-      mongoc_client_encryption_encrypt_text_opts_set_diacritic_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_text_opts_set_case_sensitive(topts, true);
-      mongoc_client_encryption_encrypt_opts_set_text_opts(eo, topts);
+      mongoc_client_encryption_encrypt_string_opts_t *topts = mongoc_client_encryption_encrypt_string_opts_new();
+      mongoc_client_encryption_encrypt_string_opts_set_substring(topts, seef->substringOpts);
+      mongoc_client_encryption_encrypt_string_opts_set_diacritic_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_string_opts_set_case_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_opts_set_string_opts(eo, topts);
 
+      bson_value_t plaintext = {0};
+      plaintext.value_type = BSON_TYPE_UTF8;
       plaintext.value.v_utf8.str = "qux";
       plaintext.value.v_utf8.len = 3;
-      ok = mongoc_client_encryption_encrypt(eef->clientEncryption, &plaintext, eo, &findPayload, &error);
+
+      bson_value_t findPayload;
+      ok = mongoc_client_encryption_encrypt(seef->clientEncryption, &plaintext, eo, &findPayload, &error);
+      ASSERT_OR_PRINT(ok, error);
 
       bsonBuildDecl(
          expr,
          kv("$expr",
             doc(kv("$encStrContains", doc(kv("input", cstr("$encryptedText")), kv("substring", value(findPayload)))))));
-      ASSERT_OR_PRINT(ok, error);
 
-      mongoc_cursor_t *cursor;
-      const bson_t *got;
+      mongoc_collection_t *coll = mongoc_client_get_collection(seef->explicitEncryptedClient, "db", subcase.collection);
+      mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(coll, &expr, NULL /* opts */, NULL /* read_prefs */);
+      assert_cursor_empty(cursor);
 
-      cursor = mongoc_collection_find_with_opts(eef->encryptedColl, &expr, NULL /* opts */, NULL /* read_prefs */);
-      ASSERT(!mongoc_cursor_next(cursor, &got) && "expected no documents to be returned, got some");
-
+      mongoc_collection_destroy(coll);
       bson_value_destroy(&findPayload);
       mongoc_cursor_destroy(cursor);
       bson_destroy(&expr);
-      mongoc_client_encryption_encrypt_text_opts_destroy(topts);
+      mongoc_client_encryption_encrypt_string_opts_destroy(topts);
       mongoc_client_encryption_encrypt_opts_destroy(eo);
+      string_explicit_encryption_destroy(seef);
    }
-   mongoc_client_encryption_encrypt_text_prefix_opts_destroy(popts);
-   mongoc_client_encryption_encrypt_text_suffix_opts_destroy(sopts);
-   mongoc_client_encryption_encrypt_text_substring_opts_destroy(ssopts);
-   explicit_encryption_destroy(eef);
+
+   // Case 7: assert `contentionFactor` is required
+   if (server_supports_queryType(MONGOC_ENCRYPT_QUERY_TYPE_PREFIX)) {
+      string_explicit_encryption_fixture *seef = string_explicit_encryption_setup();
+      mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
+      mongoc_client_encryption_encrypt_opts_set_keyid(eo, &seef->key1ID);
+      mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_STRING);
+      mongoc_client_encryption_encrypt_opts_set_query_type(eo, MONGOC_ENCRYPT_QUERY_TYPE_PREFIX);
+
+      mongoc_client_encryption_encrypt_string_opts_t *topts = mongoc_client_encryption_encrypt_string_opts_new();
+      mongoc_client_encryption_encrypt_string_opts_set_prefix(topts, seef->prefixOpts);
+      mongoc_client_encryption_encrypt_string_opts_set_diacritic_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_string_opts_set_case_sensitive(topts, true);
+      mongoc_client_encryption_encrypt_opts_set_string_opts(eo, topts);
+
+      bson_value_t plaintext = {0};
+      plaintext.value_type = BSON_TYPE_UTF8;
+      plaintext.value.v_utf8.str = "foo";
+      plaintext.value.v_utf8.len = 3;
+
+      bson_value_t findPayload;
+      ok = mongoc_client_encryption_encrypt(seef->clientEncryption, &plaintext, eo, &findPayload, &error);
+      ASSERT(!ok);
+      ASSERT_ERROR_CONTAINS(error,
+                            MONGOC_ERROR_CLIENT_SIDE_ENCRYPTION,
+                            1 /* generic error code from libmongocrypt */,
+                            "contention factor is required");
+      bson_value_destroy(&findPayload);
+      mongoc_client_encryption_encrypt_string_opts_destroy(topts);
+      mongoc_client_encryption_encrypt_opts_destroy(eo);
+      string_explicit_encryption_destroy(seef);
+   }
+
+   // Case 8: can find a case-insensitively indexed document by prefix and suffix
+   if (server_supports_queryType(MONGOC_ENCRYPT_QUERY_TYPE_PREFIX) &&
+       server_supports_queryType(MONGOC_ENCRYPT_QUERY_TYPE_SUFFIX)) {
+      string_explicit_encryption_fixture *seef = string_explicit_encryption_setup();
+
+      // "Use `autoEncryptedClient` to insert"
+      {
+         mongoc_collection_t *coll =
+            mongoc_client_get_collection(seef->autoEncryptedClient, "db", "prefix-suffix-ci-di");
+         ASSERT_OR_PRINT(mongoc_collection_insert_one(
+                            coll, tmp_bson("{'encryptedText': 'BingQiLin'}"), &seef->wc_majority_opts, NULL, &error),
+                         error);
+         mongoc_collection_destroy(coll);
+      }
+
+      // "Use `clientEncryption.encrypt()` to encrypt the string `"bing"`"
+      {
+         mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
+         mongoc_client_encryption_encrypt_opts_set_keyid(eo, &seef->key1ID);
+         mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_STRING);
+         mongoc_client_encryption_encrypt_opts_set_query_type(eo, MONGOC_ENCRYPT_QUERY_TYPE_PREFIX);
+         mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
+
+         mongoc_client_encryption_encrypt_string_opts_t *topts = mongoc_client_encryption_encrypt_string_opts_new();
+         mongoc_client_encryption_encrypt_string_opts_set_prefix(topts, seef->prefixOpts);
+         mongoc_client_encryption_encrypt_string_opts_set_diacritic_sensitive(topts, false);
+         mongoc_client_encryption_encrypt_string_opts_set_case_sensitive(topts, false);
+         mongoc_client_encryption_encrypt_opts_set_string_opts(eo, topts);
+
+         bson_value_t plaintext = {0};
+         plaintext.value_type = BSON_TYPE_UTF8;
+         plaintext.value.v_utf8.str = "bing";
+         plaintext.value.v_utf8.len = 4;
+
+         bson_value_t findPayload;
+         ok = mongoc_client_encryption_encrypt(seef->clientEncryption, &plaintext, eo, &findPayload, &error);
+         ASSERT_OR_PRINT(ok, error);
+
+         bsonBuildDecl(expr,
+                       kv("$expr",
+                          doc(kv("$encStrStartsWith",
+                                 doc(kv("input", cstr("$encryptedText")), kv("prefix", value(findPayload)))))));
+
+         mongoc_collection_t *coll =
+            mongoc_client_get_collection(seef->explicitEncryptedClient, "db", "prefix-suffix-ci-di");
+         mongoc_cursor_t *cursor =
+            mongoc_collection_find_with_opts(coll, &expr, NULL /* opts */, NULL /* read_prefs */);
+         assert_cursor_matches(cursor, "{ 'encryptedText': 'BingQiLin' }");
+
+         mongoc_collection_destroy(coll);
+         bson_value_destroy(&findPayload);
+         mongoc_cursor_destroy(cursor);
+         bson_destroy(&expr);
+         mongoc_client_encryption_encrypt_string_opts_destroy(topts);
+         mongoc_client_encryption_encrypt_opts_destroy(eo);
+      }
+
+      // "Use `clientEncryption.encrypt()` to encrypt the string `"lin"`"
+      {
+         mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
+         mongoc_client_encryption_encrypt_opts_set_keyid(eo, &seef->key1ID);
+         mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_STRING);
+         mongoc_client_encryption_encrypt_opts_set_query_type(eo, MONGOC_ENCRYPT_QUERY_TYPE_SUFFIX);
+         mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
+
+         mongoc_client_encryption_encrypt_string_opts_t *topts = mongoc_client_encryption_encrypt_string_opts_new();
+         mongoc_client_encryption_encrypt_string_opts_set_suffix(topts, seef->suffixOpts);
+         mongoc_client_encryption_encrypt_string_opts_set_diacritic_sensitive(topts, false);
+         mongoc_client_encryption_encrypt_string_opts_set_case_sensitive(topts, false);
+         mongoc_client_encryption_encrypt_opts_set_string_opts(eo, topts);
+
+         bson_value_t plaintext = {0};
+         plaintext.value_type = BSON_TYPE_UTF8;
+         plaintext.value.v_utf8.str = "lin";
+         plaintext.value.v_utf8.len = 3;
+
+         bson_value_t findPayload;
+         ok = mongoc_client_encryption_encrypt(seef->clientEncryption, &plaintext, eo, &findPayload, &error);
+         ASSERT_OR_PRINT(ok, error);
+
+         bsonBuildDecl(
+            expr,
+            kv("$expr",
+               doc(kv("$encStrEndsWith", doc(kv("input", cstr("$encryptedText")), kv("suffix", value(findPayload)))))));
+
+         mongoc_collection_t *coll =
+            mongoc_client_get_collection(seef->explicitEncryptedClient, "db", "prefix-suffix-ci-di");
+         mongoc_cursor_t *cursor =
+            mongoc_collection_find_with_opts(coll, &expr, NULL /* opts */, NULL /* read_prefs */);
+         assert_cursor_matches(cursor, "{ 'encryptedText': 'BingQiLin' }");
+
+         mongoc_collection_destroy(coll);
+         bson_value_destroy(&findPayload);
+         mongoc_cursor_destroy(cursor);
+         bson_destroy(&expr);
+         mongoc_client_encryption_encrypt_string_opts_destroy(topts);
+         mongoc_client_encryption_encrypt_opts_destroy(eo);
+      }
+
+      string_explicit_encryption_destroy(seef);
+   }
+
+   // Case 9: can find a case and diacritic-insensitively indexed document by prefix and suffix
+   if (server_supports_queryType(MONGOC_ENCRYPT_QUERY_TYPE_PREFIX) &&
+       server_supports_queryType(MONGOC_ENCRYPT_QUERY_TYPE_SUFFIX)) {
+      string_explicit_encryption_fixture *seef = string_explicit_encryption_setup();
+
+      // "Use `autoEncryptedClient` to insert"
+      {
+         mongoc_collection_t *coll =
+            mongoc_client_get_collection(seef->autoEncryptedClient, "db", "prefix-suffix-ci-di");
+
+#define E_ACCENT "\xC3\xA9"
+#define A_UMLAUT "\xC3\xA4"
+
+         ASSERT_OR_PRINT(mongoc_collection_insert_one(coll,
+                                                      tmp_bson("{'encryptedText': 'caf" E_ACCENT "barb" A_UMLAUT "z'}"),
+                                                      &seef->wc_majority_opts,
+                                                      NULL,
+                                                      &error),
+                         error);
+         mongoc_collection_destroy(coll);
+      }
+
+      // "Use `clientEncryption.encrypt()` to encrypt the string `"cafe"`"
+      {
+         mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
+         mongoc_client_encryption_encrypt_opts_set_keyid(eo, &seef->key1ID);
+         mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_STRING);
+         mongoc_client_encryption_encrypt_opts_set_query_type(eo, MONGOC_ENCRYPT_QUERY_TYPE_PREFIX);
+         mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
+
+         mongoc_client_encryption_encrypt_string_opts_t *topts = mongoc_client_encryption_encrypt_string_opts_new();
+         mongoc_client_encryption_encrypt_string_opts_set_prefix(topts, seef->prefixOpts);
+         mongoc_client_encryption_encrypt_string_opts_set_diacritic_sensitive(topts, false);
+         mongoc_client_encryption_encrypt_string_opts_set_case_sensitive(topts, false);
+         mongoc_client_encryption_encrypt_opts_set_string_opts(eo, topts);
+
+         bson_value_t plaintext = {0};
+         plaintext.value_type = BSON_TYPE_UTF8;
+         plaintext.value.v_utf8.str = "cafe";
+         plaintext.value.v_utf8.len = 4;
+
+         bson_value_t findPayload;
+         ok = mongoc_client_encryption_encrypt(seef->clientEncryption, &plaintext, eo, &findPayload, &error);
+         ASSERT_OR_PRINT(ok, error);
+
+         bsonBuildDecl(expr,
+                       kv("$expr",
+                          doc(kv("$encStrStartsWith",
+                                 doc(kv("input", cstr("$encryptedText")), kv("prefix", value(findPayload)))))));
+
+         mongoc_collection_t *coll =
+            mongoc_client_get_collection(seef->explicitEncryptedClient, "db", "prefix-suffix-ci-di");
+         mongoc_cursor_t *cursor =
+            mongoc_collection_find_with_opts(coll, &expr, NULL /* opts */, NULL /* read_prefs */);
+         assert_cursor_matches(cursor, "{ 'encryptedText': 'caf" E_ACCENT "barb" A_UMLAUT "z' }");
+
+         mongoc_collection_destroy(coll);
+         bson_value_destroy(&findPayload);
+         mongoc_cursor_destroy(cursor);
+         bson_destroy(&expr);
+         mongoc_client_encryption_encrypt_string_opts_destroy(topts);
+         mongoc_client_encryption_encrypt_opts_destroy(eo);
+      }
+
+      // "Use `clientEncryption.encrypt()` to encrypt the string `"baz"`"
+      {
+         mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
+         mongoc_client_encryption_encrypt_opts_set_keyid(eo, &seef->key1ID);
+         mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_STRING);
+         mongoc_client_encryption_encrypt_opts_set_query_type(eo, MONGOC_ENCRYPT_QUERY_TYPE_SUFFIX);
+         mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
+
+         mongoc_client_encryption_encrypt_string_opts_t *topts = mongoc_client_encryption_encrypt_string_opts_new();
+         mongoc_client_encryption_encrypt_string_opts_set_suffix(topts, seef->suffixOpts);
+         mongoc_client_encryption_encrypt_string_opts_set_diacritic_sensitive(topts, false);
+         mongoc_client_encryption_encrypt_string_opts_set_case_sensitive(topts, false);
+         mongoc_client_encryption_encrypt_opts_set_string_opts(eo, topts);
+
+         bson_value_t plaintext = {0};
+         plaintext.value_type = BSON_TYPE_UTF8;
+         plaintext.value.v_utf8.str = "baz";
+         plaintext.value.v_utf8.len = 3;
+
+         bson_value_t findPayload;
+         ok = mongoc_client_encryption_encrypt(seef->clientEncryption, &plaintext, eo, &findPayload, &error);
+         ASSERT_OR_PRINT(ok, error);
+
+         bsonBuildDecl(
+            expr,
+            kv("$expr",
+               doc(kv("$encStrEndsWith", doc(kv("input", cstr("$encryptedText")), kv("suffix", value(findPayload)))))));
+
+         mongoc_collection_t *coll =
+            mongoc_client_get_collection(seef->explicitEncryptedClient, "db", "prefix-suffix-ci-di");
+         mongoc_cursor_t *cursor =
+            mongoc_collection_find_with_opts(coll, &expr, NULL /* opts */, NULL /* read_prefs */);
+         assert_cursor_matches(cursor, "{ 'encryptedText': 'caf" E_ACCENT "barb" A_UMLAUT "z' }");
+
+         mongoc_collection_destroy(coll);
+         bson_value_destroy(&findPayload);
+         mongoc_cursor_destroy(cursor);
+         bson_destroy(&expr);
+         mongoc_client_encryption_encrypt_string_opts_destroy(topts);
+         mongoc_client_encryption_encrypt_opts_destroy(eo);
+      }
+
+      string_explicit_encryption_destroy(seef);
+   }
+
+   // Case 10: can find a case-insensitively indexed document by substring
+   if (server_supports_queryType(MONGOC_ENCRYPT_QUERY_TYPE_SUBSTRING)) {
+      string_explicit_encryption_fixture *seef = string_explicit_encryption_setup();
+
+      // "Use `autoEncryptedClient` to insert"
+      {
+         mongoc_collection_t *coll = mongoc_client_get_collection(seef->autoEncryptedClient, "db", "substring-ci-di");
+         ASSERT_OR_PRINT(mongoc_collection_insert_one(
+                            coll, tmp_bson("{'encryptedText': 'FooBarBaz'}"), &seef->wc_majority_opts, NULL, &error),
+                         error);
+         mongoc_collection_destroy(coll);
+      }
+
+      // "Use `clientEncryption.encrypt()` to encrypt the string `"bar"`"
+      {
+         mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
+         mongoc_client_encryption_encrypt_opts_set_keyid(eo, &seef->key1ID);
+         mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_STRING);
+         mongoc_client_encryption_encrypt_opts_set_query_type(eo, MONGOC_ENCRYPT_QUERY_TYPE_SUBSTRINGPREVIEW);
+         mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
+
+         mongoc_client_encryption_encrypt_string_opts_t *topts = mongoc_client_encryption_encrypt_string_opts_new();
+         mongoc_client_encryption_encrypt_string_opts_set_substring(topts, seef->substringOpts);
+         mongoc_client_encryption_encrypt_string_opts_set_diacritic_sensitive(topts, false);
+         mongoc_client_encryption_encrypt_string_opts_set_case_sensitive(topts, false);
+         mongoc_client_encryption_encrypt_opts_set_string_opts(eo, topts);
+
+         bson_value_t plaintext = {0};
+         plaintext.value_type = BSON_TYPE_UTF8;
+         plaintext.value.v_utf8.str = "bar";
+         plaintext.value.v_utf8.len = 3;
+
+         bson_value_t findPayload;
+         ok = mongoc_client_encryption_encrypt(seef->clientEncryption, &plaintext, eo, &findPayload, &error);
+         ASSERT_OR_PRINT(ok, error);
+
+         bsonBuildDecl(expr,
+                       kv("$expr",
+                          doc(kv("$encStrContains",
+                                 doc(kv("input", cstr("$encryptedText")), kv("substring", value(findPayload)))))));
+
+         mongoc_collection_t *coll =
+            mongoc_client_get_collection(seef->explicitEncryptedClient, "db", "substring-ci-di");
+         mongoc_cursor_t *cursor =
+            mongoc_collection_find_with_opts(coll, &expr, NULL /* opts */, NULL /* read_prefs */);
+         assert_cursor_matches(cursor, "{ 'encryptedText': 'FooBarBaz' }");
+
+         mongoc_collection_destroy(coll);
+         bson_value_destroy(&findPayload);
+         mongoc_cursor_destroy(cursor);
+         bson_destroy(&expr);
+         mongoc_client_encryption_encrypt_string_opts_destroy(topts);
+         mongoc_client_encryption_encrypt_opts_destroy(eo);
+      }
+
+      string_explicit_encryption_destroy(seef);
+   }
+
+   // Case 11: can find a diacritic-insensitively indexed document by substring
+   if (server_supports_queryType(MONGOC_ENCRYPT_QUERY_TYPE_SUBSTRING)) {
+      string_explicit_encryption_fixture *seef = string_explicit_encryption_setup();
+
+      // "Use `autoEncryptedClient` to insert"
+      {
+         mongoc_collection_t *coll = mongoc_client_get_collection(seef->autoEncryptedClient, "db", "substring-ci-di");
+         ASSERT_OR_PRINT(
+            mongoc_collection_insert_one(
+               coll, tmp_bson("{'encryptedText': 'caf" E_ACCENT "barbaz'}"), &seef->wc_majority_opts, NULL, &error),
+            error);
+         mongoc_collection_destroy(coll);
+      }
+
+      // "Use `clientEncryption.encrypt()` to encrypt the string `"cafe"`"
+      {
+         mongoc_client_encryption_encrypt_opts_t *eo = mongoc_client_encryption_encrypt_opts_new();
+         mongoc_client_encryption_encrypt_opts_set_keyid(eo, &seef->key1ID);
+         mongoc_client_encryption_encrypt_opts_set_algorithm(eo, MONGOC_ENCRYPT_ALGORITHM_STRING);
+         mongoc_client_encryption_encrypt_opts_set_query_type(eo, MONGOC_ENCRYPT_QUERY_TYPE_SUBSTRINGPREVIEW);
+         mongoc_client_encryption_encrypt_opts_set_contention_factor(eo, 0);
+
+         mongoc_client_encryption_encrypt_string_opts_t *topts = mongoc_client_encryption_encrypt_string_opts_new();
+         mongoc_client_encryption_encrypt_string_opts_set_substring(topts, seef->substringOpts);
+         mongoc_client_encryption_encrypt_string_opts_set_diacritic_sensitive(topts, false);
+         mongoc_client_encryption_encrypt_string_opts_set_case_sensitive(topts, false);
+         mongoc_client_encryption_encrypt_opts_set_string_opts(eo, topts);
+
+         bson_value_t plaintext = {0};
+         plaintext.value_type = BSON_TYPE_UTF8;
+         plaintext.value.v_utf8.str = "cafe";
+         plaintext.value.v_utf8.len = 4;
+
+         bson_value_t findPayload;
+         ok = mongoc_client_encryption_encrypt(seef->clientEncryption, &plaintext, eo, &findPayload, &error);
+         ASSERT_OR_PRINT(ok, error);
+
+         bsonBuildDecl(expr,
+                       kv("$expr",
+                          doc(kv("$encStrContains",
+                                 doc(kv("input", cstr("$encryptedText")), kv("substring", value(findPayload)))))));
+
+         mongoc_collection_t *coll =
+            mongoc_client_get_collection(seef->explicitEncryptedClient, "db", "substring-ci-di");
+         mongoc_cursor_t *cursor =
+            mongoc_collection_find_with_opts(coll, &expr, NULL /* opts */, NULL /* read_prefs */);
+         assert_cursor_matches(cursor, "{ 'encryptedText': 'caf" E_ACCENT "barbaz' }");
+
+         mongoc_collection_destroy(coll);
+         bson_value_destroy(&findPayload);
+         mongoc_cursor_destroy(cursor);
+         bson_destroy(&expr);
+         mongoc_client_encryption_encrypt_string_opts_destroy(topts);
+         mongoc_client_encryption_encrypt_opts_destroy(eo);
+      }
+
+#undef E_ACCENT
+#undef A_UMLAUT
+
+      string_explicit_encryption_destroy(seef);
+   }
 }
 
 static void
@@ -6805,13 +7380,7 @@ create_encrypted_client(void)
    mongoc_client_t *client = test_framework_new_default_client();
    bson_error_t error;
    mongoc_auto_encryption_opts_t *ao = mongoc_auto_encryption_opts_new();
-   {
-      bson_t extra = BSON_INITIALIZER;
-      _set_extra_bypass(&extra);
-      _set_extra_crypt_shared(&extra);
-      mongoc_auto_encryption_opts_set_extra(ao, &extra);
-      bson_destroy(&extra);
-   }
+   _set_extra(ao);
    bson_t *kms_providers =
       BCON_NEW("local", "{", "key", BCON_BIN(BSON_SUBTYPE_UUID, (uint8_t *)LOCAL_MASTERKEY, 96), "}");
    mongoc_auto_encryption_opts_set_keyvault_namespace(ao, "db", "keyvault");
@@ -7400,7 +7969,7 @@ test_lookup_pre81(void *unused)
    }
 }
 
-int
+static int
 skip_if_libmongocrypt_less_than_1_17_0(void)
 {
    return get_libmongocrypt_version() >= test_framework_str_to_version("1.17.0");
@@ -7409,11 +7978,6 @@ skip_if_libmongocrypt_less_than_1_17_0(void)
 void
 test_client_side_encryption_install(TestSuite *suite)
 {
-   install_json_test_suite_with_check(suite,
-                                      JSON_DIR,
-                                      "client_side_encryption/legacy",
-                                      test_client_side_encryption_cb,
-                                      test_framework_skip_if_no_client_side_encryption);
    /* Prose tests from the spec. */
    TestSuite_AddFull(suite,
                      "/client_side_encryption/create_datakey_with_custom_key_material [lock:live-server]",
@@ -7869,13 +8433,14 @@ test_client_side_encryption_install(TestSuite *suite)
                         test_framework_skip_if_max_wire_version_less_than_21 /* require server > 7.0 for QE support */,
                         test_framework_skip_if_single, /* QE not supported on standalone */
                         test_framework_skip_if_no_client_side_encryption);
-      TestSuite_AddFull(suite,
-                        "/client_side_encryption/explicit_encryption/text",
-                        test_explicit_encryption_text,
-                        NULL,
-                        NULL,
-                        test_framework_skip_if_max_wire_version_less_than_27 /* require server > 8.2 for QE support */,
-                        test_framework_skip_if_single, /* QE not supported on standalone */
-                        test_framework_skip_if_no_client_side_encryption);
+      TestSuite_AddFull(
+         suite,
+         "/client_side_encryption/explicit_encryption/text",
+         test_string_explicit_encryption,
+         NULL,
+         NULL,
+         test_framework_skip_if_max_wire_version_less_than_27, /* require server 8.2+ for "substringPreview" */
+         test_framework_skip_if_single,                        /* QE not supported on standalone */
+         test_framework_skip_if_no_client_side_encryption);
    }
 }
